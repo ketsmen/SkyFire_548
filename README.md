@@ -2,13 +2,9 @@
 
 ## Build Status
 [![windows-build](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/windows.yml/badge.svg)](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/windows.yml)
-[![Clang](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/clang.yml/badge.svg)](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/clang.yml)
-# [![CodeFactor](https://www.codefactor.io/repository/github/projectskyfire/skyfire_548/badge)](https://www.codefactor.io/repository/github/projectskyfire/skyfire_548)
-# [![Codacy Badge](https://app.codacy.com/project/badge/Grade/57a11392c3ed42dcae439669e893565f)](https://app.codacy.com/gh/ProjectSkyfire/SkyFire_548/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![ubuntu-build](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/ubuntu.yml)
 [![CodeFactor](https://www.codefactor.io/repository/github/projectskyfire/skyfire_548/badge)](https://www.codefactor.io/repository/github/projectskyfire/skyfire_548)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/57a11392c3ed42dcae439669e893565f)](https://app.codacy.com/gh/ProjectSkyfire/SkyFire_548/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-
-[![status-badge](https://ci.codeberg.org/api/badges/14105/status.svg)](https://ci.codeberg.org/repos/14105)
 
 ## Project Information
 SkyFire is a *MMORPG* Framework based mostly on C++.
@@ -37,25 +33,24 @@ For further information on the SkyFire project, please visit our project website
 
 ## Requirements
 + Platform/Architecture:
-  + Fedora 41: x86_64
-  + Fedora 40: x86_64
-  + Fedora 39: x86_64
-  + Canonical:
-    + Ubuntu 24.04 LTS: x86_32, x86_64
-  + Debian:
-    + Debian GNU/Linux 10: x86_32, x86_64
-  + Windows / Windows Server:
-    + Windows 11:               x86_64
-    + Windows 10:               x86_64
-    + Windows 2025 Server:      x86_64
-    + Windows 2022 Server:      x86_64
-+ Processor with SSE2 support
-+ ACE = 8.0.1  (Linux only)
-+ MySQL = 9.7 (Windows / Linux)
-+ CMake = 4.1.2/3.27.7 (Windows / Linux)
-+ OpenSSL = 4.0.0
-+ GCC = 14.1.0 (Linux only)
-+ MS Visual Studio = 17 (2022) Build 19.44.35217.0 or greater (Windows only)
+  + Ubuntu 24.04 LTS: x86_64
+  + Windows 11: x86_64
+  + Windows 10: x86_64
+  + Windows Server 2025: x86_64
+  + Windows Server 2022: x86_64
++ Processor with SSE2 support.
++ C++23-capable compiler:
+  + GCC 14.0 or newer on Linux.
+  + MSVC 19.44.35217.0 or newer with Visual Studio 2022 on Windows.
++ CMake:
+  + 3.27.7 or newer on Linux.
+  + 4.1.2 or newer on Windows.
++ Boost 1.91.0. Set `BOOST_ROOT` when Boost is installed outside the system prefix.
++ OpenSSL 4.0.0 with the legacy provider module available.
++ MySQL client development libraries.
+  + MySQL 9.7 is the tested Windows install.
+  + On Ubuntu, install the distro client development package such as `default-libmysqlclient-dev`.
++ Ninja is recommended for Linux builds.
 
 ## Install
 Detailed installation guides are available in the wiki for
