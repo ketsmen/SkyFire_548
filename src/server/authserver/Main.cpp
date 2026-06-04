@@ -388,6 +388,8 @@ extern int main(int argc, char** argv)
         }
     }
 
+    acceptor.Close();
+
     // Close the Database Pool and library
     StopDB();
 

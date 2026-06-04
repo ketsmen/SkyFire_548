@@ -6,15 +6,17 @@
 #include "Log.h"
 #include "RealmSocket.h"
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/write.hpp>
 #include <algorithm>
+#include <cstring>
 
 RealmSocket::Session::Session(void) { }
 
 RealmSocket::Session::~Session(void) { }
 
 RealmSocket::RealmSocket(std::unique_ptr<RealmSocketHandle> socket, std::string remoteAddress, uint16 remotePort) :
-    _socket(std::move(socket)), _inputBuffer(), _inputReadPos(0), _session(NULL),
-    _remoteAddress(std::move(remoteAddress)), _remotePort(remotePort), _closed(false)
+    _socket(std::move(socket)), _readBuffer(), _inputBuffer(), _inputReadPos(0), _session(NULL),
+    _remoteAddress(std::move(remoteAddress)), _remotePort(remotePort), _closed(false), _closeNotified(false)
 {
     _inputBuffer.reserve(4096);
 }
@@ -30,7 +32,7 @@ void RealmSocket::Start()
     if (_session)
         _session->OnAccept();
 
-    std::thread(&RealmSocket::Run, this).detach();
+    AsyncRead();
 }
 
 void RealmSocket::shutdown()
@@ -84,24 +86,21 @@ bool RealmSocket::send(const char* buf, size_t len)
 
     std::lock_guard<std::mutex> guard(_sendLock);
 
-    size_t sent = 0;
-    while (sent < len && !_closed && IsOpen())
+    if (_closed || !IsOpen())
+        return false;
+
+    boost::system::error_code error;
+    boost::asio::write(*_socket, boost::asio::buffer(buf, len), error);
+
+    if (error)
     {
-        boost::system::error_code error;
-        size_t n = _socket->write_some(boost::asio::buffer(buf + sent, len - sent), error);
-
-        if (error || n == 0)
-        {
-            SF_LOG_DEBUG("server.authserver", "Socket send failed for %s:%u with error %d",
-                _remoteAddress.c_str(), _remotePort, error.value());
-            CloseSocket();
-            return false;
-        }
-
-        sent += n;
+        SF_LOG_DEBUG("server.authserver", "Socket send failed for %s:%u with error %d",
+            _remoteAddress.c_str(), _remotePort, error.value());
+        CloseSocket();
+        return false;
     }
 
-    return sent == len;
+    return true;
 }
 
 void RealmSocket::set_session(Session* session)
@@ -112,31 +111,39 @@ void RealmSocket::set_session(Session* session)
 
 void RealmSocket::Run()
 {
-    char buffer[4096];
+    AsyncRead();
+}
 
-    while (!_closed)
-    {
-        boost::system::error_code error;
-        size_t n = _socket->read_some(boost::asio::buffer(buffer), error);
+void RealmSocket::AsyncRead()
+{
+    if (_closed || !IsOpen())
+        return;
 
-        if (error || n == 0)
-            break;
-
-        _inputBuffer.insert(_inputBuffer.end(), buffer, buffer + n);
-
-        if (_session)
+    std::shared_ptr<RealmSocket> self = shared_from_this();
+    _socket->async_read_some(boost::asio::buffer(_readBuffer),
+        [self](boost::system::error_code const& error, size_t bytesTransferred)
         {
-            _session->OnRead();
-            CompactInputBuffer();
-        }
+            self->HandleRead(error, bytesTransferred);
+        });
+}
+
+void RealmSocket::HandleRead(boost::system::error_code const& error, size_t bytesTransferred)
+{
+    if (error || bytesTransferred == 0)
+    {
+        CloseSocket();
+        return;
     }
 
-    CloseSocket();
-
+    _inputBuffer.insert(_inputBuffer.end(), _readBuffer.data(), _readBuffer.data() + bytesTransferred);
     if (_session)
-        _session->OnClose();
+    {
+        _session->OnRead();
+        CompactInputBuffer();
+    }
 
-    delete this;
+    if (!_closed)
+        AsyncRead();
 }
 
 bool RealmSocket::IsOpen(void) const
@@ -156,6 +163,18 @@ void RealmSocket::CloseSocket()
         _socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
         _socket->close(ignored);
     }
+
+    NotifyClose();
+}
+
+void RealmSocket::NotifyClose()
+{
+    bool expected = false;
+    if (!_closeNotified.compare_exchange_strong(expected, true))
+        return;
+
+    if (_session)
+        _session->OnClose();
 }
 
 void RealmSocket::CompactInputBuffer()

@@ -9,15 +9,15 @@
 #include "Common.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/system/error_code.hpp>
+#include <array>
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 typedef boost::asio::ip::tcp::socket RealmSocketHandle;
 
-class RealmSocket
+class RealmSocket : public std::enable_shared_from_this<RealmSocket>
 {
 public:
     class Session
@@ -51,12 +51,16 @@ public:
 
 private:
     void Run();
+    void AsyncRead();
+    void HandleRead(boost::system::error_code const& error, size_t bytesTransferred);
     void CloseSocket();
+    void NotifyClose();
     void CompactInputBuffer();
 
     bool IsOpen(void) const;
 
     std::unique_ptr<RealmSocketHandle> _socket;
+    std::array<char, 4096> _readBuffer;
     std::vector<char> _inputBuffer;
     size_t _inputReadPos;
     Session* _session;
@@ -64,6 +68,7 @@ private:
     uint16 _remotePort;
     std::mutex _sendLock;
     std::atomic<bool> _closed;
+    std::atomic<bool> _closeNotified;
 };
 
 #endif

@@ -12,7 +12,8 @@
 
 RealmAcceptor::RealmAcceptor() :
     _ioContext(),
-    _acceptor(_ioContext)
+    _acceptor(_ioContext),
+    _closed(true)
 {
 }
 
@@ -23,41 +24,78 @@ RealmAcceptor::~RealmAcceptor()
 
 bool RealmAcceptor::Open(uint16 port, std::string const& bindIp)
 {
-    return Skyfire::Net::OpenTcpAcceptor(_ioContext, _acceptor, port, bindIp, "server.authserver", "auth");
+    if (!Skyfire::Net::OpenTcpAcceptor(_ioContext, _acceptor, port, bindIp, "server.authserver", "auth"))
+        return false;
+
+    _closed = false;
+    AsyncAccept();
+
+    try
+    {
+        _thread = std::thread([this] { _ioContext.run(); });
+    }
+    catch (...)
+    {
+        Close();
+        return false;
+    }
+
+    return true;
 }
 
 void RealmAcceptor::Close()
 {
+    bool expected = false;
+    if (!_closed.compare_exchange_strong(expected, true))
+        return;
+
     boost::system::error_code ignored;
     _acceptor.close(ignored);
+    _ioContext.stop();
+
+    if (_thread.joinable())
+        _thread.join();
 }
 
 void RealmAcceptor::Update()
 {
+}
+
+void RealmAcceptor::AsyncAccept()
+{
     if (!_acceptor.is_open())
         return;
 
-    while (true)
-    {
-        boost::system::error_code error;
-        std::unique_ptr<RealmSocketHandle> clientSocket(new RealmSocketHandle(_ioContext));
-        _acceptor.accept(*clientSocket, error);
-
-        if (error)
+    std::shared_ptr<RealmSocketHandle> clientSocket(new RealmSocketHandle(_ioContext));
+    _acceptor.async_accept(*clientSocket,
+        [this, clientSocket](boost::system::error_code const& error)
         {
-            if (!Skyfire::Net::IsWouldBlock(error))
-                SF_LOG_ERROR("server.authserver", "Failed to accept auth socket, error %d", error.value());
+            HandleAccept(clientSocket, error);
+        });
+}
 
-            break;
-        }
+void RealmAcceptor::HandleAccept(std::shared_ptr<RealmSocketHandle> clientSocket, boost::system::error_code const& error)
+{
+    if (_closed)
+        return;
 
-        boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint(error);
-        std::string remoteAddress = error ? std::string("<unknown>") : remoteEndpoint.address().to_string();
-        uint16 remotePort = error ? 0 : remoteEndpoint.port();
+    if (error)
+    {
+        if (error != boost::asio::error::operation_aborted)
+            SF_LOG_ERROR("server.authserver", "Failed to accept auth socket, error %d", error.value());
+    }
+    else
+    {
+        boost::system::error_code endpointError;
+        boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint(endpointError);
+        std::string remoteAddress = endpointError ? std::string("<unknown>") : remoteEndpoint.address().to_string();
+        uint16 remotePort = endpointError ? 0 : remoteEndpoint.port();
 
-        std::unique_ptr<RealmSocket> socket(new RealmSocket(std::move(clientSocket), remoteAddress, remotePort));
+        std::unique_ptr<RealmSocketHandle> socketHandle(new RealmSocketHandle(std::move(*clientSocket)));
+        std::shared_ptr<RealmSocket> socket(new RealmSocket(std::move(socketHandle), remoteAddress, remotePort));
         socket->set_session(new AuthSocket(*socket));
         socket->Start();
-        socket.release();
     }
+
+    AsyncAccept();
 }

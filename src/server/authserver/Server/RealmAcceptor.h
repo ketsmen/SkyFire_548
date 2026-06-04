@@ -10,6 +10,8 @@
 #include "RealmSocket.h"
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <atomic>
+#include <thread>
 #include <string>
 
 class RealmAcceptor
@@ -23,8 +25,13 @@ public:
     void Update();
 
 private:
+    void AsyncAccept();
+    void HandleAccept(std::shared_ptr<RealmSocketHandle> clientSocket, boost::system::error_code const& error);
+
     boost::asio::io_context _ioContext;
     boost::asio::ip::tcp::acceptor _acceptor;
+    std::thread _thread;
+    std::atomic<bool> _closed;
 };
 
 #endif
