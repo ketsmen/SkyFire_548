@@ -14,6 +14,7 @@
 
 #include "Common.h"
 #include "Platform/Singleton.h"
+#include <boost/asio/io_context.hpp>
 
 class WorldSocket;
 class ReactorRunnable;
@@ -36,9 +37,11 @@ public:
     void Wait();
 
 private:
-    int OnSocketOpen(WorldSocket* sock);
+    int OnSocketOpen(WorldSocket* sock, ReactorRunnable* reactor);
 
     int StartReactiveIO(uint16 port, const char* address);
+    ReactorRunnable* SelectNetworkThread();
+    boost::asio::io_context& GetNetworkIoContext(ReactorRunnable* reactor);
 
 private:
     WorldSocketMgr();

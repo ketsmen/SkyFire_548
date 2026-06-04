@@ -11,7 +11,7 @@
 #include "WorldSocketMgr.h"
 
 #include <atomic>
-#include <chrono>
+#include <memory>
 #include <set>
 #include <thread>
 
@@ -22,9 +22,10 @@
 #include "ScriptMgr.h"
 #include "WorldSocket.h"
 #include "WorldSocketAcceptor.h"
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/socket_base.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
+#include <vector>
 
 /**
 * This is a helper class to WorldSocketMgr, that manages
@@ -34,9 +35,11 @@
 class ReactorRunnable
 {
 public:
+    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
+
     ReactorRunnable() :
         m_IoContext(),
-        m_Timer(m_IoContext),
+        m_WorkGuard(new WorkGuard(boost::asio::make_work_guard(m_IoContext))),
         m_Connections(0),
         m_Stopped(false)
     {
@@ -50,7 +53,20 @@ public:
 
     void Stop()
     {
-        m_Stopped = true;
+        if (m_Stopped.exchange(true))
+            return;
+
+        std::vector<WorldSocket*> sockets;
+
+        {
+            std::lock_guard<std::mutex> guard(m_SocketsLock);
+            sockets.assign(m_Sockets.begin(), m_Sockets.end());
+        }
+
+        for (WorldSocket* socket : sockets)
+            socket->CloseSocket();
+
+        m_WorkGuard.reset();
     }
 
     int Start()
@@ -81,93 +97,64 @@ public:
         return m_Connections.load();
     }
 
+    boost::asio::io_context& GetIoContext()
+    {
+        return m_IoContext;
+    }
+
     int AddSocket(WorldSocket* sock)
     {
-        std::lock_guard<std::mutex> guard(m_NewSockets_Lock);
+        {
+            std::lock_guard<std::mutex> guard(m_SocketsLock);
 
-        ++m_Connections;
-        sock->AddReference();
-        m_NewSockets.insert(sock);
+            if (m_Stopped)
+                return -1;
+
+            ++m_Connections;
+            sock->AddReference();
+            m_Sockets.insert(sock);
+        }
 
         sScriptMgr->OnSocketOpen(sock);
+
+        sock->AddReference();
+        sock->Start([this](WorldSocket* socket)
+        {
+            SocketClosed(socket);
+        });
+        sock->RemoveReference();
 
         return 0;
     }
 
-protected:
-    void AddNewSockets()
+    void SocketClosed(WorldSocket* sock)
     {
-        std::lock_guard<std::mutex> guard(m_NewSockets_Lock);
+        bool owned = false;
 
-        if (m_NewSockets.empty())
-            return;
-
-        for (SocketSet::const_iterator i = m_NewSockets.begin(); i != m_NewSockets.end(); ++i)
         {
-            WorldSocket* sock = (*i);
-
-            if (sock->IsClosed())
+            std::lock_guard<std::mutex> guard(m_SocketsLock);
+            SocketSet::iterator itr = m_Sockets.find(sock);
+            if (itr != m_Sockets.end())
             {
-                sScriptMgr->OnSocketClose(sock, true);
-
-                sock->RemoveReference();
+                m_Sockets.erase(itr);
                 --m_Connections;
+                owned = true;
             }
-            else
-                m_Sockets.insert(sock);
         }
 
-        m_NewSockets.clear();
+        if (!owned)
+            return;
+
+        sScriptMgr->OnSocketClose(sock, false);
+        sock->RemoveReference();
     }
 
+protected:
     void Run()
     {
         SF_LOG_DEBUG("misc", "Network Thread Starting");
 
-        SocketSet::iterator i, t;
-
-        while (!m_Stopped)
-        {
-            AddNewSockets();
-
-            boost::system::error_code ignored;
-            m_Timer.expires_after(std::chrono::milliseconds(10));
-            m_Timer.wait(ignored);
-
-            for (i = m_Sockets.begin(); i != m_Sockets.end();)
-            {
-                int result = 0;
-                WorldSocket* socket = *i;
-
-                if (socket->IsClosed())
-                    result = -1;
-                else
-                {
-                    do
-                        result = socket->Read();
-                    while (result > 0);
-
-                    if (result != -1 && socket->HasPendingOutput())
-                        result = socket->Update();
-                }
-
-                if (result == -1)
-                {
-                    t = i;
-                    ++i;
-
-                    socket->CloseSocket();
-
-                    sScriptMgr->OnSocketClose(socket, false);
-
-                    socket->RemoveReference();
-                    --m_Connections;
-                    m_Sockets.erase(t);
-                }
-                else
-                    ++i;
-            }
-        }
+        m_IoContext.run();
 
         SF_LOG_DEBUG("misc", "Network Thread exits");
     }
@@ -177,15 +164,13 @@ private:
     typedef std::set<WorldSocket*> SocketSet;
 
     boost::asio::io_context m_IoContext;
-    boost::asio::steady_timer m_Timer;
+    std::unique_ptr<WorkGuard> m_WorkGuard;
     AtomicInt m_Connections;
     std::atomic<bool> m_Stopped;
     std::thread m_Thread;
 
     SocketSet m_Sockets;
-
-    SocketSet m_NewSockets;
-    std::mutex m_NewSockets_Lock;
+    std::mutex m_SocketsLock;
 };
 
 WorldSocketMgr::WorldSocketMgr() :
@@ -230,16 +215,36 @@ WorldSocketMgr::StartReactiveIO(uint16 port, const char* address)
         return -1;
     }
 
+    for (size_t i = 0; i < m_NetThreadsCount; ++i)
+    {
+        if (m_NetThreads[i].Start() == -1)
+        {
+            SF_LOG_ERROR("misc", "Failed to start network thread");
+
+            for (size_t j = 0; j < i; ++j)
+                m_NetThreads[j].Stop();
+
+            for (size_t j = 0; j < i; ++j)
+                m_NetThreads[j].Wait();
+
+            return -1;
+        }
+    }
+
     m_Acceptor = new WorldSocketAcceptor;
 
     if (!m_Acceptor->Open(port, address))
     {
         SF_LOG_ERROR("misc", "Failed to open acceptor, check if the port is free");
+
+        for (size_t i = 0; i < m_NetThreadsCount; ++i)
+            m_NetThreads[i].Stop();
+
+        for (size_t i = 0; i < m_NetThreadsCount; ++i)
+            m_NetThreads[i].Wait();
+
         return -1;
     }
-
-    for (size_t i = 0; i < m_NetThreadsCount; ++i)
-        m_NetThreads[i].Start();
 
     return 0;
 }
@@ -285,7 +290,7 @@ WorldSocketMgr::Wait()
 }
 
 int
-WorldSocketMgr::OnSocketOpen(WorldSocket* sock)
+WorldSocketMgr::OnSocketOpen(WorldSocket* sock, ReactorRunnable* reactor)
 {
     // set some options here
     if (m_SockOutKBuff >= 0)
@@ -313,16 +318,28 @@ WorldSocketMgr::OnSocketOpen(WorldSocket* sock)
 
     sock->m_OutBufferSize = static_cast<size_t> (m_SockOutUBuff);
 
-    size_t min = 0;
+    if (sock->Initialize() == -1)
+        return -1;
 
+    return reactor->AddSocket(sock);
+}
+
+ReactorRunnable*
+WorldSocketMgr::SelectNetworkThread()
+{
     ASSERT(m_NetThreadsCount >= 1);
+
+    size_t min = 0;
 
     for (size_t i = 1; i < m_NetThreadsCount; ++i)
         if (m_NetThreads[i].Connections() < m_NetThreads[min].Connections())
             min = i;
 
-    if (sock->Initialize() == -1)
-        return -1;
+    return &m_NetThreads[min];
+}
 
-    return m_NetThreads[min].AddSocket(sock);
+boost::asio::io_context&
+WorldSocketMgr::GetNetworkIoContext(ReactorRunnable* reactor)
+{
+    return reactor->GetIoContext();
 }

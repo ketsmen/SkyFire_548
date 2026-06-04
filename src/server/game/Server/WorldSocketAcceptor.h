@@ -19,6 +19,8 @@
 #include <memory>
 #include <thread>
 
+class ReactorRunnable;
+
 class WorldSocketAcceptor
 {
 public:
@@ -31,7 +33,8 @@ public:
 
 private:
     void AsyncAccept();
-    void HandleAccept(std::shared_ptr<WorldSocketHandle> clientSocket, boost::system::error_code const& error);
+    void HandleAccept(ReactorRunnable* reactor, WorldSocketHandle socket, boost::asio::ip::tcp::endpoint const& remoteEndpoint,
+        boost::system::error_code const& error);
 
     boost::asio::io_context m_IoContext;
     boost::asio::ip::tcp::acceptor m_Acceptor;

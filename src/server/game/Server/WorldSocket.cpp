@@ -24,11 +24,14 @@
 #include "WorldSocketMgr.h"
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/write.hpp>
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <new>
 #include <thread>
+#include <utility>
 
 #if defined(__GNUC__)
 #pragma pack(1)
@@ -86,7 +89,7 @@ m_LastPingTime(), m_HasLastPingTime(false), m_OverSpeedPings(0), m_Address(std::
 m_Session(0), m_RecvWPct(0), m_RecvPctRead(0), m_Header(sizeof(AuthClientPktHeader)),
 m_HeaderRead(0), m_WorldHeader(sizeof(WorldClientPktHeader)), m_WorldHeaderRead(0),
 m_OutBuffer(), m_OutBufferReadPos(0), m_OutQueue(), m_OutBufferSize(65536),
-m_Socket(std::move(socket)), m_LastSocketError(), m_ReferenceCount(0), m_Closed(false)
+m_Started(false), m_WriteInProgress(false), m_Socket(std::move(socket)), m_CloseHandler(), m_ReferenceCount(0), m_Closed(false), m_CloseNotified(false)
 {
     SkyFire::Crypto::GetRandomBytes(m_Seed);
 }
@@ -141,36 +144,10 @@ bool WorldSocket::IsValidSocket(void) const
     return m_Socket && m_Socket->is_open();
 }
 
-bool WorldSocket::IsWouldBlock(boost::system::error_code const& error) const
-{
-    return error == boost::asio::error::would_block || error == boost::asio::error::try_again;
-}
-
-int WorldSocket::SendBuffer(char const* data, size_t length, size_t& sent)
-{
-    sent = 0;
-    m_LastSocketError.clear();
-
-    if (!IsValidSocket())
-        return -1;
-
-    boost::system::error_code error;
-    sent = m_Socket->write_some(boost::asio::buffer(data, length), error);
-    m_LastSocketError = error;
-
-    if (!error && sent > 0)
-    {
-        return 1;
-    }
-
-    if (!error)
-        return 0;
-
-    return -1;
-}
-
 int WorldSocket::SendPacket(WorldPacket const& pct)
 {
+    bool startWrite = false;
+
     GuardType Guard(m_OutBufferLock);
 
     if (m_Closed)
@@ -209,7 +186,7 @@ int WorldSocket::SendPacket(WorldPacket const& pct)
         serialized.insert(serialized.end(), reinterpret_cast<char const*>(pkt->contents()),
             reinterpret_cast<char const*>(pkt->contents()) + pkt->size());
 
-    if (m_OutQueue.empty() && m_OutBuffer.size() - m_OutBufferReadPos + serialized.size() <= m_OutBufferSize)
+    if (!m_WriteInProgress && m_OutQueue.empty() && m_OutBuffer.size() - m_OutBufferReadPos + serialized.size() <= m_OutBufferSize)
     {
         if (m_OutBufferReadPos == m_OutBuffer.size())
         {
@@ -223,6 +200,17 @@ int WorldSocket::SendPacket(WorldPacket const& pct)
     {
         m_OutQueue.push_back(std::move(serialized));
     }
+
+    if (m_Started && !m_WriteInProgress)
+    {
+        m_WriteInProgress = true;
+        startWrite = true;
+    }
+
+    Guard.unlock();
+
+    if (startWrite)
+        PostAsyncWrite();
 
     return 0;
 }
@@ -254,128 +242,210 @@ int WorldSocket::Initialize(void)
     return 0;
 }
 
-int WorldSocket::Read(void)
+void WorldSocket::Start(std::function<void(WorldSocket*)> closeHandler)
 {
-    if (m_Closed)
-        return -1;
-
-    errno = 0;
-    m_LastSocketError.clear();
-
-    switch (handle_input_missing_data())
-    {
-        case -1:
-        {
-            if (IsWouldBlock(m_LastSocketError) || errno == EWOULDBLOCK || errno == EAGAIN)
-            {
-                return Update();                           // interesting line, isn't it ?
-            }
-
-            SF_LOG_DEBUG("network", "WorldSocket::Read: Peer error closing connection errno = %d", m_LastSocketError.value());
-            return -1;
-        }
-        case 0:
-        {
-            SF_LOG_DEBUG("network", "WorldSocket::Read: Peer has closed connection");
-            return -1;
-        }
-        case 1:
-            return 1;
-        default:
-            return Update();                               // another interesting line ;)
-    }
-
-    return -1;
-}
-
-int WorldSocket::handle_output(void)
-{
-    GuardType Guard(m_OutBufferLock);
+    m_CloseHandler = std::move(closeHandler);
 
     if (m_Closed)
-        return -1;
-
-    size_t send_len = m_OutBuffer.size() - m_OutBufferReadPos;
-
-    if (send_len == 0)
-        return handle_output_queue(Guard);
-
-    size_t sent = 0;
-    int sendResult = SendBuffer(m_OutBuffer.data() + m_OutBufferReadPos, send_len, sent);
-
-    if (sendResult == 0)
-        return -1;
-    else if (sendResult == -1)
     {
-        if (IsWouldBlock(m_LastSocketError))
-            return 0;
-
-        return -1;
+        NotifyClosed();
+        return;
     }
-    else if (sent < send_len)
-    {
-        m_OutBufferReadPos += sent;
-        return 0;
-    }
-    else
-    {
-        m_OutBuffer.clear();
-        m_OutBufferReadPos = 0;
-        return handle_output_queue(Guard);
-    }
-}
 
-int WorldSocket::handle_output_queue(GuardType& g)
-{
-    if (m_OutQueue.empty())
-        return 0;
-
-    std::vector<char>& packet = m_OutQueue.front();
-    size_t send_len = packet.size();
-
-    size_t sent = 0;
-    int sendResult = SendBuffer(packet.data(), send_len, sent);
-
-    if (sendResult == 0)
-        return -1;
-    else if (sendResult == -1)
-    {
-        if (IsWouldBlock(m_LastSocketError))
-            return 0;
-
-        return -1;
-    }
-    else if (sent < send_len)
-    {
-        m_OutBuffer.assign(packet.begin() + ptrdiff_t(sent), packet.end());
-        m_OutBufferReadPos = 0;
-        m_OutQueue.pop_front();
-        return 0;
-    }
-    else
-    {
-        m_OutQueue.pop_front();
-        return m_OutQueue.empty() ? 0 : 1;
-    }
-}
-
-int WorldSocket::Update(void)
-{
-    if (m_Closed)
-        return -1;
+    bool startWrite = false;
 
     {
         GuardType Guard(m_OutBufferLock);
-        if (m_OutBuffer.size() == m_OutBufferReadPos && m_OutQueue.empty())
-            return 0;
+        m_Started = true;
+
+        if (!m_WriteInProgress && (m_OutBuffer.size() != m_OutBufferReadPos || !m_OutQueue.empty()))
+        {
+            m_WriteInProgress = true;
+            startWrite = true;
+        }
     }
 
-    int ret;
-    do
-        ret = handle_output();
-    while (ret > 0);
+    StartAsyncRead();
 
-    return ret;
+    if (startWrite)
+        PostAsyncWrite();
+}
+
+void WorldSocket::PostAsyncWrite()
+{
+    if (!IsValidSocket())
+    {
+        NotifyClosed();
+        return;
+    }
+
+    AddReference();
+    boost::asio::post(m_Socket->get_executor(),
+        [this]()
+        {
+            StartAsyncWrite();
+            RemoveReference();
+        });
+}
+
+void WorldSocket::StartAsyncRead()
+{
+    if (m_Closed || !IsValidSocket())
+    {
+        NotifyClosed();
+        return;
+    }
+
+    AddReference();
+    m_Socket->async_read_some(boost::asio::buffer(m_ReadBuffer),
+        [this](boost::system::error_code const& error, size_t transferredBytes)
+        {
+            HandleAsyncRead(error, transferredBytes);
+            RemoveReference();
+        });
+}
+
+void WorldSocket::StartAsyncWrite()
+{
+    size_t sendLength = 0;
+    bool notifyClosed = false;
+
+    {
+        GuardType Guard(m_OutBufferLock);
+
+        if (m_Closed || !IsValidSocket())
+        {
+            m_WriteInProgress = false;
+            notifyClosed = true;
+        }
+        else if (m_OutBufferReadPos == m_OutBuffer.size())
+        {
+            m_OutBuffer.clear();
+            m_OutBufferReadPos = 0;
+
+            if (!m_OutQueue.empty())
+            {
+                m_OutBuffer = std::move(m_OutQueue.front());
+                m_OutQueue.pop_front();
+            }
+        }
+
+        if (!notifyClosed)
+        {
+            sendLength = m_OutBuffer.size() - m_OutBufferReadPos;
+            if (sendLength == 0)
+            {
+                m_WriteInProgress = false;
+                return;
+            }
+        }
+    }
+
+    if (notifyClosed)
+    {
+        NotifyClosed();
+        return;
+    }
+
+    AddReference();
+    boost::asio::async_write(*m_Socket, boost::asio::buffer(m_OutBuffer.data() + m_OutBufferReadPos, sendLength),
+        [this](boost::system::error_code const& error, size_t transferredBytes)
+        {
+            HandleAsyncWrite(error, transferredBytes);
+            RemoveReference();
+        });
+}
+
+void WorldSocket::HandleAsyncRead(boost::system::error_code const& error, size_t transferredBytes)
+{
+    if (error)
+    {
+        if (error != boost::asio::error::operation_aborted && error != boost::asio::error::eof)
+            SF_LOG_DEBUG("network", "WorldSocket::HandleAsyncRead: peer error closing connection error = %d", error.value());
+
+        CloseSocket();
+        NotifyClosed();
+        return;
+    }
+
+    if (transferredBytes == 0)
+    {
+        SF_LOG_DEBUG("network", "WorldSocket::HandleAsyncRead: Peer has closed connection");
+        CloseSocket();
+        NotifyClosed();
+        return;
+    }
+
+    errno = 0;
+    int result = handle_input_missing_data(m_ReadBuffer.data(), transferredBytes);
+    if (result == -1 && errno != EWOULDBLOCK && errno != EAGAIN)
+    {
+        SF_LOG_DEBUG("network", "WorldSocket::HandleAsyncRead: packet processing error, errno = %d", errno);
+        CloseSocket();
+        NotifyClosed();
+        return;
+    }
+
+    if (m_Closed)
+    {
+        NotifyClosed();
+        return;
+    }
+
+    StartAsyncRead();
+}
+
+void WorldSocket::HandleAsyncWrite(boost::system::error_code const& error, size_t transferredBytes)
+{
+    if (error)
+    {
+        {
+            GuardType Guard(m_OutBufferLock);
+            m_WriteInProgress = false;
+        }
+
+        if (error != boost::asio::error::operation_aborted)
+            SF_LOG_DEBUG("network", "WorldSocket::HandleAsyncWrite: peer error closing connection error = %d", error.value());
+
+        CloseSocket();
+        NotifyClosed();
+        return;
+    }
+
+    bool writeMore = false;
+
+    {
+        GuardType Guard(m_OutBufferLock);
+
+        m_OutBufferReadPos += transferredBytes;
+        if (m_OutBufferReadPos >= m_OutBuffer.size())
+        {
+            m_OutBuffer.clear();
+            m_OutBufferReadPos = 0;
+        }
+
+        if (m_OutBuffer.empty() && !m_OutQueue.empty())
+        {
+            m_OutBuffer = std::move(m_OutQueue.front());
+            m_OutQueue.pop_front();
+        }
+
+        writeMore = !m_OutBuffer.empty();
+        if (!writeMore)
+            m_WriteInProgress = false;
+    }
+
+    if (writeMore)
+        StartAsyncWrite();
+}
+
+void WorldSocket::NotifyClosed()
+{
+    if (m_CloseNotified.exchange(true))
+        return;
+
+    if (m_CloseHandler)
+        m_CloseHandler(this);
 }
 
 int WorldSocket::handle_input_header(void)
@@ -500,35 +570,6 @@ int WorldSocket::handle_input_payload(void)
 
         return ret;
     }
-}
-
-int WorldSocket::handle_input_missing_data(void)
-{
-    char buf[4096];
-
-    if (!IsValidSocket())
-        return -1;
-
-    boost::system::error_code error;
-    size_t n = m_Socket->read_some(boost::asio::buffer(buf), error);
-    m_LastSocketError = error;
-
-    if (error)
-    {
-        if (IsWouldBlock(error))
-            return -1;
-
-        if (error == boost::asio::error::eof)
-            return 0;
-
-        return -1;
-    }
-
-    if (n == 0)
-        return 0;
-
-    m_LastSocketError.clear();
-    return handle_input_missing_data(buf, n);
 }
 
 int WorldSocket::handle_input_missing_data(char const* data, size_t length)

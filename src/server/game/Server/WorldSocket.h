@@ -18,9 +18,11 @@
 #include "SharedDefines.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/system/error_code.hpp>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -67,11 +69,8 @@ public:
     /// Called after socket accept and manager setup.
     int Initialize(void);
 
-    /// Called when the socket can read.
-    int Read(void);
-
-    /// Called by WorldSocketMgr/ReactorRunnable.
-    int Update(void);
+    /// Starts asynchronous socket processing.
+    void Start(std::function<void(WorldSocket*)> closeHandler);
 
     /// Returns true when outgoing data is waiting to be flushed.
     bool HasPendingOutput(void) const;
@@ -80,12 +79,7 @@ private:
     /// Helper functions for processing incoming data.
     int handle_input_header(void);
     int handle_input_payload(void);
-    int handle_input_missing_data(void);
     int handle_input_missing_data(char const* data, size_t length);
-
-    /// Drain outgoing buffers.
-    int handle_output(void);
-    int handle_output_queue(GuardType& g);
 
     /// process one incoming packet.
     /// @param new_pct received packet, note that you need to delete it.
@@ -103,8 +97,12 @@ private:
 private:
     void SendAuthResponseError(ResponseCodes code);
     bool IsValidSocket(void) const;
-    bool IsWouldBlock(boost::system::error_code const& error) const;
-    int SendBuffer(char const* data, size_t length, size_t& sent);
+    void PostAsyncWrite();
+    void StartAsyncRead();
+    void StartAsyncWrite();
+    void HandleAsyncRead(boost::system::error_code const& error, size_t transferredBytes);
+    void HandleAsyncWrite(boost::system::error_code const& error, size_t transferredBytes);
+    void NotifyClosed();
 
     /// Time in which the last ping was received
     std::chrono::steady_clock::time_point m_LastPingTime;
@@ -146,13 +144,17 @@ private:
 
     /// Size of the m_OutBuffer.
     size_t m_OutBufferSize;
+    bool m_Started;
+    bool m_WriteInProgress;
 
     std::array<uint8, 4> m_Seed;
+    std::array<char, 4096> m_ReadBuffer;
 
     std::unique_ptr<WorldSocketHandle> m_Socket;
-    boost::system::error_code m_LastSocketError;
+    std::function<void(WorldSocket*)> m_CloseHandler;
     std::atomic<long> m_ReferenceCount;
     std::atomic<bool> m_Closed;
+    std::atomic<bool> m_CloseNotified;
 
     WorldSocket(WorldSocket const& right) = delete;
     WorldSocket& operator=(WorldSocket const& right) = delete;

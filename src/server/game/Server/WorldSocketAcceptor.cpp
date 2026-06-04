@@ -10,6 +10,7 @@
 #include <boost/asio/error.hpp>
 #include <boost/system/error_code.hpp>
 #include <memory>
+#include <utility>
 
 WorldSocketAcceptor::WorldSocketAcceptor() :
     m_IoContext(),
@@ -67,15 +68,18 @@ void WorldSocketAcceptor::AsyncAccept()
     if (!m_Acceptor.is_open())
         return;
 
-    std::shared_ptr<WorldSocketHandle> clientSocket(new WorldSocketHandle(m_IoContext));
-    m_Acceptor.async_accept(*clientSocket,
-        [this, clientSocket](boost::system::error_code const& error)
+    ReactorRunnable* reactor = sWorldSocketMgr->SelectNetworkThread();
+    std::shared_ptr<boost::asio::ip::tcp::endpoint> remoteEndpoint(new boost::asio::ip::tcp::endpoint);
+
+    m_Acceptor.async_accept(sWorldSocketMgr->GetNetworkIoContext(reactor), *remoteEndpoint,
+        [this, reactor, remoteEndpoint](boost::system::error_code const& error, auto socket) mutable
         {
-            HandleAccept(clientSocket, error);
+            HandleAccept(reactor, std::move(socket), *remoteEndpoint, error);
         });
 }
 
-void WorldSocketAcceptor::HandleAccept(std::shared_ptr<WorldSocketHandle> clientSocket, boost::system::error_code const& error)
+void WorldSocketAcceptor::HandleAccept(ReactorRunnable* reactor, WorldSocketHandle socket, boost::asio::ip::tcp::endpoint const& remoteEndpoint,
+    boost::system::error_code const& error)
 {
     if (m_Closed)
         return;
@@ -87,25 +91,14 @@ void WorldSocketAcceptor::HandleAccept(std::shared_ptr<WorldSocketHandle> client
     }
     else
     {
-        boost::system::error_code endpointError;
-        boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint(endpointError);
-        std::string remoteAddress = endpointError ? std::string("<unknown>") : remoteEndpoint.address().to_string();
+        std::string remoteAddress = remoteEndpoint.address().to_string();
 
-        clientSocket->non_blocking(true, endpointError);
-        if (endpointError)
-        {
-            SF_LOG_ERROR("network", "Failed to set world client nonblocking, error %d", endpointError.value());
-        }
+        std::unique_ptr<WorldSocketHandle> socketHandle(new WorldSocketHandle(std::move(socket)));
+        std::unique_ptr<WorldSocket> worldSocket(new WorldSocket(std::move(socketHandle), remoteAddress));
+        if (sWorldSocketMgr->OnSocketOpen(worldSocket.get(), reactor) == -1)
+            worldSocket->CloseSocket();
         else
-        {
-            std::unique_ptr<WorldSocketHandle> socketHandle(new WorldSocketHandle(std::move(*clientSocket)));
-            std::unique_ptr<WorldSocket> socket(new WorldSocket(std::move(socketHandle), remoteAddress));
-            if (sWorldSocketMgr->OnSocketOpen(socket.get()) == -1)
-                socket->CloseSocket();
-            else
-                socket.release();
-
-        }
+            worldSocket.release();
     }
 
     AsyncAccept();
