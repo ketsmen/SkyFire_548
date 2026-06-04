@@ -5,8 +5,11 @@
 
 #include "LogWorker.h"
 
+#include <boost/asio/post.hpp>
+
 LogWorker::LogWorker()
-    : m_active(true), m_thread(&LogWorker::svc, this)
+    : m_ioContext(), m_workGuard(new WorkGuard(boost::asio::make_work_guard(m_ioContext))),
+    m_thread(&LogWorker::svc, this), m_active(true)
 {
 }
 
@@ -15,9 +18,8 @@ LogWorker::~LogWorker()
     {
         std::lock_guard<std::mutex> guard(m_queueLock);
         m_active = false;
+        m_workGuard.reset();
     }
-
-    m_condition.notify_all();
 
     if (m_thread.joinable())
         m_thread.join();
@@ -33,34 +35,20 @@ int LogWorker::enqueue(LogOperation* op)
 
         if (!m_active)
             return -1;
-
-        m_queue.push(op);
     }
 
-    m_condition.notify_one();
+    boost::asio::post(m_ioContext,
+        [op]
+        {
+            op->call();
+            delete op;
+        });
+
     return 0;
 }
 
 int LogWorker::svc()
 {
-    while (1)
-    {
-        LogOperation* request = NULL;
-
-        {
-            std::unique_lock<std::mutex> lock(m_queueLock);
-            m_condition.wait(lock, [this] { return !m_queue.empty() || !m_active; });
-
-            if (m_queue.empty())
-                break;
-
-            request = m_queue.front();
-            m_queue.pop();
-        }
-
-        request->call();
-        delete request;
-    }
-
+    m_ioContext.run();
     return 0;
 }

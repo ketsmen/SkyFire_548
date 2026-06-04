@@ -8,9 +8,10 @@
 
 #include "LogOperation.h"
 
-#include <condition_variable>
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/io_context.hpp>
+#include <memory>
 #include <mutex>
-#include <queue>
 #include <thread>
 
 class LogWorker
@@ -28,11 +29,13 @@ public:
     int enqueue(LogOperation* op);
 
 private:
+    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
+
     int svc();
 
-    std::queue<LogOperation*> m_queue;
+    boost::asio::io_context m_ioContext;
+    std::unique_ptr<WorkGuard> m_workGuard;
     std::mutex m_queueLock;
-    std::condition_variable m_condition;
     std::thread m_thread;
     bool m_active;
 };

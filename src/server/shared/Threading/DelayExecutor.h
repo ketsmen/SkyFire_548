@@ -6,10 +6,10 @@
 #ifndef _M_DELAY_EXECUTOR_H
 #define _M_DELAY_EXECUTOR_H
 
-#include <condition_variable>
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/io_context.hpp>
 #include <memory>
 #include <mutex>
-#include <queue>
 #include <thread>
 #include <vector>
 
@@ -33,12 +33,14 @@ public:
     int svc();
 
 private:
-    std::queue<std::unique_ptr<DelayTask> > queue_;
+    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
+
+    boost::asio::io_context io_context_;
+    std::unique_ptr<WorkGuard> work_guard_;
     std::unique_ptr<DelayTask> pre_svc_hook_;
     std::unique_ptr<DelayTask> post_svc_hook_;
     std::vector<std::thread> threads_;
-    std::mutex queue_lock_;
-    std::condition_variable condition_;
+    std::mutex state_lock_;
     bool activated_;
 
     void activated(bool s);

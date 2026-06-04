@@ -6,6 +6,8 @@
 #include "DelayExecutor.h"
 #include "Platform/Singleton.h"
 
+#include <boost/asio/post.hpp>
+
 DelayExecutor* DelayExecutor::instance()
 {
     return Skyfire::Singleton<DelayExecutor, Skyfire::Mutex>::instance();
@@ -22,15 +24,14 @@ DelayExecutor::~DelayExecutor()
 int DelayExecutor::deactivate()
 {
     {
-        std::lock_guard<std::mutex> guard(queue_lock_);
+        std::lock_guard<std::mutex> guard(state_lock_);
 
         if (!activated_)
             return -1;
 
         activated_ = false;
+        work_guard_.reset();
     }
-
-    condition_.notify_all();
 
     for (std::thread& thread : threads_)
         if (thread.joinable())
@@ -48,23 +49,7 @@ int DelayExecutor::svc()
     if (pre_svc_hook_)
         pre_svc_hook_->call();
 
-    for (;;)
-    {
-        std::unique_ptr<DelayTask> rq;
-
-        {
-            std::unique_lock<std::mutex> lock(queue_lock_);
-            condition_.wait(lock, [this] { return !queue_.empty() || !activated_; });
-
-            if (queue_.empty())
-                break;
-
-            rq = std::move(queue_.front());
-            queue_.pop();
-        }
-
-        rq->call();
-    }
+    io_context_.run();
 
     if (post_svc_hook_)
         post_svc_hook_->call();
@@ -82,6 +67,8 @@ int DelayExecutor::start(int num_threads, std::unique_ptr<DelayTask> pre_svc_hoo
 
     pre_svc_hook_ = std::move(pre_svc_hook);
     post_svc_hook_ = std::move(post_svc_hook);
+    io_context_.restart();
+    work_guard_.reset(new WorkGuard(boost::asio::make_work_guard(io_context_)));
 
     activated(true);
 
@@ -105,26 +92,29 @@ int DelayExecutor::execute(std::unique_ptr<DelayTask> new_req)
         return -1;
 
     {
-        std::lock_guard<std::mutex> guard(queue_lock_);
+        std::lock_guard<std::mutex> guard(state_lock_);
 
         if (!activated_)
             return -1;
-
-        queue_.push(std::move(new_req));
     }
 
-    condition_.notify_one();
+    boost::asio::post(io_context_,
+        [task = std::move(new_req)]() mutable
+        {
+            task->call();
+        });
+
     return 0;
 }
 
 bool DelayExecutor::activated()
 {
-    std::lock_guard<std::mutex> guard(queue_lock_);
+    std::lock_guard<std::mutex> guard(state_lock_);
     return activated_;
 }
 
 void DelayExecutor::activated(bool s)
 {
-    std::lock_guard<std::mutex> guard(queue_lock_);
+    std::lock_guard<std::mutex> guard(state_lock_);
     activated_ = s;
 }
