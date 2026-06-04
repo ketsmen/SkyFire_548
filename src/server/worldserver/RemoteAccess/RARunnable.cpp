@@ -15,63 +15,22 @@
 
 #include "RASocket.h"
 
-#include <cstring>
-
-#if PLATFORM == PLATFORM_UNIX
-#include <arpa/inet.h>
-#endif
+#include <boost/asio/error.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/socket_base.hpp>
+#include <boost/system/error_code.hpp>
+#include <chrono>
+#include <memory>
+#include <string>
+#include <thread>
+#include <utility>
 
 namespace
 {
-    int LastSocketError()
+    bool IsWouldBlock(boost::system::error_code const& error)
     {
-#if PLATFORM == PLATFORM_WINDOWS
-        return WSAGetLastError();
-#else
-        return errno;
-#endif
-    }
-
-    void CloseSocket(RASocketHandle socket)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        closesocket(socket);
-#else
-        close(socket);
-#endif
-    }
-
-    bool IsValidSocket(RASocketHandle socket)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        return socket != INVALID_SOCKET;
-#else
-        return socket >= 0;
-#endif
-    }
-
-    bool SetReuseAddress(RASocketHandle socket)
-    {
-        int enabled = 1;
-        return setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&enabled), sizeof(enabled)) == 0;
-    }
-
-    std::string FormatAddress(sockaddr_storage const& address)
-    {
-        char buffer[INET6_ADDRSTRLEN] = { 0 };
-
-        if (address.ss_family == AF_INET)
-        {
-            sockaddr_in const* ipv4 = reinterpret_cast<sockaddr_in const*>(&address);
-            inet_ntop(AF_INET, &ipv4->sin_addr, buffer, sizeof(buffer));
-        }
-        else if (address.ss_family == AF_INET6)
-        {
-            sockaddr_in6 const* ipv6 = reinterpret_cast<sockaddr_in6 const*>(&address);
-            inet_ntop(AF_INET6, &ipv6->sin6_addr, buffer, sizeof(buffer));
-        }
-
-        return buffer;
+        return error == boost::asio::error::would_block || error == boost::asio::error::try_again;
     }
 }
 
@@ -83,51 +42,55 @@ void RARunnable::Run()
     uint16 raPort = uint16(sConfigMgr->GetIntDefault("Ra.Port", 3443));
     std::string stringIp = sConfigMgr->GetStringDefault("Ra.IP", "0.0.0.0");
 
-    addrinfo hints;
-    std::memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
+    std::shared_ptr<boost::asio::io_context> ioContext(new boost::asio::io_context);
 
-    addrinfo* result = NULL;
-    std::string port = std::to_string(raPort);
-    if (getaddrinfo(stringIp.c_str(), port.c_str(), &hints, &result) != 0)
+    boost::system::error_code error;
+    boost::asio::ip::tcp::resolver resolver(*ioContext);
+    boost::asio::ip::tcp::resolver::results_type endpoints = resolver.resolve(stringIp, std::to_string(raPort), boost::asio::ip::resolver_base::passive, error);
+    if (error)
     {
-        SF_LOG_ERROR("server.worldserver", "Skyfire RA can not resolve bind address %s:%d", stringIp.c_str(), raPort);
+        SF_LOG_ERROR("server.worldserver", "Skyfire RA can not resolve bind address %s:%d, error %d", stringIp.c_str(), raPort, error.value());
         return;
     }
 
-#if PLATFORM == PLATFORM_WINDOWS
-    RASocketHandle listenSocket = INVALID_SOCKET;
-#else
-    RASocketHandle listenSocket = -1;
-#endif
+    boost::asio::ip::tcp::acceptor acceptor(*ioContext);
+    boost::system::error_code lastError;
 
-    for (addrinfo* address = result; address; address = address->ai_next)
+    for (boost::asio::ip::tcp::endpoint const& endpoint : endpoints)
     {
-        listenSocket = ::socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-        if (!IsValidSocket(listenSocket))
+        acceptor.open(endpoint.protocol(), error);
+        if (error)
+        {
+            lastError = error;
             continue;
+        }
 
-        SetReuseAddress(listenSocket);
+        acceptor.set_option(boost::asio::socket_base::reuse_address(true), error);
+        if (!error)
+            acceptor.bind(endpoint, error);
 
-        if (::bind(listenSocket, address->ai_addr, int(address->ai_addrlen)) == 0 &&
-            ::listen(listenSocket, SOMAXCONN) == 0)
+        if (!error)
+            acceptor.listen(boost::asio::socket_base::max_listen_connections, error);
+
+        if (!error)
             break;
 
-        CloseSocket(listenSocket);
-#if PLATFORM == PLATFORM_WINDOWS
-        listenSocket = INVALID_SOCKET;
-#else
-        listenSocket = -1;
-#endif
+        lastError = error;
+
+        boost::system::error_code ignored;
+        acceptor.close(ignored);
     }
 
-    freeaddrinfo(result);
-
-    if (!IsValidSocket(listenSocket))
+    if (!acceptor.is_open())
     {
-        SF_LOG_ERROR("server.worldserver", "Skyfire RA can not bind to port %d on %s, error %d", raPort, stringIp.c_str(), LastSocketError());
+        SF_LOG_ERROR("server.worldserver", "Skyfire RA can not bind to port %d on %s, error %d", raPort, stringIp.c_str(), lastError.value());
+        return;
+    }
+
+    acceptor.non_blocking(true, error);
+    if (error)
+    {
+        SF_LOG_ERROR("server.worldserver", "Skyfire RA can not set listener nonblocking, error %d", error.value());
         return;
     }
 
@@ -135,31 +98,29 @@ void RARunnable::Run()
 
     while (!World::IsStopped())
     {
-        fd_set readSet;
-        FD_ZERO(&readSet);
-        FD_SET(listenSocket, &readSet);
+        error.clear();
+        std::unique_ptr<RASocketHandle> clientSocket(new RASocketHandle(*ioContext));
+        acceptor.accept(*clientSocket, error);
 
-        timeval interval;
-        interval.tv_sec = 0;
-        interval.tv_usec = 100000;
+        if (error)
+        {
+            if (!IsWouldBlock(error))
+                SF_LOG_ERROR("commands.ra", "Skyfire RA failed to accept socket, error %d", error.value());
 
-        int ready = select(int(listenSocket + 1), &readSet, NULL, NULL, &interval);
-        if (ready <= 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
+        }
 
-        sockaddr_storage remoteAddress;
-        socklen_t remoteLength = sizeof(remoteAddress);
-        RASocketHandle clientSocket = accept(listenSocket, reinterpret_cast<sockaddr*>(&remoteAddress), &remoteLength);
-        if (!IsValidSocket(clientSocket))
-            continue;
+        boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint(error);
+        std::string remote = error ? std::string("<unknown>") : remoteEndpoint.address().to_string();
 
-        std::string remote = FormatAddress(remoteAddress);
         SF_LOG_INFO("commands.ra", "Incoming connection from %s", remote.c_str());
 
-        (new RASocket(clientSocket, remote))->start();
+        (new RASocket(ioContext, std::move(clientSocket), remote))->start();
     }
 
-    CloseSocket(listenSocket);
+    boost::system::error_code ignored;
+    acceptor.close(ignored);
 
     SF_LOG_DEBUG("server.worldserver", "Skyfire RA thread exiting");
 }

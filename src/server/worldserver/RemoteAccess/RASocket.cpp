@@ -16,75 +16,25 @@
 #include "SRP6.h"
 #include "Util.h"
 #include "World.h"
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/error.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/system/error_code.hpp>
 #include <chrono>
-#include <cerrno>
 #include <cstring>
 #include <thread>
+#include <utility>
 
 namespace
 {
-    int LastSocketError()
+    bool IsWouldBlock(boost::system::error_code const& error)
     {
-#if PLATFORM == PLATFORM_WINDOWS
-        return WSAGetLastError();
-#else
-        return errno;
-#endif
-    }
-
-    void CloseSocket(RASocketHandle socket)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        closesocket(socket);
-#else
-        close(socket);
-#endif
-    }
-
-    bool IsValidSocket(RASocketHandle socket)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        return socket != INVALID_SOCKET;
-#else
-        return socket >= 0;
-#endif
-    }
-
-    int SendSocket(RASocketHandle socket, char const* data, size_t length)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        return ::send(socket, data, int(length), 0);
-#elif defined(MSG_NOSIGNAL)
-        return int(::send(socket, data, length, MSG_NOSIGNAL));
-#else
-        return int(::send(socket, data, length, 0));
-#endif
-    }
-
-    int RecvSocket(RASocketHandle socket, char* data, size_t length)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        return ::recv(socket, data, int(length), 0);
-#else
-        return int(::recv(socket, data, length, 0));
-#endif
-    }
-
-    void SetRecvTimeout(RASocketHandle socket, uint32 milliseconds)
-    {
-#if PLATFORM == PLATFORM_WINDOWS
-        DWORD timeout = milliseconds;
-        setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&timeout), sizeof(timeout));
-#else
-        timeval timeout;
-        timeout.tv_sec = milliseconds / 1000;
-        timeout.tv_usec = (milliseconds % 1000) * 1000;
-        setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-#endif
+        return error == boost::asio::error::would_block || error == boost::asio::error::try_again;
     }
 }
 
-RASocket::RASocket(RASocketHandle socket, std::string const& remoteAddress) : _socket(socket), _remoteAddress(remoteAddress), _minLevel(3), _commandExecuting(false), _commandComplete(false)
+RASocket::RASocket(std::shared_ptr<boost::asio::io_context> ioContext, std::unique_ptr<RASocketHandle> socket, std::string const& remoteAddress) :
+    _ioContext(std::move(ioContext)), _socket(std::move(socket)), _remoteAddress(remoteAddress), _minLevel(3), _commandExecuting(false), _commandComplete(false)
 {
     _minLevel = uint8(sConfigMgr->GetIntDefault("RA.MinLevel", 3));
 }
@@ -103,25 +53,36 @@ void RASocket::close()
 {
     SF_LOG_INFO("commands.ra", "Closing connection");
 
-    if (IsValidSocket(_socket))
+    if (is_open())
     {
-        CloseSocket(_socket);
-#if PLATFORM == PLATFORM_WINDOWS
-        _socket = INVALID_SOCKET;
-#else
-        _socket = -1;
-#endif
+        boost::system::error_code ignored;
+        _socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+        _socket->close(ignored);
     }
 
     while (_commandExecuting)
         std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
+bool RASocket::is_open() const
+{
+    return _socket && _socket->is_open();
+}
+
+int RASocket::send_data(char const* data, size_t length)
+{
+    if (!is_open())
+        return -1;
+
+    boost::system::error_code error;
+    boost::asio::write(*_socket, boost::asio::buffer(data, length), error);
+
+    return error ? -1 : 0;
+}
+
 int RASocket::send(const std::string& line)
 {
-    int n = SendSocket(_socket, line.c_str(), line.length());
-
-    return n == int(line.length()) ? 0 : -1;
+    return send_data(line.c_str(), line.length());
 }
 
 int RASocket::recv_line(std::string& out_line)
@@ -130,17 +91,14 @@ int RASocket::recv_line(std::string& out_line)
     char byte;
     for (;;)
     {
-        int n = RecvSocket(_socket, &byte, sizeof(byte));
-
-        if (n < 0)
+        if (!is_open())
             return -1;
 
-        if (n == 0)
-        {
-            // EOF, connection was closed
-            errno = ECONNRESET;
+        boost::system::error_code error;
+        size_t n = _socket->read_some(boost::asio::buffer(&byte, sizeof(byte)), error);
+
+        if (error || n == 0)
             return -1;
-        }
 
         ASSERT(n == sizeof(byte));
 
@@ -295,9 +253,43 @@ int RASocket::subnegotiate()
     char buf[1024];
 
     // Wait a maximum of 1000ms for negotiation packet - not all telnet clients may send it
-    SetRecvTimeout(_socket, 1000);
-    const int n = RecvSocket(_socket, buf, sizeof(buf));
-    SetRecvTimeout(_socket, 0);
+    if (!is_open())
+        return -1;
+
+    boost::system::error_code error;
+    _socket->non_blocking(true, error);
+    if (error)
+        return -1;
+
+    size_t n = 0;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+
+    for (;;)
+    {
+        error.clear();
+        n = _socket->read_some(boost::asio::buffer(buf, sizeof(buf) - 1), error);
+
+        if (!error)
+            break;
+
+        if (!IsWouldBlock(error))
+        {
+            _socket->non_blocking(false, error);
+            return -1;
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            _socket->non_blocking(false, error);
+            return 0;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    _socket->non_blocking(false, error);
+    if (error)
+        return -1;
 
     if (n <= 0)
         return int(n);
@@ -347,7 +339,7 @@ int RASocket::subnegotiate()
     //! Just send back end of subnegotiation packet
     uint8 const reply[2] = { 0xFF, 0xF0 };
 
-    return SendSocket(_socket, reinterpret_cast<char const*>(reply), 2);
+    return send_data(reinterpret_cast<char const*>(reply), sizeof(reply)) == 0 ? int(sizeof(reply)) : -1;
 }
 
 int RASocket::svc(void)
