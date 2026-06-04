@@ -39,9 +39,30 @@ jobs:
     - name: windows dependencies
       shell: pwsh
       run: |
-        choco install -y make
-        choco install -y cmake --pre
-        choco install -y openssl --version=4.0.0
+        function Install-ChocoPackage {
+          param(
+            [Parameter(Mandatory = $true)]
+            [string] $PackageName,
+            [string[]] $PackageArgs = @()
+          )
+
+          for ($attempt = 1; $attempt -le 3; ++$attempt) {
+            choco install -y $PackageName @PackageArgs --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              return
+            }
+
+            if ($attempt -eq 3) {
+              exit $LASTEXITCODE
+            }
+
+            Start-Sleep -Seconds (30 * $attempt)
+          }
+        }
+
+        Install-ChocoPackage -PackageName make
+        Install-ChocoPackage -PackageName cmake -PackageArgs @("--pre")
+        Install-ChocoPackage -PackageName openssl -PackageArgs @("--version=4.0.0")
 
     - name: Cache Boost
       id: boost-cache
