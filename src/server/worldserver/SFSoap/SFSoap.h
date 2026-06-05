@@ -9,7 +9,12 @@
 #include "Define.h"
 
 #include <condition_variable>
+#include <functional>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
 
 class SFSoapRunnable
 {
@@ -29,6 +34,55 @@ private:
 
     std::string _host;
     uint16 _port;
+};
+
+class SFSoapService
+{
+public:
+    SFSoapService() { }
+
+    ~SFSoapService()
+    {
+        Join();
+    }
+
+    bool Start(const std::string& host, uint16 port)
+    {
+        SFSoapRunnable runnable;
+        runnable.SetListenArguments(host, port);
+        return StartWithRunner([runnable]() mutable { runnable.Run(); });
+    }
+
+    bool StartWithRunner(std::function<void()> runner)
+    {
+        if (!runner)
+            return false;
+
+        if (_thread && _thread->joinable())
+            return false;
+
+        _thread.reset(new std::thread(std::move(runner)));
+        return true;
+    }
+
+    void Join()
+    {
+        if (_thread && _thread->joinable())
+            _thread->join();
+
+        _thread.reset();
+    }
+
+    bool IsRunning() const
+    {
+        return _thread && _thread->joinable();
+    }
+
+private:
+    std::unique_ptr<std::thread> _thread;
+
+    SFSoapService(SFSoapService const&) = delete;
+    SFSoapService& operator=(SFSoapService const&) = delete;
 };
 
 class SOAPCommand

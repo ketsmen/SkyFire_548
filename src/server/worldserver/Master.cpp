@@ -246,13 +246,11 @@ int Master::Run()
 #endif
 
     //Start soap serving thread
-    std::unique_ptr<std::thread> soapThread;
+    SFSoapService soapService;
 
     if (sConfigMgr->GetBoolDefault("SOAP.Enabled", false))
     {
-        SFSoapRunnable runnable;
-        runnable.SetListenArguments(sConfigMgr->GetStringDefault("SOAP.IP", "127.0.0.1"), uint16(sConfigMgr->GetIntDefault("SOAP.Port", 7878)));
-        soapThread.reset(new std::thread([runnable]() mutable { runnable.Run(); }));
+        soapService.Start(sConfigMgr->GetStringDefault("SOAP.IP", "127.0.0.1"), uint16(sConfigMgr->GetIntDefault("SOAP.Port", 7878)));
     }
 
     ///- Start up freeze catcher thread
@@ -290,11 +288,7 @@ int Master::Run()
     if (rarThread.joinable())
         rarThread.join();
 
-    if (soapThread)
-    {
-        if (soapThread->joinable())
-            soapThread->join();
-    }
+    soapService.Join();
 
     // set server offline
     for (std::map<uint32, std::string>::const_iterator itr = realmNameStore.begin(); itr != realmNameStore.end(); ++itr)

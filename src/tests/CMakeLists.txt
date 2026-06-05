@@ -189,3 +189,18 @@ target_include_directories(time_utils_tests PRIVATE
 )
 
 add_test(NAME time_utils_tests COMMAND time_utils_tests)
+
+add_executable(sfsoap_service_tests
+  SFSoapServiceTests.cpp
+)
+
+target_include_directories(sfsoap_service_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/worldserver/SFSoap
+)
+
+target_link_libraries(sfsoap_service_tests Threads::Threads)
+
+add_test(NAME sfsoap_service_tests COMMAND sfsoap_service_tests)
