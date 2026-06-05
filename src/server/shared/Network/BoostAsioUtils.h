@@ -19,6 +19,11 @@ namespace Net
 {
     bool IsWouldBlock(boost::system::error_code const& error);
 
+    inline void RestartIoContext(boost::asio::io_context& ioContext)
+    {
+        ioContext.restart();
+    }
+
     inline void CloseTcpAcceptor(boost::asio::ip::tcp::acceptor& acceptor)
     {
         boost::system::error_code ignored;

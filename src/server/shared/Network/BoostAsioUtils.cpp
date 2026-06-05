@@ -21,6 +21,8 @@ namespace Net
     bool OpenTcpAcceptor(boost::asio::io_context& ioContext, boost::asio::ip::tcp::acceptor& acceptor,
         uint16 port, std::string const& bindAddress, char const* logFilter, char const* logName)
     {
+        RestartIoContext(ioContext);
+
         boost::system::error_code error;
         boost::asio::ip::tcp::resolver resolver(ioContext);
         boost::asio::ip::tcp::resolver::results_type endpoints = resolver.resolve(

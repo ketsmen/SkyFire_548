@@ -7,6 +7,7 @@
 
 #include <boost/asio/error.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/system/error_code.hpp>
 
 #include <iostream>
@@ -66,6 +67,21 @@ int main()
     if (acceptError != boost::asio::error::operation_aborted)
     {
         std::cerr << "Pending accept completed with " << acceptError.message() << '\n';
+        return 1;
+    }
+
+    bool postedAfterStop = false;
+    boost::asio::post(ioContext, [&postedAfterStop]
+    {
+        postedAfterStop = true;
+    });
+
+    Skyfire::Net::RestartIoContext(ioContext);
+    ioContext.run();
+
+    if (!postedAfterStop)
+    {
+        std::cerr << "RestartIoContext did not allow queued work to run after stop\n";
         return 1;
     }
 
