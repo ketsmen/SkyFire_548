@@ -6,6 +6,7 @@
 #include "Network/BoostAsioUtils.h"
 
 #include <boost/asio/error.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/system/error_code.hpp>
@@ -82,6 +83,41 @@ int main()
     if (!postedAfterStop)
     {
         std::cerr << "RestartIoContext did not allow queued work to run after stop\n";
+        return 1;
+    }
+
+    boost::asio::io_context guardedContext;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard =
+        boost::asio::make_work_guard(guardedContext);
+
+    Skyfire::Net::StopIoContext(guardedContext);
+
+    if (guardedContext.run() != 0)
+    {
+        std::cerr << "StopIoContext unexpectedly allowed guarded work to run\n";
+        return 1;
+    }
+
+    if (!guardedContext.stopped())
+    {
+        std::cerr << "StopIoContext did not leave the io_context stopped\n";
+        return 1;
+    }
+
+    guard.reset();
+    Skyfire::Net::RestartIoContext(guardedContext);
+
+    bool postedAfterExplicitStop = false;
+    boost::asio::post(guardedContext, [&postedAfterExplicitStop]
+    {
+        postedAfterExplicitStop = true;
+    });
+
+    guardedContext.run();
+
+    if (!postedAfterExplicitStop)
+    {
+        std::cerr << "RestartIoContext did not recover after StopIoContext\n";
         return 1;
     }
 

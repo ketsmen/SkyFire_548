@@ -24,6 +24,11 @@ namespace Net
         ioContext.restart();
     }
 
+    inline void StopIoContext(boost::asio::io_context& ioContext)
+    {
+        ioContext.stop();
+    }
+
     inline void CloseTcpAcceptor(boost::asio::ip::tcp::acceptor& acceptor)
     {
         boost::system::error_code ignored;

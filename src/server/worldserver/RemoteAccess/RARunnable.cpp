@@ -104,7 +104,7 @@ namespace
                 if (World::IsStopped())
                 {
                     Skyfire::Net::CloseTcpAcceptor(*acceptor);
-                    ioContext->stop();
+                    Skyfire::Net::StopIoContext(*ioContext);
                     return;
                 }
 

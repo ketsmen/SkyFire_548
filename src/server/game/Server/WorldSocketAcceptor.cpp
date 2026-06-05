@@ -52,7 +52,7 @@ void WorldSocketAcceptor::Close()
         return;
 
     Skyfire::Net::CloseTcpAcceptor(m_Acceptor);
-    m_IoContext.stop();
+    Skyfire::Net::StopIoContext(m_IoContext);
 
     if (m_Thread.joinable())
         m_Thread.join();

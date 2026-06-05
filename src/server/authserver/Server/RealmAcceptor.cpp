@@ -50,7 +50,7 @@ void RealmAcceptor::Close()
         return;
 
     Skyfire::Net::CloseTcpAcceptor(_acceptor);
-    _ioContext.stop();
+    Skyfire::Net::StopIoContext(_ioContext);
 
     if (_thread.joinable())
         _thread.join();
