@@ -46,7 +46,7 @@ int DelayExecutor::deactivate()
         std::lock_guard<std::mutex> guard(impl_->stateLock);
 
         if (!impl_->activated)
-            return -1;
+            return 0;
 
         impl_->activated = false;
         impl_->executor.ResetWork();
