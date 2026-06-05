@@ -11,6 +11,7 @@
 #include "CryptoRandom.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
+#include "Network/BoostAsioUtils.h"
 #include "Opcodes.h"
 #include "PacketLog.h"
 #include "Player.h"
@@ -115,11 +116,7 @@ void WorldSocket::CloseSocket(void)
     }
 
     if (m_Socket && m_Socket->is_open())
-    {
-        boost::system::error_code ignored;
-        m_Socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
-        m_Socket->close(ignored);
-    }
+        Skyfire::Net::CloseTcpSocket(*m_Socket);
 
     {
         GuardType Guard(m_SessionLock);

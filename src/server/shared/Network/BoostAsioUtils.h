@@ -36,6 +36,14 @@ namespace Net
         acceptor.close(ignored);
     }
 
+    inline void CloseTcpSocket(boost::asio::ip::tcp::socket& socket)
+    {
+        boost::system::error_code ignored;
+        socket.cancel(ignored);
+        socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+        socket.close(ignored);
+    }
+
     bool OpenTcpAcceptor(boost::asio::io_context& ioContext, boost::asio::ip::tcp::acceptor& acceptor,
         uint16 port, std::string const& bindAddress, char const* logFilter, char const* logName);
 }

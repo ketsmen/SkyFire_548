@@ -4,6 +4,7 @@
 */
 
 #include "Log.h"
+#include "Network/BoostAsioUtils.h"
 #include "RealmSocket.h"
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/error.hpp>
@@ -205,12 +206,7 @@ void RealmSocket::CloseSocket()
         return;
 
     if (IsOpen())
-    {
-        boost::system::error_code ignored;
-        _socket->cancel(ignored);
-        _socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
-        _socket->close(ignored);
-    }
+        Skyfire::Net::CloseTcpSocket(*_socket);
 
     NotifyClose();
 }

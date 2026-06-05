@@ -11,6 +11,7 @@
 #include <boost/asio/post.hpp>
 #include <boost/system/error_code.hpp>
 
+#include <array>
 #include <iostream>
 
 int main()
@@ -118,6 +119,57 @@ int main()
     if (!postedAfterExplicitStop)
     {
         std::cerr << "RestartIoContext did not recover after StopIoContext\n";
+        return 1;
+    }
+
+    boost::asio::io_context socketContext;
+    boost::asio::ip::tcp::acceptor socketAcceptor(socketContext, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
+    boost::asio::ip::tcp::socket clientSocket(socketContext);
+    boost::asio::ip::tcp::socket serverSocket(socketContext);
+
+    clientSocket.connect(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4::loopback(), socketAcceptor.local_endpoint().port()), error);
+    if (error)
+    {
+        std::cerr << "Failed to connect client socket: " << error.message() << '\n';
+        return 1;
+    }
+
+    socketAcceptor.accept(serverSocket, error);
+    if (error)
+    {
+        std::cerr << "Failed to accept server socket: " << error.message() << '\n';
+        return 1;
+    }
+
+    std::array<char, 1> readBuffer = {};
+    bool readCompleted = false;
+    boost::system::error_code readError;
+    serverSocket.async_read_some(boost::asio::buffer(readBuffer),
+        [&readCompleted, &readError](boost::system::error_code const& callbackError, size_t)
+        {
+            readCompleted = true;
+            readError = callbackError;
+        });
+
+    Skyfire::Net::CloseTcpSocket(serverSocket);
+    Skyfire::Net::CloseTcpSocket(serverSocket);
+    socketContext.run();
+
+    if (serverSocket.is_open())
+    {
+        std::cerr << "CloseTcpSocket left the server socket open\n";
+        return 1;
+    }
+
+    if (!readCompleted)
+    {
+        std::cerr << "CloseTcpSocket did not complete the pending read\n";
+        return 1;
+    }
+
+    if (readError != boost::asio::error::operation_aborted)
+    {
+        std::cerr << "Pending read completed with " << readError.message() << '\n';
         return 1;
     }
 

@@ -12,6 +12,7 @@
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
+#include "Network/BoostAsioUtils.h"
 #include "RASocket.h"
 #include "SRP6.h"
 #include "World.h"
@@ -75,11 +76,7 @@ void RASocket::close()
     _subnegotiationTimer.cancel();
 
     if (_socket && _socket->is_open())
-    {
-        boost::system::error_code ignored;
-        _socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
-        _socket->close(ignored);
-    }
+        Skyfire::Net::CloseTcpSocket(*_socket);
 }
 
 bool RASocket::is_open() const
