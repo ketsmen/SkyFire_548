@@ -4,8 +4,8 @@
 */
 
 #include "LogWorker.h"
+#include "Threading/BoostAsioWork.h"
 
-#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
@@ -14,16 +14,14 @@
 
 struct LogWorker::Impl
 {
-    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
-
     Impl()
-        : ioContext(), workGuard(new WorkGuard(boost::asio::make_work_guard(ioContext))),
+        : ioContext(), workGuard(Skyfire::Asio::MakeIoContextWorkGuard(ioContext)),
         active(true)
     {
     }
 
     boost::asio::io_context ioContext;
-    std::unique_ptr<WorkGuard> workGuard;
+    std::unique_ptr<Skyfire::Asio::IoContextWorkGuard> workGuard;
     std::mutex queueLock;
     std::thread thread;
     bool active;
@@ -40,7 +38,7 @@ LogWorker::~LogWorker()
     {
         std::lock_guard<std::mutex> guard(m_impl->queueLock);
         m_impl->active = false;
-        m_impl->workGuard.reset();
+        Skyfire::Asio::ResetWorkGuard(m_impl->workGuard);
     }
 
     if (m_impl->thread.joinable())

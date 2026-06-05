@@ -5,8 +5,8 @@
 
 #include "DelayExecutor.h"
 #include "Platform/Singleton.h"
+#include "Threading/BoostAsioWork.h"
 
-#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
@@ -16,15 +16,13 @@
 
 struct DelayExecutor::Impl
 {
-    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
-
     Impl()
         : activated(false)
     {
     }
 
     boost::asio::io_context ioContext;
-    std::unique_ptr<WorkGuard> workGuard;
+    std::unique_ptr<Skyfire::Asio::IoContextWorkGuard> workGuard;
     std::unique_ptr<DelayTask> preSvcHook;
     std::unique_ptr<DelayTask> postSvcHook;
     std::vector<std::thread> threads;
@@ -54,7 +52,7 @@ int DelayExecutor::deactivate()
             return -1;
 
         impl_->activated = false;
-        impl_->workGuard.reset();
+        Skyfire::Asio::ResetWorkGuard(impl_->workGuard);
     }
 
     for (std::thread& thread : impl_->threads)
@@ -92,7 +90,7 @@ int DelayExecutor::start(int num_threads, std::unique_ptr<DelayTask> pre_svc_hoo
     impl_->preSvcHook = std::move(pre_svc_hook);
     impl_->postSvcHook = std::move(post_svc_hook);
     impl_->ioContext.restart();
-    impl_->workGuard.reset(new Impl::WorkGuard(boost::asio::make_work_guard(impl_->ioContext)));
+    impl_->workGuard = Skyfire::Asio::MakeIoContextWorkGuard(impl_->ioContext);
 
     activated(true);
 
