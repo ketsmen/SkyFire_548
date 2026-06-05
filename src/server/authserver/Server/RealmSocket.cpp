@@ -6,9 +6,12 @@
 #include "Log.h"
 #include "RealmSocket.h"
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/error.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/write.hpp>
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 RealmSocket::Session::Session(void) { }
 
@@ -16,7 +19,8 @@ RealmSocket::Session::~Session(void) { }
 
 RealmSocket::RealmSocket(std::unique_ptr<RealmSocketHandle> socket, std::string remoteAddress, uint16 remotePort) :
     _socket(std::move(socket)), _readBuffer(), _inputBuffer(), _inputReadPos(0), _session(NULL),
-    _remoteAddress(std::move(remoteAddress)), _remotePort(remotePort), _closed(false), _closeNotified(false)
+    _remoteAddress(std::move(remoteAddress)), _remotePort(remotePort), _writeQueue(), _writeInProgress(false),
+    _closed(false), _closeNotified(false)
 {
     _inputBuffer.reserve(4096);
 }
@@ -84,21 +88,16 @@ bool RealmSocket::send(const char* buf, size_t len)
     if (buf == NULL || len == 0)
         return true;
 
-    std::lock_guard<std::mutex> guard(_sendLock);
-
-    if (_closed || !IsOpen())
+    if (_closed)
         return false;
 
-    boost::system::error_code error;
-    boost::asio::write(*_socket, boost::asio::buffer(buf, len), error);
-
-    if (error)
-    {
-        SF_LOG_DEBUG("server.authserver", "Socket send failed for %s:%u with error %d",
-            _remoteAddress.c_str(), _remotePort, error.value());
-        CloseSocket();
-        return false;
-    }
+    std::vector<char> data(buf, buf + len);
+    std::shared_ptr<RealmSocket> self = shared_from_this();
+    boost::asio::post(_socket->get_executor(),
+        [self, data = std::move(data)]() mutable
+        {
+            self->QueueWrite(std::move(data));
+        });
 
     return true;
 }
@@ -144,6 +143,56 @@ void RealmSocket::HandleRead(boost::system::error_code const& error, size_t byte
 
     if (!_closed)
         AsyncRead();
+}
+
+void RealmSocket::QueueWrite(std::vector<char> data)
+{
+    if (_closed || !IsOpen())
+        return;
+
+    bool startWrite = !_writeInProgress && _writeQueue.empty();
+    _writeQueue.push_back(std::move(data));
+
+    if (startWrite)
+        StartAsyncWrite();
+}
+
+void RealmSocket::StartAsyncWrite()
+{
+    if (_closed || _writeInProgress || _writeQueue.empty() || !IsOpen())
+        return;
+
+    _writeInProgress = true;
+
+    std::shared_ptr<RealmSocket> self = shared_from_this();
+    boost::asio::async_write(*_socket, boost::asio::buffer(_writeQueue.front()),
+        [self](boost::system::error_code const& error, size_t)
+        {
+            self->HandleWrite(error);
+        });
+}
+
+void RealmSocket::HandleWrite(boost::system::error_code const& error)
+{
+    if (!_writeQueue.empty())
+        _writeQueue.pop_front();
+
+    _writeInProgress = false;
+
+    if (error)
+    {
+        if (error != boost::asio::error::operation_aborted)
+        {
+            SF_LOG_DEBUG("server.authserver", "Socket send failed for %s:%u with error %d",
+                _remoteAddress.c_str(), _remotePort, error.value());
+        }
+
+        CloseSocket();
+        return;
+    }
+
+    if (!_writeQueue.empty())
+        StartAsyncWrite();
 }
 
 bool RealmSocket::IsOpen(void) const

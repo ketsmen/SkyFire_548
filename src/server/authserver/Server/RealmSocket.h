@@ -11,8 +11,8 @@
 #include <boost/system/error_code.hpp>
 #include <array>
 #include <atomic>
+#include <deque>
 #include <memory>
-#include <mutex>
 #include <vector>
 
 typedef boost::asio::ip::tcp::socket RealmSocketHandle;
@@ -53,6 +53,9 @@ private:
     void Run();
     void AsyncRead();
     void HandleRead(boost::system::error_code const& error, size_t bytesTransferred);
+    void QueueWrite(std::vector<char> data);
+    void StartAsyncWrite();
+    void HandleWrite(boost::system::error_code const& error);
     void CloseSocket();
     void NotifyClose();
     void CompactInputBuffer();
@@ -66,7 +69,8 @@ private:
     Session* _session;
     std::string _remoteAddress;
     uint16 _remotePort;
-    std::mutex _sendLock;
+    std::deque<std::vector<char>> _writeQueue;
+    bool _writeInProgress;
     std::atomic<bool> _closed;
     std::atomic<bool> _closeNotified;
 };
