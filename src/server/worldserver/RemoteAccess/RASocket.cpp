@@ -72,11 +72,11 @@ void RASocket::close()
 
     SF_LOG_INFO("commands.ra", "Closing connection");
 
-    boost::system::error_code ignored;
-    _subnegotiationTimer.cancel(ignored);
+    _subnegotiationTimer.cancel();
 
     if (_socket && _socket->is_open())
     {
+        boost::system::error_code ignored;
         _socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
         _socket->close(ignored);
     }
@@ -130,8 +130,7 @@ void RASocket::handle_subnegotiation_read(boost::system::error_code const& error
 
     _subnegotiationDone = true;
 
-    boost::system::error_code ignored;
-    _subnegotiationTimer.cancel(ignored);
+    _subnegotiationTimer.cancel();
 
     if (error)
     {
