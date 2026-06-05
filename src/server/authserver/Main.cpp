@@ -14,14 +14,13 @@
 #include <openssl/crypto.h>
 #include <openssl/opensslv.h>
 #include <openssl/provider.h>
-#include <chrono>
 #include <csignal>
-#include <thread>
 
 #include "Common.h"
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
+#include "Platform/TimeUtils.h"
 #include "RealmAcceptor.h"
 #include "RealmList.h"
 #include "SystemConfig.h"
@@ -378,7 +377,7 @@ extern int main(int argc, char** argv)
     while (!stopEvent)
     {
         acceptor.Update();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        Skyfire::SleepForMilliseconds(100);
 
         if ((++loopCounter) == numLoops)
         {

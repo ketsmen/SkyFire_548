@@ -15,6 +15,7 @@
 #include "Opcodes.h"
 #include "PacketLog.h"
 #include "Player.h"
+#include "Platform/TimeUtils.h"
 #include "ScriptMgr.h"
 #include "SharedDefines.h"
 #include "Util.h"
@@ -31,7 +32,6 @@
 #include <cerrno>
 #include <chrono>
 #include <new>
-#include <thread>
 #include <utility>
 
 #if defined(__GNUC__)
@@ -1022,7 +1022,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     // Sleep this Network thread for
     uint32 sleepTime = sWorld->getIntConfig(WorldIntConfigs::CONFIG_SESSION_ADD_DELAY);
-    std::this_thread::sleep_for(std::chrono::microseconds(sleepTime));
+    Skyfire::SleepForMicroseconds(sleepTime);
 
     sWorld->AddSession(m_Session);
     return 0;

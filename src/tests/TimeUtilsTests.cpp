@@ -9,6 +9,7 @@
 
 int main()
 {
+    Skyfire::SleepForMicroseconds(0);
     Skyfire::SleepForMilliseconds(0);
     Skyfire::SleepForSeconds(0);
 

@@ -4,10 +4,9 @@
 */
 
 #include "Errors.h"
+#include "Platform/TimeUtils.h"
 
-#include <chrono>
 #include <cstdlib>
-#include <thread>
 
 namespace Skyfire
 {
@@ -23,7 +22,7 @@ namespace Skyfire
     {
         fprintf(stderr, "\n%s:%i in %s FATAL ERROR:\n  %s\n",
             file, line, function, message);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        SleepForSeconds(10);
         *((volatile int*)NULL) = 0;
         exit(1);
     }

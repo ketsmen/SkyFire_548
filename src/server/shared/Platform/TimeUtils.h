@@ -34,6 +34,11 @@ namespace Skyfire
         return GetMSTimeDiff(oldMSTime, GetMSTime());
     }
 
+    inline void SleepForMicroseconds(uint32 microseconds)
+    {
+        std::this_thread::sleep_for(std::chrono::microseconds(microseconds));
+    }
+
     inline void SleepForMilliseconds(uint32 milliseconds)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
