@@ -9,9 +9,11 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
 
 #include <array>
+#include <chrono>
 #include <iostream>
 
 int main()
@@ -170,6 +172,34 @@ int main()
     if (readError != boost::asio::error::operation_aborted)
     {
         std::cerr << "Pending read completed with " << readError.message() << '\n';
+        return 1;
+    }
+
+    boost::asio::io_context timerContext;
+    boost::asio::steady_timer timer(timerContext);
+    timer.expires_after(std::chrono::hours(1));
+
+    bool timerCompleted = false;
+    boost::system::error_code timerError;
+    timer.async_wait([&timerCompleted, &timerError](boost::system::error_code const& callbackError)
+    {
+        timerCompleted = true;
+        timerError = callbackError;
+    });
+
+    Skyfire::Net::CancelTimer(timer);
+    Skyfire::Net::CancelTimer(timer);
+    timerContext.run();
+
+    if (!timerCompleted)
+    {
+        std::cerr << "CancelTimer did not complete the pending wait\n";
+        return 1;
+    }
+
+    if (timerError != boost::asio::error::operation_aborted)
+    {
+        std::cerr << "Pending timer completed with " << timerError.message() << '\n';
         return 1;
     }
 

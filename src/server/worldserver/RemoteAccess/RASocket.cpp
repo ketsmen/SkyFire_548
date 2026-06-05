@@ -73,7 +73,7 @@ void RASocket::close()
 
     SF_LOG_INFO("commands.ra", "Closing connection");
 
-    _subnegotiationTimer.cancel();
+    Skyfire::Net::CancelTimer(_subnegotiationTimer);
 
     if (_socket && _socket->is_open())
         Skyfire::Net::CloseTcpSocket(*_socket);
@@ -127,7 +127,7 @@ void RASocket::handle_subnegotiation_read(boost::system::error_code const& error
 
     _subnegotiationDone = true;
 
-    _subnegotiationTimer.cancel();
+    Skyfire::Net::CancelTimer(_subnegotiationTimer);
 
     if (error)
     {

@@ -29,6 +29,12 @@ namespace Net
         ioContext.stop();
     }
 
+    template<class Timer>
+    void CancelTimer(Timer& timer)
+    {
+        timer.cancel();
+    }
+
     inline void CloseTcpAcceptor(boost::asio::ip::tcp::acceptor& acceptor)
     {
         boost::system::error_code ignored;
