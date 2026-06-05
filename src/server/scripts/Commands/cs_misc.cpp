@@ -15,6 +15,7 @@
 #include "LFG.h"
 #include "MMapFactory.h"
 #include "MovementGenerator.h"
+#include "NetworkAddress.h"
 #include "ObjectAccessor.h"
 #include "Opcodes.h"
 #include "Pet.h"
@@ -23,10 +24,6 @@
 #include "SpellAuras.h"
 #include "TargetedMovementGenerator.h"
 #include "WeatherMgr.h"
-
-#if PLATFORM == PLATFORM_UNIX
-#include <arpa/inet.h>
-#endif
 
 class misc_commandscript : public CommandScript
 {
@@ -1563,7 +1560,7 @@ public:
                 lastIp = fields[4].GetString();
                 lastLogin = fields[5].GetString();
 
-                uint32 ip = inet_addr(lastIp.c_str());
+                uint32 ip = Skyfire::Net::ToIPv4NetworkOrder(lastIp);
                 EndianConvertReverse(ip);
 
                 // If ip2nation table is populated, it displays the country

@@ -11,6 +11,9 @@
 
 namespace Skyfire::Net
 {
+    bool IsIPv4Address(std::string const& host);
+    uint32 ToIPv4NetworkOrder(std::string const& host);
+
     class Address
     {
     public:

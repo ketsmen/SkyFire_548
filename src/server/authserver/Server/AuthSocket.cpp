@@ -15,14 +15,11 @@
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
+#include "NetworkAddress.h"
 #include "openssl/crypto.h"
 #include "RealmList.h"
 #include "TOTP.h"
 #include <thread>
-
-#if PLATFORM == PLATFORM_UNIX
-#include <arpa/inet.h>
-#endif
 
 #define ChunkSize 2048
 
@@ -378,7 +375,7 @@ bool AuthSocket::_HandleLogonChallenge()
 
                 if (!accountCountry.empty())
                 {
-                    uint32 ip = inet_addr(ip_address.c_str());
+                    uint32 ip = Skyfire::Net::ToIPv4NetworkOrder(ip_address);
                     EndianConvertReverse(ip);
 
                     stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_LOGON_COUNTRY);

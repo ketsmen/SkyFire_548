@@ -73,3 +73,24 @@ target_link_libraries(realm_socket_tests
 )
 
 add_test(NAME realm_socket_tests COMMAND realm_socket_tests)
+
+add_executable(network_address_tests
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities/NetworkAddress.cpp
+  NetworkAddressTests.cpp
+)
+
+target_include_directories(network_address_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities
+  ${Boost_INCLUDE_DIRS}
+)
+
+if(TARGET Boost::headers)
+  target_link_libraries(network_address_tests Boost::headers)
+elseif(TARGET Boost::boost)
+  target_link_libraries(network_address_tests Boost::boost)
+endif()
+
+add_test(NAME network_address_tests COMMAND network_address_tests)

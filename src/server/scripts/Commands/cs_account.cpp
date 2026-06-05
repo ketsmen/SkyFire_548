@@ -13,12 +13,9 @@ EndScriptData */
 #include "AccountMgr.h"
 #include "Chat.h"
 #include "Language.h"
+#include "NetworkAddress.h"
 #include "Player.h"
 #include "ScriptMgr.h"
-
-#if PLATFORM == PLATFORM_UNIX
-#include <arpa/inet.h>
-#endif
 
 class account_commandscript : public CommandScript
 {
@@ -272,7 +269,7 @@ public:
             if (param == "on")
             {
                 PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_LOGON_COUNTRY);
-                uint32 ip = inet_addr(handler->GetSession()->GetRemoteAddress().c_str());
+                uint32 ip = Skyfire::Net::ToIPv4NetworkOrder(handler->GetSession()->GetRemoteAddress());
                 EndianConvertReverse(ip);
                 stmt->setUInt32(0, ip);
                 PreparedQueryResult result = LoginDatabase.Query(stmt);

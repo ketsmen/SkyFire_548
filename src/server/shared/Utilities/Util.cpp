@@ -12,10 +12,6 @@
 
 #include <cstdarg>
 
-#if PLATFORM == PLATFORM_UNIX
-#include <arpa/inet.h>
-#endif
-
 static CRandomSFMT& SfmtRand()
 {
     static thread_local CRandomSFMT sfmtRand;
@@ -217,9 +213,7 @@ bool IsIPAddress(char const* ipaddress)
     if (!ipaddress)
         return false;
 
-    // Let the big boys do it.
-    // Drawback: all valid ip address formats are recognized e.g.: 12.23, 121234, 0xABCD)
-    return inet_addr(ipaddress) != INADDR_NONE;
+    return Skyfire::Net::IsIPv4Address(ipaddress);
 }
 
 std::string GetAddressString(Skyfire::Net::Address const& addr)
