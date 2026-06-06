@@ -14,8 +14,12 @@
 #include "DetourCommon.h"
 #include "DisableMgr.h"
 
+#include <boost/asio/post.hpp>
+#include <boost/asio/thread_pool.hpp>
+
 #include <functional>
 #include <thread>
+#include <vector>
 
 uint32 GetLiquidFlags(uint32 /*liquidType*/) { return 0; }
 
@@ -154,35 +158,38 @@ namespace MMAP
     /**************************************************************************/
     void MapBuilder::buildAllMaps(unsigned int threads)
     {
-        std::vector<std::thread> _threads;
-
-        BuilderThreadPool pool;
+        std::vector<uint32> mapsToBuild;
 
         for (TileList::iterator it = m_tiles.begin(); it != m_tiles.end(); ++it)
         {
             uint32 mapID = it->first;
             if (!shouldSkipMap(mapID))
-            {
-                if (threads > 0)
-                    pool.Enqueue(mapID);
-                else
-                    buildMap(mapID);
-            }
+                mapsToBuild.push_back(mapID);
         }
 
         printf("Using %u threads to extract mmaps\n", threads);
-        
-        for (unsigned int i = 0; i < threads; ++i)
+
+        if (threads == 0)
         {
-            _threads.push_back(std::thread(&BuilderThreadPool::Run, &pool, this));
+            for (std::vector<uint32>::iterator it = mapsToBuild.begin(); it != mapsToBuild.end(); ++it)
+                buildMap(*it);
+
+            return;
         }
-            
-        // Free memory
-        for (std::vector<std::thread>::iterator _th = _threads.begin(); _th != _threads.end(); ++_th)
+
+        boost::asio::thread_pool threadPool(threads);
+
+        for (std::vector<uint32>::iterator it = mapsToBuild.begin(); it != mapsToBuild.end(); ++it)
         {
-            if (_th->joinable())
-                _th->join();
+            uint32 mapID = *it;
+            boost::asio::post(threadPool,
+                [this, mapID]
+                {
+                    buildMap(mapID);
+                });
         }
+
+        threadPool.join();
     }
 
     /**************************************************************************/

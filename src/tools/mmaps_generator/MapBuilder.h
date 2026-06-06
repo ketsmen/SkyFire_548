@@ -6,10 +6,6 @@
 #ifndef _MAP_BUILDER_H
 #define _MAP_BUILDER_H
 
-#include <mutex>
-#include <queue>
-#include <thread>
-#include <vector>
 #include <set>
 #include <map>
 
@@ -112,37 +108,6 @@ namespace MMAP
             rcContext* m_rcContext;
     };
 
-    class BuilderThreadPool
-    {
-        public:
-            void Enqueue(uint32 mapId)
-            {
-                _queue.push(mapId);
-            }
-
-            bool Dequeue(uint32& mapId)
-            {
-                std::lock_guard<std::mutex> guard(_lock);
-
-                if (_queue.empty())
-                    return false;
-
-                mapId = _queue.front();
-                _queue.pop();
-                return true;
-            }
-
-            void Run(MapBuilder* builder)
-            {
-                uint32 mapId;
-                while (Dequeue(mapId))
-                    builder->buildMap(mapId);
-            }
-
-        private:
-            std::queue<uint32> _queue;
-            std::mutex _lock;
-    };
 }
 
 #endif

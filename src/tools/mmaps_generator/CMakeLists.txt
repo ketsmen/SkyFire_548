@@ -41,6 +41,12 @@ target_link_libraries(mmaps_generator
   ${ZLIB_LIBRARIES}
 )
 
+if(TARGET Boost::headers)
+  target_link_libraries(mmaps_generator Boost::headers)
+elseif(TARGET Boost::boost)
+  target_link_libraries(mmaps_generator Boost::boost)
+endif()
+
 if( UNIX )
   install(TARGETS mmaps_generator DESTINATION bin)
 elseif( WIN32 )
