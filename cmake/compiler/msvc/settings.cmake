@@ -25,21 +25,6 @@ function(sf_scrub_cached_msvc_options variable)
     set(${variable} "${_value}" CACHE STRING "" FORCE)
 endfunction()
 
-function(sf_append_cached_msvc_option_once variable option)
-    if(DEFINED ${variable})
-        set(_value "${${variable}}")
-    else()
-        set(_value "")
-    endif()
-
-    string(FIND " ${_value} " " ${option} " _option_pos)
-
-    if(_option_pos EQUAL -1)
-        string(STRIP "${_value} ${option}" _value)
-        set(${variable} "${_value}" CACHE STRING "" FORCE)
-    endif()
-endfunction()
-
 function(sf_add_msvc_compile_option option)
     add_compile_options(
         "$<$<COMPILE_LANG_AND_ID:C,MSVC>:${option}>"
@@ -92,24 +77,15 @@ endif()
 #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-if(PLATFORM EQUAL 64)
-  # This definition is necessary to work around a bug with Intellisense described
-  # here: http://tinyurl.com/2cb428. Syntax highlighting is important for proper
-  # debugger functionality.
-  add_definitions("-D_WIN64")
-  message(STATUS "MSVC: 64-bit platform, enforced -D_WIN64 parameter")
+# This definition is necessary to work around a bug with Intellisense described
+# here: http://tinyurl.com/2cb428. Syntax highlighting is important for proper
+# debugger functionality.
+add_definitions("-D_WIN64")
+message(STATUS "MSVC: 64-bit platform, enforced -D_WIN64 parameter")
 
-  #Enable extended object support for debug compiles on X64 (not required on X86)
-  add_compile_options("$<$<AND:$<COMPILE_LANG_AND_ID:CXX,MSVC>,$<CONFIG:Debug>>:/bigobj>")
-  message(STATUS "MSVC: Enabled extended object-support for debug-compiles")
-else()
-  # mark 32 bit executables large address aware so they can use > 2GB address space
-  sf_append_cached_msvc_option_once(CMAKE_EXE_LINKER_FLAGS /LARGEADDRESSAWARE)
-  message(STATUS "MSVC: Enabled large address awareness")
-
-  add_definitions(/arch:SSE2)
-  message(STATUS "MSVC: Enabled SSE2 support")
-endif()
+#Enable extended object support for debug compiles on X64.
+add_compile_options("$<$<AND:$<COMPILE_LANG_AND_ID:CXX,MSVC>,$<CONFIG:Debug>>:/bigobj>")
+message(STATUS "MSVC: Enabled extended object-support for debug-compiles")
 
 # Set build-directive (used in core to tell which buildtype we used)
 add_definitions(-D_BUILD_DIRECTIVE=\\"$(ConfigurationName)\\")
