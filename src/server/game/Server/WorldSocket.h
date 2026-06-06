@@ -29,6 +29,15 @@
 
 typedef boost::asio::ip::tcp::socket WorldSocketHandle;
 
+namespace Skyfire
+{
+namespace Net
+{
+    template<class AsyncWriteStream>
+    class BoostAsioWriteQueue;
+}
+}
+
 class WorldPacket;
 class WorldSession;
 
@@ -97,9 +106,8 @@ private:
 private:
     void SendAuthResponseError(ResponseCodes code);
     bool IsValidSocket(void) const;
-    void PostAsyncWrite();
     void StartAsyncRead();
-    void StartAsyncWrite();
+    void QueueSerializedPacket(std::vector<char> data);
     void HandleAsyncRead(boost::system::error_code const& error, size_t transferredBytes);
     void HandleAsyncWrite(boost::system::error_code const& error, size_t transferredBytes);
     void NotifyClosed();
@@ -132,25 +140,21 @@ private:
     std::vector<uint8> m_WorldHeader;
     size_t m_WorldHeaderRead;
 
-    /// Mutex for protecting output related data.
-    mutable LockType m_OutBufferLock;
+    /// Mutex for protecting packet serialization and pre-start output.
+    mutable LockType m_SendLock;
 
-    /// Buffer used for writing output.
-    std::vector<char> m_OutBuffer;
-    size_t m_OutBufferReadPos;
+    /// Queue used before the socket manager starts asynchronous processing.
+    std::deque<std::vector<char>> m_PendingOutput;
 
-    /// Queue used when the main output buffer is full.
-    std::deque<std::vector<char>> m_OutQueue;
-
-    /// Size of the m_OutBuffer.
+    /// Configured output buffer size retained for network option compatibility.
     size_t m_OutBufferSize;
     bool m_Started;
-    bool m_WriteInProgress;
 
     std::array<uint8, 4> m_Seed;
     std::array<char, 4096> m_ReadBuffer;
 
     std::unique_ptr<WorldSocketHandle> m_Socket;
+    std::unique_ptr<Skyfire::Net::BoostAsioWriteQueue<WorldSocketHandle>> m_WriteQueue;
     std::function<void(WorldSocket*)> m_CloseHandler;
     std::atomic<long> m_ReferenceCount;
     std::atomic<bool> m_Closed;

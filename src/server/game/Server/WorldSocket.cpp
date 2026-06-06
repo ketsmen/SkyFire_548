@@ -12,6 +12,7 @@
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include "Network/BoostAsioUtils.h"
+#include "Network/BoostAsioWriteQueue.h"
 #include "Opcodes.h"
 #include "PacketLog.h"
 #include "Player.h"
@@ -26,8 +27,6 @@
 #include "WorldSocketMgr.h"
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/error.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/write.hpp>
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -89,8 +88,9 @@ WorldSocket::WorldSocket(std::unique_ptr<WorldSocketHandle> socket, std::string 
 m_LastPingTime(), m_HasLastPingTime(false), m_OverSpeedPings(0), m_Address(std::move(remoteAddress)),
 m_Session(0), m_RecvWPct(0), m_RecvPctRead(0), m_Header(sizeof(AuthClientPktHeader)),
 m_HeaderRead(0), m_WorldHeader(sizeof(WorldClientPktHeader)), m_WorldHeaderRead(0),
-m_OutBuffer(), m_OutBufferReadPos(0), m_OutQueue(), m_OutBufferSize(65536),
-m_Started(false), m_WriteInProgress(false), m_Socket(std::move(socket)), m_CloseHandler(), m_ReferenceCount(0), m_Closed(false), m_CloseNotified(false)
+m_PendingOutput(), m_OutBufferSize(65536), m_Started(false), m_Socket(std::move(socket)),
+m_WriteQueue(new Skyfire::Net::BoostAsioWriteQueue<WorldSocketHandle>(*m_Socket)),
+m_CloseHandler(), m_ReferenceCount(0), m_Closed(false), m_CloseNotified(false)
 {
     SkyFire::Crypto::GetRandomBytes(m_Seed);
 }
@@ -108,11 +108,12 @@ bool WorldSocket::IsClosed(void) const
 
 void WorldSocket::CloseSocket(void)
 {
-    {
-        GuardType Guard(m_OutBufferLock);
+    if (m_Closed.exchange(true))
+        return;
 
-        if (m_Closed.exchange(true))
-            return;
+    {
+        GuardType Guard(m_SendLock);
+        m_PendingOutput.clear();
     }
 
     if (m_Socket && m_Socket->is_open())
@@ -132,8 +133,8 @@ const std::string& WorldSocket::GetRemoteAddress(void) const
 
 bool WorldSocket::HasPendingOutput(void) const
 {
-    GuardType Guard(m_OutBufferLock);
-    return m_OutBuffer.size() != m_OutBufferReadPos || !m_OutQueue.empty();
+    GuardType Guard(m_SendLock);
+    return !m_PendingOutput.empty() || (m_WriteQueue && m_WriteQueue->HasPendingOutput());
 }
 
 bool WorldSocket::IsValidSocket(void) const
@@ -143,9 +144,7 @@ bool WorldSocket::IsValidSocket(void) const
 
 int WorldSocket::SendPacket(WorldPacket const& pct)
 {
-    bool startWrite = false;
-
-    GuardType Guard(m_OutBufferLock);
+    GuardType Guard(m_SendLock);
 
     if (m_Closed)
         return -1;
@@ -183,31 +182,10 @@ int WorldSocket::SendPacket(WorldPacket const& pct)
         serialized.insert(serialized.end(), reinterpret_cast<char const*>(pkt->contents()),
             reinterpret_cast<char const*>(pkt->contents()) + pkt->size());
 
-    if (!m_WriteInProgress && m_OutQueue.empty() && m_OutBuffer.size() - m_OutBufferReadPos + serialized.size() <= m_OutBufferSize)
-    {
-        if (m_OutBufferReadPos == m_OutBuffer.size())
-        {
-            m_OutBuffer.clear();
-            m_OutBufferReadPos = 0;
-        }
-
-        m_OutBuffer.insert(m_OutBuffer.end(), serialized.begin(), serialized.end());
-    }
+    if (!m_Started)
+        m_PendingOutput.push_back(std::move(serialized));
     else
-    {
-        m_OutQueue.push_back(std::move(serialized));
-    }
-
-    if (m_Started && !m_WriteInProgress)
-    {
-        m_WriteInProgress = true;
-        startWrite = true;
-    }
-
-    Guard.unlock();
-
-    if (startWrite)
-        PostAsyncWrite();
+        QueueSerializedPacket(std::move(serialized));
 
     return 0;
 }
@@ -249,26 +227,21 @@ void WorldSocket::Start(std::function<void(WorldSocket*)> closeHandler)
         return;
     }
 
-    bool startWrite = false;
-
     {
-        GuardType Guard(m_OutBufferLock);
+        GuardType Guard(m_SendLock);
         m_Started = true;
 
-        if (!m_WriteInProgress && (m_OutBuffer.size() != m_OutBufferReadPos || !m_OutQueue.empty()))
+        while (!m_PendingOutput.empty())
         {
-            m_WriteInProgress = true;
-            startWrite = true;
+            QueueSerializedPacket(std::move(m_PendingOutput.front()));
+            m_PendingOutput.pop_front();
         }
     }
 
     StartAsyncRead();
-
-    if (startWrite)
-        PostAsyncWrite();
 }
 
-void WorldSocket::PostAsyncWrite()
+void WorldSocket::QueueSerializedPacket(std::vector<char> data)
 {
     if (!IsValidSocket())
     {
@@ -277,10 +250,10 @@ void WorldSocket::PostAsyncWrite()
     }
 
     AddReference();
-    boost::asio::post(m_Socket->get_executor(),
-        [this]()
+    m_WriteQueue->Queue(std::move(data),
+        [this](boost::system::error_code const& error, size_t transferredBytes)
         {
-            StartAsyncWrite();
+            HandleAsyncWrite(error, transferredBytes);
             RemoveReference();
         });
 }
@@ -298,57 +271,6 @@ void WorldSocket::StartAsyncRead()
         [this](boost::system::error_code const& error, size_t transferredBytes)
         {
             HandleAsyncRead(error, transferredBytes);
-            RemoveReference();
-        });
-}
-
-void WorldSocket::StartAsyncWrite()
-{
-    size_t sendLength = 0;
-    bool notifyClosed = false;
-
-    {
-        GuardType Guard(m_OutBufferLock);
-
-        if (m_Closed || !IsValidSocket())
-        {
-            m_WriteInProgress = false;
-            notifyClosed = true;
-        }
-        else if (m_OutBufferReadPos == m_OutBuffer.size())
-        {
-            m_OutBuffer.clear();
-            m_OutBufferReadPos = 0;
-
-            if (!m_OutQueue.empty())
-            {
-                m_OutBuffer = std::move(m_OutQueue.front());
-                m_OutQueue.pop_front();
-            }
-        }
-
-        if (!notifyClosed)
-        {
-            sendLength = m_OutBuffer.size() - m_OutBufferReadPos;
-            if (sendLength == 0)
-            {
-                m_WriteInProgress = false;
-                return;
-            }
-        }
-    }
-
-    if (notifyClosed)
-    {
-        NotifyClosed();
-        return;
-    }
-
-    AddReference();
-    boost::asio::async_write(*m_Socket, boost::asio::buffer(m_OutBuffer.data() + m_OutBufferReadPos, sendLength),
-        [this](boost::system::error_code const& error, size_t transferredBytes)
-        {
-            HandleAsyncWrite(error, transferredBytes);
             RemoveReference();
         });
 }
@@ -394,13 +316,10 @@ void WorldSocket::HandleAsyncRead(boost::system::error_code const& error, size_t
 
 void WorldSocket::HandleAsyncWrite(boost::system::error_code const& error, size_t transferredBytes)
 {
+    (void)transferredBytes;
+
     if (error)
     {
-        {
-            GuardType Guard(m_OutBufferLock);
-            m_WriteInProgress = false;
-        }
-
         if (error != boost::asio::error::operation_aborted)
             SF_LOG_DEBUG("network", "WorldSocket::HandleAsyncWrite: peer error closing connection error = %d", error.value());
 
@@ -408,32 +327,6 @@ void WorldSocket::HandleAsyncWrite(boost::system::error_code const& error, size_
         NotifyClosed();
         return;
     }
-
-    bool writeMore = false;
-
-    {
-        GuardType Guard(m_OutBufferLock);
-
-        m_OutBufferReadPos += transferredBytes;
-        if (m_OutBufferReadPos >= m_OutBuffer.size())
-        {
-            m_OutBuffer.clear();
-            m_OutBufferReadPos = 0;
-        }
-
-        if (m_OutBuffer.empty() && !m_OutQueue.empty())
-        {
-            m_OutBuffer = std::move(m_OutQueue.front());
-            m_OutQueue.pop_front();
-        }
-
-        writeMore = !m_OutBuffer.empty();
-        if (!writeMore)
-            m_WriteInProgress = false;
-    }
-
-    if (writeMore)
-        StartAsyncWrite();
 }
 
 void WorldSocket::NotifyClosed()
