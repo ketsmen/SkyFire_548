@@ -108,6 +108,19 @@ endif()
 
 add_test(NAME network_address_tests COMMAND network_address_tests)
 
+add_executable(memory_usage_tests
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities/MemoryUsage.cpp
+  MemoryUsageTests.cpp
+)
+
+target_include_directories(memory_usage_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities
+)
+
+add_test(NAME memory_usage_tests COMMAND memory_usage_tests)
+
 add_executable(boost_asio_utils_tests
   BoostAsioUtilsTests.cpp
 )

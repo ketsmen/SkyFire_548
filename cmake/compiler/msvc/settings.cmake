@@ -137,5 +137,5 @@ sf_add_msvc_cxx_compile_option(/Zm50)
 sf_add_msvc_cxx_compile_option(/we4263)
 sf_add_msvc_cxx_compile_option(/we4264)
 
-set(CMAKE_CXX_STANDARD_LIBRARIES "ws2_32.lib iphlpapi.lib netapi32.lib mswsock.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib")
-set(CMAKE_C_STANDARD_LIBRARIES "ws2_32.lib iphlpapi.lib netapi32.lib mswsock.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib")
+set(CMAKE_CXX_STANDARD_LIBRARIES "ws2_32.lib iphlpapi.lib netapi32.lib mswsock.lib psapi.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib")
+set(CMAKE_C_STANDARD_LIBRARIES "ws2_32.lib iphlpapi.lib netapi32.lib mswsock.lib psapi.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib")

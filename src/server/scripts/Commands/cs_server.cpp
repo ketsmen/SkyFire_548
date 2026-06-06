@@ -13,6 +13,7 @@ EndScriptData */
 #include "Chat.h"
 #include "Config.h"
 #include "Language.h"
+#include "MemoryUsage.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "ScriptMgr.h"
@@ -96,6 +97,7 @@ public:
         uint32 maxQueuedClientsNum = sWorld->GetMaxQueuedSessionCount();
         std::string uptime = secsToTimeString(sWorld->GetUptime());
         uint32 updateTime = sWorld->GetUpdateTime();
+        Skyfire::ProcessMemoryUsage memoryUsage;
 
         handler->PSendSysMessage("Open Source Emulation https://www.projectskyfire.org");
         handler->PSendSysMessage("www.github.com/ProjectSkyfire/SkyFire_548");
@@ -103,6 +105,8 @@ public:
         handler->PSendSysMessage(LANG_CONNECTED_PLAYERS, playersNum, maxPlayersNum);
         handler->PSendSysMessage(LANG_CONNECTED_USERS, activeClientsNum, maxActiveClientsNum, queuedClientsNum, maxQueuedClientsNum);
         handler->PSendSysMessage(LANG_UPTIME, uptime.c_str());
+        std::string memoryInfo = Skyfire::GetProcessMemoryUsage(memoryUsage) ? Skyfire::FormatProcessMemoryUsage(memoryUsage) : "unavailable";
+        handler->PSendSysMessage("Memory: %s", memoryInfo.c_str());
         handler->PSendSysMessage(LANG_UPDATE_DIFF, updateTime);
 
         // Can't use sWorld->ShutdownMsg here in case of console command
