@@ -5,12 +5,10 @@
 
 #include "DelayExecutor.h"
 #include "Platform/Singleton.h"
-#include "Threading/BoostAsioExecutor.h"
+#include "Threading/BoostAsioThreadGroup.h"
 
 #include <mutex>
-#include <thread>
 #include <utility>
-#include <vector>
 
 struct DelayExecutor::Impl
 {
@@ -19,10 +17,9 @@ struct DelayExecutor::Impl
     {
     }
 
-    Skyfire::Asio::IoContextExecutor executor;
+    Skyfire::Asio::IoContextThreadGroup threadGroup;
     std::unique_ptr<DelayTask> preSvcHook;
     std::unique_ptr<DelayTask> postSvcHook;
-    std::vector<std::thread> threads;
     std::mutex stateLock;
     bool activated;
 };
@@ -49,14 +46,10 @@ int DelayExecutor::deactivate()
             return 0;
 
         impl_->activated = false;
-        impl_->executor.ResetWork();
+        impl_->threadGroup.Drain();
     }
 
-    for (std::thread& thread : impl_->threads)
-        if (thread.joinable())
-            thread.join();
-
-    impl_->threads.clear();
+    impl_->threadGroup.Join();
     impl_->preSvcHook.reset();
     impl_->postSvcHook.reset();
 
@@ -68,7 +61,7 @@ int DelayExecutor::svc()
     if (impl_->preSvcHook)
         impl_->preSvcHook->call();
 
-    impl_->executor.Run();
+    impl_->threadGroup.GetExecutor().Run();
 
     if (impl_->postSvcHook)
         impl_->postSvcHook->call();
@@ -86,21 +79,27 @@ int DelayExecutor::start(int num_threads, std::unique_ptr<DelayTask> pre_svc_hoo
 
     impl_->preSvcHook = std::move(pre_svc_hook);
     impl_->postSvcHook = std::move(post_svc_hook);
-    impl_->executor.Restart();
-    impl_->executor.KeepAlive();
 
-    activated(true);
+    int const started = impl_->threadGroup.Start(static_cast<size_t>(num_threads),
+        [this]
+        {
+            if (impl_->preSvcHook)
+                impl_->preSvcHook->call();
+        },
+        [this]
+        {
+            if (impl_->postSvcHook)
+                impl_->postSvcHook->call();
+        });
 
-    try
+    if (started == -1)
     {
-        for (int i = 0; i < num_threads; ++i)
-            impl_->threads.push_back(std::thread(&DelayExecutor::svc, this));
-    }
-    catch (...)
-    {
-        deactivate();
+        impl_->preSvcHook.reset();
+        impl_->postSvcHook.reset();
         return -1;
     }
+
+    activated(true);
 
     return 0;
 }
@@ -117,7 +116,7 @@ int DelayExecutor::execute(std::unique_ptr<DelayTask> new_req)
             return -1;
     }
 
-    impl_->executor.Post(
+    impl_->threadGroup.GetExecutor().Post(
         [task = std::move(new_req)]() mutable
         {
             task->call();

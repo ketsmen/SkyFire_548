@@ -11,8 +11,8 @@
 #include <memory>
 
 RealmAcceptor::RealmAcceptor() :
-    _executor(),
-    _acceptor(_executor.GetIoContext()),
+    _threadGroup(),
+    _acceptor(_threadGroup.GetIoContext()),
     _closed(true)
 {
 }
@@ -24,17 +24,13 @@ RealmAcceptor::~RealmAcceptor()
 
 bool RealmAcceptor::Open(uint16 port, std::string const& bindIp)
 {
-    if (!Skyfire::Net::OpenTcpAcceptor(_executor.GetIoContext(), _acceptor, port, bindIp, "server.authserver", "auth"))
+    if (!Skyfire::Net::OpenTcpAcceptor(_threadGroup.GetIoContext(), _acceptor, port, bindIp, "server.authserver", "auth"))
         return false;
 
     _closed = false;
     AsyncAccept();
 
-    try
-    {
-        _thread = std::thread([this] { _executor.Run(); });
-    }
-    catch (...)
+    if (_threadGroup.Start(1) == -1)
     {
         Close();
         return false;
@@ -50,10 +46,7 @@ void RealmAcceptor::Close()
         return;
 
     Skyfire::Net::CloseTcpAcceptor(_acceptor);
-    _executor.Stop();
-
-    if (_thread.joinable())
-        _thread.join();
+    _threadGroup.StopAndJoin();
 }
 
 void RealmAcceptor::Update()
@@ -65,7 +58,7 @@ void RealmAcceptor::AsyncAccept()
     if (!_acceptor.is_open())
         return;
 
-    std::shared_ptr<RealmSocketHandle> clientSocket(new RealmSocketHandle(_executor.GetIoContext()));
+    std::shared_ptr<RealmSocketHandle> clientSocket(new RealmSocketHandle(_threadGroup.GetIoContext()));
     _acceptor.async_accept(*clientSocket,
         [this, clientSocket](boost::system::error_code const& error)
         {

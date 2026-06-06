@@ -4,29 +4,27 @@
 */
 
 #include "LogWorker.h"
-#include "Threading/BoostAsioExecutor.h"
+#include "Threading/BoostAsioThreadGroup.h"
 
 #include <mutex>
-#include <thread>
 
 struct LogWorker::Impl
 {
     Impl()
-        : executor(), active(true)
+        : threadGroup(), active(true)
     {
-        executor.KeepAlive();
     }
 
-    Skyfire::Asio::IoContextExecutor executor;
+    Skyfire::Asio::IoContextThreadGroup threadGroup;
     std::mutex queueLock;
-    std::thread thread;
     bool active;
 };
 
 LogWorker::LogWorker()
     : m_impl(new Impl)
 {
-    m_impl->thread = std::thread(&LogWorker::svc, this);
+    if (m_impl->threadGroup.Start(1) == -1)
+        m_impl->active = false;
 }
 
 LogWorker::~LogWorker()
@@ -34,11 +32,9 @@ LogWorker::~LogWorker()
     {
         std::lock_guard<std::mutex> guard(m_impl->queueLock);
         m_impl->active = false;
-        m_impl->executor.ResetWork();
     }
 
-    if (m_impl->thread.joinable())
-        m_impl->thread.join();
+    m_impl->threadGroup.DrainAndJoin();
 }
 
 int LogWorker::enqueue(LogOperation* op)
@@ -53,18 +49,12 @@ int LogWorker::enqueue(LogOperation* op)
             return -1;
     }
 
-    m_impl->executor.Post(
+    m_impl->threadGroup.GetExecutor().Post(
         [op]
         {
             op->call();
             delete op;
         });
 
-    return 0;
-}
-
-int LogWorker::svc()
-{
-    m_impl->executor.Run();
     return 0;
 }

@@ -155,6 +155,28 @@ endif()
 
 add_test(NAME boost_asio_executor_tests COMMAND boost_asio_executor_tests)
 
+add_executable(boost_asio_thread_group_tests
+  BoostAsioThreadGroupTests.cpp
+)
+
+target_include_directories(boost_asio_thread_group_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Threading
+  ${Boost_INCLUDE_DIRS}
+)
+
+if(TARGET Boost::headers)
+  target_link_libraries(boost_asio_thread_group_tests Boost::headers)
+elseif(TARGET Boost::boost)
+  target_link_libraries(boost_asio_thread_group_tests Boost::boost)
+endif()
+
+target_link_libraries(boost_asio_thread_group_tests Threads::Threads)
+
+add_test(NAME boost_asio_thread_group_tests COMMAND boost_asio_thread_group_tests)
+
 add_executable(delay_executor_tests
   ${CMAKE_SOURCE_DIR}/src/server/shared/Threading/DelayExecutor.cpp
   DelayExecutorTests.cpp

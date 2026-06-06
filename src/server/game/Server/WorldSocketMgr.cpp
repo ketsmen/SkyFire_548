@@ -13,14 +13,13 @@
 #include <atomic>
 #include <memory>
 #include <set>
-#include <thread>
 
 #include "Common.h"
 #include "Config.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include "ScriptMgr.h"
-#include "Threading/BoostAsioExecutor.h"
+#include "Threading/BoostAsioThreadGroup.h"
 #include "WorldSocket.h"
 #include "WorldSocketAcceptor.h"
 #include <boost/asio/socket_base.hpp>
@@ -36,11 +35,10 @@ class ReactorRunnable
 {
 public:
     ReactorRunnable() :
-        m_Executor(),
+        m_ThreadGroup(),
         m_Connections(0),
         m_Stopped(false)
     {
-        m_Executor.KeepAlive();
     }
 
     virtual ~ReactorRunnable()
@@ -64,30 +62,25 @@ public:
         for (WorldSocket* socket : sockets)
             socket->CloseSocket();
 
-        m_Executor.ResetWork();
+        m_ThreadGroup.Drain();
     }
 
     int Start()
     {
-        if (m_Thread.joinable())
-            return -1;
-
-        try
-        {
-            m_Thread = std::thread(&ReactorRunnable::Run, this);
-        }
-        catch (...)
-        {
-            return -1;
-        }
-
-        return 0;
+        return m_ThreadGroup.Start(1,
+            []
+            {
+                SF_LOG_DEBUG("misc", "Network Thread Starting");
+            },
+            []
+            {
+                SF_LOG_DEBUG("misc", "Network Thread exits");
+            });
     }
 
     void Wait()
     {
-        if (m_Thread.joinable())
-            m_Thread.join();
+        m_ThreadGroup.Join();
     }
 
     long Connections()
@@ -97,7 +90,7 @@ public:
 
     boost::asio::io_context& GetIoContext()
     {
-        return m_Executor.GetIoContext();
+        return m_ThreadGroup.GetIoContext();
     }
 
     int AddSocket(WorldSocket* sock)
@@ -147,24 +140,13 @@ public:
         sock->RemoveReference();
     }
 
-protected:
-    void Run()
-    {
-        SF_LOG_DEBUG("misc", "Network Thread Starting");
-
-        m_Executor.Run();
-
-        SF_LOG_DEBUG("misc", "Network Thread exits");
-    }
-
 private:
     typedef std::atomic<long> AtomicInt;
     typedef std::set<WorldSocket*> SocketSet;
 
-    Skyfire::Asio::IoContextExecutor m_Executor;
+    Skyfire::Asio::IoContextThreadGroup m_ThreadGroup;
     AtomicInt m_Connections;
     std::atomic<bool> m_Stopped;
-    std::thread m_Thread;
 
     SocketSet m_Sockets;
     std::mutex m_SocketsLock;

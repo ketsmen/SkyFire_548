@@ -27,8 +27,6 @@ public:
 private:
     struct Impl;
 
-    int svc();
-
     std::unique_ptr<Impl> m_impl;
 };
 
