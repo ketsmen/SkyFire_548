@@ -39,6 +39,11 @@ namespace Asio
             ResetWorkGuard(_workGuard);
         }
 
+        void Stop()
+        {
+            _ioContext.stop();
+        }
+
         std::size_t Run()
         {
             return _ioContext.run();

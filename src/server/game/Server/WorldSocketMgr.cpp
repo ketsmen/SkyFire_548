@@ -20,9 +20,9 @@
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include "ScriptMgr.h"
+#include "Threading/BoostAsioExecutor.h"
 #include "WorldSocket.h"
 #include "WorldSocketAcceptor.h"
-#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/socket_base.hpp>
 #include <boost/system/error_code.hpp>
 #include <vector>
@@ -35,14 +35,12 @@
 class ReactorRunnable
 {
 public:
-    typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
-
     ReactorRunnable() :
-        m_IoContext(),
-        m_WorkGuard(new WorkGuard(boost::asio::make_work_guard(m_IoContext))),
+        m_Executor(),
         m_Connections(0),
         m_Stopped(false)
     {
+        m_Executor.KeepAlive();
     }
 
     virtual ~ReactorRunnable()
@@ -66,7 +64,7 @@ public:
         for (WorldSocket* socket : sockets)
             socket->CloseSocket();
 
-        m_WorkGuard.reset();
+        m_Executor.ResetWork();
     }
 
     int Start()
@@ -99,7 +97,7 @@ public:
 
     boost::asio::io_context& GetIoContext()
     {
-        return m_IoContext;
+        return m_Executor.GetIoContext();
     }
 
     int AddSocket(WorldSocket* sock)
@@ -154,7 +152,7 @@ protected:
     {
         SF_LOG_DEBUG("misc", "Network Thread Starting");
 
-        m_IoContext.run();
+        m_Executor.Run();
 
         SF_LOG_DEBUG("misc", "Network Thread exits");
     }
@@ -163,8 +161,7 @@ private:
     typedef std::atomic<long> AtomicInt;
     typedef std::set<WorldSocket*> SocketSet;
 
-    boost::asio::io_context m_IoContext;
-    std::unique_ptr<WorkGuard> m_WorkGuard;
+    Skyfire::Asio::IoContextExecutor m_Executor;
     AtomicInt m_Connections;
     std::atomic<bool> m_Stopped;
     std::thread m_Thread;

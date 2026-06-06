@@ -5,6 +5,7 @@
 
 #include "Threading/BoostAsioExecutor.h"
 
+#include <boost/asio/post.hpp>
 #include <iostream>
 
 int main()
@@ -53,6 +54,35 @@ int main()
     if (!secondTaskRan)
     {
         std::cerr << "Second posted task did not run after restart\n";
+        return 1;
+    }
+
+    executor.Restart();
+    executor.KeepAlive();
+    executor.Post([]
+    {
+    });
+    executor.Stop();
+    executor.ResetWork();
+
+    if (!executor.GetIoContext().stopped())
+    {
+        std::cerr << "IoContextExecutor::Stop did not stop the io_context\n";
+        return 1;
+    }
+
+    executor.Restart();
+
+    bool taskRanAfterStop = false;
+    boost::asio::post(executor.GetIoContext(), [&taskRanAfterStop]
+    {
+        taskRanAfterStop = true;
+    });
+
+    std::size_t handlersRunAfterStop = executor.Run();
+    if (handlersRunAfterStop == 0 || !taskRanAfterStop)
+    {
+        std::cerr << "IoContextExecutor did not restart cleanly after Stop\n";
         return 1;
     }
 
