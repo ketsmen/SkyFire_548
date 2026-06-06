@@ -8,7 +8,7 @@
 
 #include "Common.h"
 #include "RealmSocket.h"
-#include <boost/asio/io_context.hpp>
+#include "Threading/BoostAsioExecutor.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <atomic>
 #include <thread>
@@ -28,7 +28,7 @@ private:
     void AsyncAccept();
     void HandleAccept(std::shared_ptr<RealmSocketHandle> clientSocket, boost::system::error_code const& error);
 
-    boost::asio::io_context _ioContext;
+    Skyfire::Asio::IoContextExecutor _executor;
     boost::asio::ip::tcp::acceptor _acceptor;
     std::thread _thread;
     std::atomic<bool> _closed;

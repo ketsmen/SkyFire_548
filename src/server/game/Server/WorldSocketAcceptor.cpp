@@ -13,8 +13,8 @@
 #include <utility>
 
 WorldSocketAcceptor::WorldSocketAcceptor() :
-    m_IoContext(),
-    m_Acceptor(m_IoContext),
+    m_Executor(),
+    m_Acceptor(m_Executor.GetIoContext()),
     m_Closed(true)
 {
 }
@@ -26,7 +26,7 @@ WorldSocketAcceptor::~WorldSocketAcceptor()
 
 bool WorldSocketAcceptor::Open(uint16 port, const char* address)
 {
-    if (!Skyfire::Net::OpenTcpAcceptor(m_IoContext, m_Acceptor, port, address, "network", "world"))
+    if (!Skyfire::Net::OpenTcpAcceptor(m_Executor.GetIoContext(), m_Acceptor, port, address, "network", "world"))
         return false;
 
     m_Closed = false;
@@ -34,7 +34,7 @@ bool WorldSocketAcceptor::Open(uint16 port, const char* address)
 
     try
     {
-        m_Thread = std::thread([this] { m_IoContext.run(); });
+        m_Thread = std::thread([this] { m_Executor.Run(); });
     }
     catch (...)
     {
@@ -52,7 +52,7 @@ void WorldSocketAcceptor::Close()
         return;
 
     Skyfire::Net::CloseTcpAcceptor(m_Acceptor);
-    Skyfire::Net::StopIoContext(m_IoContext);
+    m_Executor.Stop();
 
     if (m_Thread.joinable())
         m_Thread.join();

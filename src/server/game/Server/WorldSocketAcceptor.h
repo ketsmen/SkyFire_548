@@ -12,8 +12,8 @@
 #define SF_WORLDSOCKETACCEPTOR_H
 
 #include "Common.h"
+#include "Threading/BoostAsioExecutor.h"
 #include "WorldSocket.h"
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <atomic>
 #include <memory>
@@ -36,7 +36,7 @@ private:
     void HandleAccept(ReactorRunnable* reactor, WorldSocketHandle socket, boost::asio::ip::tcp::endpoint const& remoteEndpoint,
         boost::system::error_code const& error);
 
-    boost::asio::io_context m_IoContext;
+    Skyfire::Asio::IoContextExecutor m_Executor;
     boost::asio::ip::tcp::acceptor m_Acceptor;
     std::thread m_Thread;
     std::atomic<bool> m_Closed;
