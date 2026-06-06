@@ -11,8 +11,8 @@
 #define _RASOCKET_H
 
 #include "Common.h"
+#include "Threading/BoostAsioExecutor.h"
 
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/streambuf.hpp>
@@ -31,7 +31,7 @@ typedef boost::asio::ip::tcp::socket RASocketHandle;
 class RASocket : public std::enable_shared_from_this<RASocket>
 {
 public:
-    RASocket(std::shared_ptr<boost::asio::io_context> ioContext, std::unique_ptr<RASocketHandle> socket, std::string const& remoteAddress);
+    RASocket(std::shared_ptr<Skyfire::Asio::IoContextExecutor> executor, std::unique_ptr<RASocketHandle> socket, std::string const& remoteAddress);
     virtual ~RASocket();
 
     void start();
@@ -71,7 +71,7 @@ private:
     static void commandFinished(void* callbackArg, bool success);
 
 private:
-    std::shared_ptr<boost::asio::io_context> _ioContext;
+    std::shared_ptr<Skyfire::Asio::IoContextExecutor> _executor;
     std::unique_ptr<RASocketHandle> _socket;
     boost::asio::steady_timer _subnegotiationTimer;
     std::string _remoteAddress;

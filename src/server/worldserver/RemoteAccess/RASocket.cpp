@@ -18,7 +18,6 @@
 #include "World.h"
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/error.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/system/error_code.hpp>
@@ -28,10 +27,10 @@
 #include <sstream>
 #include <utility>
 
-RASocket::RASocket(std::shared_ptr<boost::asio::io_context> ioContext, std::unique_ptr<RASocketHandle> socket, std::string const& remoteAddress) :
-    _ioContext(std::move(ioContext)),
+RASocket::RASocket(std::shared_ptr<Skyfire::Asio::IoContextExecutor> executor, std::unique_ptr<RASocketHandle> socket, std::string const& remoteAddress) :
+    _executor(std::move(executor)),
     _socket(std::move(socket)),
-    _subnegotiationTimer(*_ioContext),
+    _subnegotiationTimer(_executor->GetIoContext()),
     _remoteAddress(remoteAddress),
     _subnegotiationBuffer(),
     _lineBuffer(),
@@ -60,7 +59,7 @@ RASocket::~RASocket()
 void RASocket::start()
 {
     std::shared_ptr<RASocket> self = shared_from_this();
-    boost::asio::post(*_ioContext, [self]
+    _executor->Post([self]
     {
         self->start_subnegotiation();
     });
@@ -581,7 +580,7 @@ void RASocket::zprint(void* callbackArg, const char* szText)
     }
 
     if (self)
-        boost::asio::post(*self->_ioContext, [self]
+        self->_executor->Post([self]
         {
             self->drain_command_output();
         });
@@ -609,7 +608,7 @@ void RASocket::commandFinished(void* callbackArg, bool /*success*/)
     }
 
     if (self)
-        boost::asio::post(*self->_ioContext, [self]
+        self->_executor->Post([self]
         {
             self->drain_command_output();
         });

@@ -12,12 +12,12 @@
 #include "Log.h"
 #include "Network/BoostAsioUtils.h"
 #include "RARunnable.h"
+#include "Threading/BoostAsioExecutor.h"
 #include "World.h"
 
 #include "RASocket.h"
 
 #include <boost/asio/error.hpp>
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
 #include <chrono>
@@ -26,8 +26,8 @@
 
 namespace
 {
-    void AsyncAcceptRA(std::shared_ptr<boost::asio::io_context> const& ioContext, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor);
-    void ScheduleStopCheck(std::shared_ptr<boost::asio::io_context> const& ioContext, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor,
+    void AsyncAcceptRA(std::shared_ptr<Skyfire::Asio::IoContextExecutor> const& executor, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor);
+    void ScheduleStopCheck(std::shared_ptr<Skyfire::Asio::IoContextExecutor> const& executor, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor,
         std::shared_ptr<boost::asio::steady_timer> const& timer);
 }
 
@@ -39,35 +39,36 @@ void RARunnable::Run()
     uint16 raPort = uint16(sConfigMgr->GetIntDefault("Ra.Port", 3443));
     std::string stringIp = sConfigMgr->GetStringDefault("Ra.IP", "0.0.0.0");
 
-    std::shared_ptr<boost::asio::io_context> ioContext(new boost::asio::io_context);
-    std::shared_ptr<boost::asio::ip::tcp::acceptor> acceptor(new boost::asio::ip::tcp::acceptor(*ioContext));
-    if (!Skyfire::Net::OpenTcpAcceptor(*ioContext, *acceptor, raPort, stringIp, "server.worldserver", "Skyfire RA"))
+    std::shared_ptr<Skyfire::Asio::IoContextExecutor> executor(new Skyfire::Asio::IoContextExecutor);
+    std::shared_ptr<boost::asio::ip::tcp::acceptor> acceptor(new boost::asio::ip::tcp::acceptor(executor->GetIoContext()));
+    if (!Skyfire::Net::OpenTcpAcceptor(executor->GetIoContext(), *acceptor, raPort, stringIp, "server.worldserver", "Skyfire RA"))
         return;
 
     SF_LOG_INFO("server.worldserver", "Starting Skyfire RA on port %d on %s", raPort, stringIp.c_str());
 
-    AsyncAcceptRA(ioContext, acceptor);
+    AsyncAcceptRA(executor, acceptor);
 
-    std::shared_ptr<boost::asio::steady_timer> stopTimer(new boost::asio::steady_timer(*ioContext));
-    ScheduleStopCheck(ioContext, acceptor, stopTimer);
+    std::shared_ptr<boost::asio::steady_timer> stopTimer(new boost::asio::steady_timer(executor->GetIoContext()));
+    ScheduleStopCheck(executor, acceptor, stopTimer);
 
-    ioContext->run();
+    executor->Run();
 
     Skyfire::Net::CloseTcpAcceptor(*acceptor);
+    Skyfire::Net::CancelTimer(*stopTimer);
 
     SF_LOG_DEBUG("server.worldserver", "Skyfire RA thread exiting");
 }
 
 namespace
 {
-    void AsyncAcceptRA(std::shared_ptr<boost::asio::io_context> const& ioContext, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor)
+    void AsyncAcceptRA(std::shared_ptr<Skyfire::Asio::IoContextExecutor> const& executor, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor)
     {
         if (!acceptor->is_open())
             return;
 
-        std::shared_ptr<RASocketHandle> clientSocket(new RASocketHandle(*ioContext));
+        std::shared_ptr<RASocketHandle> clientSocket(new RASocketHandle(executor->GetIoContext()));
         acceptor->async_accept(*clientSocket,
-            [ioContext, acceptor, clientSocket](boost::system::error_code const& error)
+            [executor, acceptor, clientSocket](boost::system::error_code const& error)
             {
                 if (error)
                 {
@@ -83,20 +84,20 @@ namespace
                     SF_LOG_INFO("commands.ra", "Incoming connection from %s", remote.c_str());
 
                     std::unique_ptr<RASocketHandle> socketHandle(new RASocketHandle(std::move(*clientSocket)));
-                    std::make_shared<RASocket>(ioContext, std::move(socketHandle), remote)->start();
+                    std::make_shared<RASocket>(executor, std::move(socketHandle), remote)->start();
                 }
 
                 if (!World::IsStopped())
-                    AsyncAcceptRA(ioContext, acceptor);
+                    AsyncAcceptRA(executor, acceptor);
             });
     }
 
-    void ScheduleStopCheck(std::shared_ptr<boost::asio::io_context> const& ioContext, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor,
+    void ScheduleStopCheck(std::shared_ptr<Skyfire::Asio::IoContextExecutor> const& executor, std::shared_ptr<boost::asio::ip::tcp::acceptor> const& acceptor,
         std::shared_ptr<boost::asio::steady_timer> const& timer)
     {
         timer->expires_after(std::chrono::milliseconds(100));
         timer->async_wait(
-            [ioContext, acceptor, timer](boost::system::error_code const& error)
+            [executor, acceptor, timer](boost::system::error_code const& error)
             {
                 if (error == boost::asio::error::operation_aborted)
                     return;
@@ -104,11 +105,11 @@ namespace
                 if (World::IsStopped())
                 {
                     Skyfire::Net::CloseTcpAcceptor(*acceptor);
-                    Skyfire::Net::StopIoContext(*ioContext);
+                    executor->Stop();
                     return;
                 }
 
-                ScheduleStopCheck(ioContext, acceptor, timer);
+                ScheduleStopCheck(executor, acceptor, timer);
             });
     }
 }
