@@ -6,6 +6,7 @@
 #include "Cell.h"
 #include "CurrencyFormulas.h"
 #include "GridDefines.h"
+#include "ThreatCalcHelper.h"
 #include "WorldPacket.h"
 
 #include <cmath>
@@ -83,6 +84,34 @@ namespace
         return passed;
     }
 
+    bool TestThreatSpellModifierRules()
+    {
+        bool passed = true;
+
+        ThreatCalcHelper::SpellThreatCalculation defaultCalculation =
+            ThreatCalcHelper::ApplySpellThreatModifiers(100.0f, 1.0f, false);
+        passed &= Expect(defaultCalculation.threat == 100.0f,
+            "Threat spell modifier default multiplier should leave threat unchanged");
+        passed &= Expect(!defaultCalculation.ignoresUnitModifiers,
+            "Non-energize threat should still allow unit threat modifiers");
+
+        ThreatCalcHelper::SpellThreatCalculation percentCalculation =
+            ThreatCalcHelper::ApplySpellThreatModifiers(100.0f, 1.25f, false);
+        passed &= Expect(percentCalculation.threat == 125.0f,
+            "Threat spell modifier percent should scale threat");
+        passed &= Expect(!percentCalculation.ignoresUnitModifiers,
+            "Percent-only threat should still allow unit threat modifiers");
+
+        ThreatCalcHelper::SpellThreatCalculation energizeCalculation =
+            ThreatCalcHelper::ApplySpellThreatModifiers(100.0f, 0.5f, true);
+        passed &= Expect(energizeCalculation.threat == 50.0f,
+            "Energize threat should still apply spell threat percent modifiers");
+        passed &= Expect(energizeCalculation.ignoresUnitModifiers,
+            "Energize threat should bypass later unit threat modifiers");
+
+        return passed;
+    }
+
     bool TestGridAndCellPrimitives()
     {
         bool passed = true;
@@ -136,6 +165,7 @@ int main()
 
     passed &= TestCurrencyFormulaBoundaries();
     passed &= TestWorldPacketContainerBehavior();
+    passed &= TestThreatSpellModifierRules();
     passed &= TestGridAndCellPrimitives();
 
     return passed ? 0 : 1;
