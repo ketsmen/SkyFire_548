@@ -30,6 +30,10 @@ jobs:
 
     - uses: FranzDiebold/github-env-vars-action@v2
 
+    - name: Check game source tabs
+      shell: pwsh
+      run: ./tools/dev/game_metrics.ps1 -CheckNoTabs
+
     - name: Create Build Environment
       shell: pwsh
       run: |
