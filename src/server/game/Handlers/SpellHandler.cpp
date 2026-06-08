@@ -966,6 +966,237 @@ ProjectilePositionRequest ReadUpdateProjectilePositionRequest(WorldPacket& recvP
 
     return request;
 }
+
+bool CanProcessUseItemRequest(Player* player, Unit* mover)
+{
+    return mover == player;
+}
+
+bool ValidateUseItemSelection(Player* player, UseItemRequest& request, Item*& item)
+{
+    item = NULL;
+
+    if (request.glyphIndex >= MAX_GLYPH_SLOT_INDEX)
+    {
+        player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
+        return false;
+    }
+
+    item = player->GetUseableItemByPos(request.bagIndex, request.slot);
+    if (!item)
+    {
+        player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
+        return false;
+    }
+
+    if (item->GetGUID() != request.itemGuid)
+    {
+        player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateUseItemCombat(Player* player, Item* item, ItemTemplate const* proto)
+{
+    if (!player->IsInCombat())
+        return true;
+
+    for (int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+    {
+        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[i].SpellId))
+        {
+            if (!spellInfo->CanBeUsedInCombat())
+            {
+                player->SendEquipError(EQUIP_ERR_NOT_IN_COMBAT, item, NULL);
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateUseItemTemplate(Player* player, Item* item, ItemTemplate const*& proto)
+{
+    proto = item->GetTemplate();
+    if (!proto)
+    {
+        player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, item, NULL);
+        return false;
+    }
+
+    // some item classes can be used only in equipped state
+    if (proto->InventoryType != INVTYPE_NON_EQUIP && !item->IsEquipped())
+    {
+        player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, item, NULL);
+        return false;
+    }
+
+    InventoryResult msg = player->CanUseItem(item);
+    if (msg != EQUIP_ERR_OK)
+    {
+        player->SendEquipError(msg, item, NULL);
+        return false;
+    }
+
+    // only allow conjured consumable, bandage, poisons (all should have the 2^21 item flag set in DB)
+    if (proto->Class == ITEM_CLASS_CONSUMABLE && !(proto->Flags & ITEM_PROTO_FLAG_USEABLE_IN_ARENA) && player->InArena())
+    {
+        player->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, NULL);
+        return false;
+    }
+
+    // don't allow items banned in arena
+    if (proto->Flags & ITEM_PROTO_FLAG_NOT_USEABLE_IN_ARENA && player->InArena())
+    {
+        player->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, NULL);
+        return false;
+    }
+
+    return ValidateUseItemCombat(player, item, proto);
+}
+
+bool CanProcessCastSpellRequest(WorldPacket& recvPacket, Player* player, Unit* mover)
+{
+    if (mover != player && mover->GetTypeId() == TypeID::TYPEID_PLAYER)
+    {
+        recvPacket.rfinish(); // prevent spam at ignore packet
+        return false;
+    }
+
+    return true;
+}
+
+SpellInfo const* ValidateCastSpellInfo(WorldPacket& recvPacket, uint32 spellId)
+{
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+    if (!spellInfo)
+    {
+        SF_LOG_ERROR("network", "WORLD: unknown spell id %u", spellId);
+        recvPacket.rfinish(); // prevent spam at ignore packet
+        return NULL;
+    }
+
+    if (spellInfo->IsPassive())
+    {
+        recvPacket.rfinish(); // prevent spam at ignore packet
+        return NULL;
+    }
+
+    return spellInfo;
+}
+
+bool ValidateCastSource(WorldPacket& recvPacket, Player* player, Unit*& caster, SpellInfo const* spellInfo, uint32 spellId)
+{
+    if (caster->GetTypeId() == TypeID::TYPEID_UNIT && !caster->ToCreature()->HasSpell(spellId))
+    {
+        // If the vehicle creature does not have the spell but it allows the passenger to cast own spells
+        // change caster to player and let him cast
+        if (!player->IsOnVehicle(caster) || spellInfo->CheckVehicle(player) != SpellCastResult::SPELL_CAST_OK)
+        {
+            recvPacket.rfinish(); // prevent spam at ignore packet
+            return false;
+        }
+
+        caster = player;
+    }
+
+    if (caster->GetTypeId() == TypeID::TYPEID_PLAYER && !caster->ToPlayer()->HasActiveSpell(spellId))
+    {
+        // not have spell in spellbook
+        recvPacket.rfinish(); // prevent spam at ignore packet
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateCastExecution(WorldPacket& recvPacket, Player* player, Unit* caster, SpellInfo const* spellInfo)
+{
+    // Client is resending autoshot cast opcode when other spell is casted during shoot rotation.
+    // Skip it to prevent "interrupt" message.
+    if (spellInfo->IsAutoRepeatRangedSpell() && caster->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)
+        && caster->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)->m_spellInfo == spellInfo)
+    {
+        recvPacket.rfinish();
+        return false;
+    }
+
+    // can't use our own spells when we're in possession of another unit,
+    if (player->isPossessing())
+    {
+        recvPacket.rfinish(); // prevent spam at ignore packet
+        return false;
+    }
+
+    return true;
+}
+
+SpellInfo const* ValidateCancelAuraSpell(CancelAuraRequest const& request)
+{
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(request.spellId);
+    if (!spellInfo)
+        return NULL;
+
+    // not allow remove spells with attr SPELL_ATTR0_CANT_CANCEL
+    if (spellInfo->Attributes & SPELL_ATTR0_CANT_CANCEL)
+        return NULL;
+
+    return spellInfo;
+}
+
+bool TryInterruptMatchingChannel(Player* player, SpellInfo const* spellInfo, uint32 spellId)
+{
+    if (!spellInfo->IsChanneled())
+        return false;
+
+    if (Spell* curSpell = player->GetCurrentSpell(CURRENT_CHANNELED_SPELL))
+        if (curSpell->m_spellInfo->Id == spellId)
+            player->InterruptSpell(CURRENT_CHANNELED_SPELL);
+
+    return true;
+}
+
+bool IsPlayerCancelableAura(SpellInfo const* spellInfo)
+{
+    // don't allow remove non positive spells
+    // don't allow cancelling passive auras (some of them are visible)
+    return spellInfo->IsPositive() && !spellInfo->IsPassive();
+}
+
+Creature* ValidatePetCancelAuraRequest(Player* player, PetCancelAuraRequest& request)
+{
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(request.spellId);
+    if (!spellInfo)
+    {
+        SF_LOG_ERROR("network", "WORLD: unknown PET spell id %u", request.spellId);
+        return NULL;
+    }
+
+    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*player, request.guid);
+
+    if (!pet)
+    {
+        SF_LOG_ERROR("network", "HandlePetCancelAura: Attempt to cancel an aura for non-existant pet %u by player '%s'", uint32(GUID_LOPART(request.guid)), player->GetName().c_str());
+        return NULL;
+    }
+
+    if (pet != player->GetGuardianPet() && pet != player->GetCharm())
+    {
+        SF_LOG_ERROR("network", "HandlePetCancelAura: Pet %u is not a pet of player '%s'", uint32(GUID_LOPART(request.guid)), player->GetName().c_str());
+        return NULL;
+    }
+
+    if (!pet->IsAlive())
+    {
+        pet->SendPetActionFeedback(FEEDBACK_PET_DEAD);
+        return NULL;
+    }
+
+    return pet;
+}
 }
 
 void WorldSession::HandleClientCastFlags(WorldPacket& recvPacket, uint8 castFlags, SpellCastTargets& targets)
@@ -1016,85 +1247,24 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
     Unit* mover = _player->m_mover;
 
     // ignore for remote control state
-    if (mover != pUser)
+    if (!CanProcessUseItemRequest(pUser, mover))
         return;
 
     UseItemRequest request = ReadUseItemRequest(recvPacket, mover);
     Unit* caster = mover;
 
-    if (request.glyphIndex >= MAX_GLYPH_SLOT_INDEX)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
+    Item* pItem = NULL;
+    if (!ValidateUseItemSelection(pUser, request, pItem))
         return;
-    }
-
-    Item* pItem = pUser->GetUseableItemByPos(request.bagIndex, request.slot);
-    if (!pItem)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
-        return;
-    }
-
-    if (pItem->GetGUID() != request.itemGuid)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
-        return;
-    }
 
     SF_LOG_DEBUG("network", "WORLD: CMSG_USE_ITEM packet, bagIndex: %u, slot: %u, castCount: %u, spellId: %u, Item: %u, glyphIndex: %u, data length = %i", request.bagIndex, request.slot, request.castCount, request.spellId, pItem->GetEntry(), request.glyphIndex, (uint32)recvPacket.size());
 
-    ItemTemplate const* proto = pItem->GetTemplate();
-    if (!proto)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, NULL);
+    ItemTemplate const* proto = NULL;
+    if (!ValidateUseItemTemplate(pUser, pItem, proto))
         return;
-    }
-
-    // some item classes can be used only in equipped state
-    if (proto->InventoryType != INVTYPE_NON_EQUIP && !pItem->IsEquipped())
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, NULL);
-        return;
-    }
-
-    InventoryResult msg = pUser->CanUseItem(pItem);
-    if (msg != EQUIP_ERR_OK)
-    {
-        pUser->SendEquipError(msg, pItem, NULL);
-        return;
-    }
-
-    // only allow conjured consumable, bandage, poisons (all should have the 2^21 item flag set in DB)
-    if (proto->Class == ITEM_CLASS_CONSUMABLE && !(proto->Flags & ITEM_PROTO_FLAG_USEABLE_IN_ARENA) && pUser->InArena())
-    {
-        pUser->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, pItem, NULL);
-        return;
-    }
-
-    // don't allow items banned in arena
-    if (proto->Flags & ITEM_PROTO_FLAG_NOT_USEABLE_IN_ARENA && pUser->InArena())
-    {
-        pUser->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, pItem, NULL);
-        return;
-    }
-
-    if (pUser->IsInCombat())
-    {
-        for (int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
-        {
-            if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[i].SpellId))
-            {
-                if (!spellInfo->CanBeUsedInCombat())
-                {
-                    pUser->SendEquipError(EQUIP_ERR_NOT_IN_COMBAT, pItem, NULL);
-                    return;
-                }
-            }
-        }
-    }
 
     // check also  BIND_WHEN_PICKED_UP and BIND_QUEST_ITEM for .additem or .additemset case by GM (not binded at adding to inventory)
-    if (pItem->GetTemplate()->Bonding == BIND_WHEN_USE || pItem->GetTemplate()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetTemplate()->Bonding == BIND_QUEST_ITEM)
+    if (proto->Bonding == BIND_WHEN_USE || proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM)
     {
         if (!pItem->IsSoulBound())
         {
@@ -1257,11 +1427,8 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
 {
     // ignore for remote control state (for player case)
     Unit* mover = _player->m_mover;
-    if (mover != _player && mover->GetTypeId() == TypeID::TYPEID_PLAYER)
-    {
-        recvPacket.rfinish(); // prevent spam at ignore packet
+    if (!CanProcessCastSpellRequest(recvPacket, _player, mover))
         return;
-    }
 
     CastSpellRequest request = ReadCastSpellRequest(recvPacket, mover);
     Unit* caster = mover;
@@ -1272,39 +1439,12 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
 
     SF_LOG_DEBUG("network", "WORLD: got cast spell packet, castCount: %u, spellId: %u, castFlags: %u, data length = %u", castCount, spellId, castFlags, (uint32)recvPacket.size());
 
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+    SpellInfo const* spellInfo = ValidateCastSpellInfo(recvPacket, spellId);
     if (!spellInfo)
-    {
-        SF_LOG_ERROR("network", "WORLD: unknown spell id %u", spellId);
-        recvPacket.rfinish(); // prevent spam at ignore packet
         return;
-    }
 
-    if (spellInfo->IsPassive())
-    {
-        recvPacket.rfinish(); // prevent spam at ignore packet
+    if (!ValidateCastSource(recvPacket, _player, caster, spellInfo, spellId))
         return;
-    }
-
-    if (caster->GetTypeId() == TypeID::TYPEID_UNIT && !caster->ToCreature()->HasSpell(spellId))
-    {
-        // If the vehicle creature does not have the spell but it allows the passenger to cast own spells
-        // change caster to player and let him cast
-        if (!_player->IsOnVehicle(caster) || spellInfo->CheckVehicle(_player) != SpellCastResult::SPELL_CAST_OK)
-        {
-            recvPacket.rfinish(); // prevent spam at ignore packet
-            return;
-        }
-
-        caster = _player;
-    }
-
-    if (caster->GetTypeId() == TypeID::TYPEID_PLAYER && !caster->ToPlayer()->HasActiveSpell(spellId))
-    {
-        // not have spell in spellbook
-        recvPacket.rfinish(); // prevent spam at ignore packet
-        return;
-    }
 
     // Aura Overriden Spells
     Unit::AuraEffectList swaps = mover->GetAuraEffectsByType(SPELL_AURA_OVERRIDE_ACTIONBAR_SPELLS);
@@ -1405,21 +1545,8 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
         }
     }
 
-    // Client is resending autoshot cast opcode when other spell is casted during shoot rotation
-    // Skip it to prevent "interrupt" message
-    if (spellInfo->IsAutoRepeatRangedSpell() && caster->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)
-        && caster->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)->m_spellInfo == spellInfo)
-    {
-        recvPacket.rfinish();
+    if (!ValidateCastExecution(recvPacket, _player, caster, spellInfo))
         return;
-    }
-
-    // can't use our own spells when we're in possession of another unit,
-    if (_player->isPossessing())
-    {
-        recvPacket.rfinish(); // prevent spam at ignore packet
-        return;
-    }
 
     // client provided targets
     SpellCastTargets targets(caster, request.targetMask, request.targetGuid, request.itemTargetGuid, request.srcTransportGuid, request.destTransportGuid, request.srcPos, request.destPos, request.elevation, request.missileSpeed, request.targetString);
@@ -1480,27 +1607,15 @@ void WorldSession::HandleCancelAuraOpcode(WorldPacket& recvPacket)
 {
     CancelAuraRequest request = ReadCancelAuraRequest(recvPacket);
 
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(request.spellId);
+    SpellInfo const* spellInfo = ValidateCancelAuraSpell(request);
     if (!spellInfo)
         return;
 
-    // not allow remove spells with attr SPELL_ATTR0_CANT_CANCEL
-    if (spellInfo->Attributes & SPELL_ATTR0_CANT_CANCEL)
-        return;
-
     // channeled spell case (it currently casted then)
-    if (spellInfo->IsChanneled())
-    {
-        if (Spell* curSpell = _player->GetCurrentSpell(CURRENT_CHANNELED_SPELL))
-            if (curSpell->m_spellInfo->Id == request.spellId)
-                _player->InterruptSpell(CURRENT_CHANNELED_SPELL);
+    if (TryInterruptMatchingChannel(_player, spellInfo, request.spellId))
         return;
-    }
 
-    // non channeled case:
-    // don't allow remove non positive spells
-    // don't allow cancelling passive auras (some of them are visible)
-    if (!spellInfo->IsPositive() || spellInfo->IsPassive())
+    if (!IsPlayerCancelableAura(spellInfo))
         return;
 
     // maybe should only remove one buff when there are multiple?
@@ -1511,32 +1626,9 @@ void WorldSession::HandlePetCancelAuraOpcode(WorldPacket& recvPacket)
 {
     PetCancelAuraRequest request = ReadPetCancelAuraRequest(recvPacket);
 
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(request.spellId);
-    if (!spellInfo)
-    {
-        SF_LOG_ERROR("network", "WORLD: unknown PET spell id %u", request.spellId);
-        return;
-    }
-
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, request.guid);
-
+    Creature* pet = ValidatePetCancelAuraRequest(_player, request);
     if (!pet)
-    {
-        SF_LOG_ERROR("network", "HandlePetCancelAura: Attempt to cancel an aura for non-existant pet %u by player '%s'", uint32(GUID_LOPART(request.guid)), GetPlayer()->GetName().c_str());
         return;
-    }
-
-    if (pet != GetPlayer()->GetGuardianPet() && pet != GetPlayer()->GetCharm())
-    {
-        SF_LOG_ERROR("network", "HandlePetCancelAura: Pet %u is not a pet of player '%s'", uint32(GUID_LOPART(request.guid)), GetPlayer()->GetName().c_str());
-        return;
-    }
-
-    if (!pet->IsAlive())
-    {
-        pet->SendPetActionFeedback(FEEDBACK_PET_DEAD);
-        return;
-    }
 
     pet->RemoveOwnedAura(request.spellId, 0, 0, AURA_REMOVE_BY_CANCEL);
 
