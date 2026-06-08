@@ -188,6 +188,83 @@ void ReadMovementForceAckRequest(Player* player, WorldPacket& recvPacket)
     else
         ReadMovementInfoRequest(player, recvPacket);
 }
+
+bool ValidateMoveTeleportAck(Player* mover, ObjectGuid guid)
+{
+    return mover && mover->IsBeingTeleportedNear() && guid == mover->GetGUID();
+}
+
+bool ShouldIgnoreMovementWhileTeleporting(Player* mover, WorldPacket& recvPacket)
+{
+    if (!mover || !mover->IsBeingTeleported())
+        return false;
+
+    recvPacket.rfinish();                              // prevent warnings spam
+    return true;
+}
+
+bool ValidateMovementInfo(Unit* mover, MovementInfo const& movementInfo)
+{
+    if (movementInfo.guid != mover->GetGUID())
+    {
+        SF_LOG_ERROR("network", "HandleMovementOpcodes: guid error");
+        return false;
+    }
+
+    if (!movementInfo.pos.IsPositionValid())
+    {
+        SF_LOG_ERROR("network", "HandleMovementOpcodes: Invalid Position");
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateTransportMovementInfo(WorldPacket& recvPacket, MovementInfo const& movementInfo)
+{
+    if (!movementInfo.transport.guid)
+        return true;
+
+    // transports size limited
+    // (also received at zeppelin leave by some reason with t_* as absolute in continent coordinates, can be safely skipped)
+    if (movementInfo.transport.pos.GetPositionX() > 50 || movementInfo.transport.pos.GetPositionY() > 50 || movementInfo.transport.pos.GetPositionZ() > 50)
+    {
+        recvPacket.rfinish();                          // prevent warnings spam
+        return false;
+    }
+
+    if (!Skyfire::IsValidMapCoord(movementInfo.pos.GetPositionX() + movementInfo.transport.pos.GetPositionX(), movementInfo.pos.GetPositionY() + movementInfo.transport.pos.GetPositionY(),
+        movementInfo.pos.GetPositionZ() + movementInfo.transport.pos.GetPositionZ(), movementInfo.pos.GetOrientation() + movementInfo.transport.pos.GetOrientation()))
+    {
+        recvPacket.rfinish();                          // prevent warnings spam
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateSpeedChangeAck(WorldPacket& recvData, Player* player, MovementInfo const& movementInfo)
+{
+    if (player->GetGUID() == movementInfo.guid)
+        return true;
+
+    recvData.rfinish();                                // prevent warnings spam
+    return false;
+}
+
+bool ValidateActiveMoverGuid(Player* player, ObjectGuid guid)
+{
+    if (!player->IsInWorld() || player->m_mover->GetGUID() == guid)
+        return true;
+
+    SF_LOG_ERROR("network", "HandleSetActiveMoverOpcode: incorrect mover guid: mover is " UI64FMTD " (%s - Entry: %u) and should be " UI64FMTD, uint64(guid), GetLogNameForGuid(guid), GUID_ENPART(guid), player->m_mover->GetGUID());
+    return false;
+}
+
+bool ValidateKnockBackAck(Unit* mover, MovementInfo const& movementInfo)
+{
+    return mover->GetGUID() == movementInfo.guid;
+}
 }
 
 void WorldSession::HandleMoveWorldportAckOpcode(WorldPacket& /*recvData*/)
@@ -365,10 +442,7 @@ void WorldSession::HandleMoveTeleportAck(WorldPacket& recvPacket)
 
     Player* plMover = _player->m_mover->ToPlayer();
 
-    if (!plMover || !plMover->IsBeingTeleportedNear())
-        return;
-
-    if (guid != plMover->GetGUID())
+    if (!ValidateMoveTeleportAck(plMover, guid))
         return;
 
     plMover->SetSemaphoreTeleportNear(false);
@@ -416,44 +490,21 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvPacket)
     Player* plrMover = mover->ToPlayer();
 
     // ignore, waiting processing in WorldSession::HandleMoveWorldportAckOpcode and WorldSession::HandleMoveTeleportAck
-    if (plrMover && plrMover->IsBeingTeleported())
-    {
-        recvPacket.rfinish();                     // prevent warnings spam
+    if (ShouldIgnoreMovementWhileTeleporting(plrMover, recvPacket))
         return;
-    }
 
     /* extract packet */
     MovementInfo movementInfo = ReadMovementInfoRequest(GetPlayer(), recvPacket);
 
     // prevent tampered movement data
-    if (movementInfo.guid != mover->GetGUID())
-    {
-        SF_LOG_ERROR("network", "HandleMovementOpcodes: guid error");
+    if (!ValidateMovementInfo(mover, movementInfo))
         return;
-    }
-    if (!movementInfo.pos.IsPositionValid())
-    {
-        SF_LOG_ERROR("network", "HandleMovementOpcodes: Invalid Position");
-        return;
-    }
 
     /* handle special cases */
     if (movementInfo.transport.guid)
     {
-        // transports size limited
-        // (also received at zeppelin leave by some reason with t_* as absolute in continent coordinates, can be safely skipped)
-        if (movementInfo.transport.pos.GetPositionX() > 50 || movementInfo.transport.pos.GetPositionY() > 50 || movementInfo.transport.pos.GetPositionZ() > 50)
-        {
-            recvPacket.rfinish();                 // prevent warnings spam
+        if (!ValidateTransportMovementInfo(recvPacket, movementInfo))
             return;
-        }
-
-        if (!Skyfire::IsValidMapCoord(movementInfo.pos.GetPositionX() + movementInfo.transport.pos.GetPositionX(), movementInfo.pos.GetPositionY() + movementInfo.transport.pos.GetPositionY(),
-            movementInfo.pos.GetPositionZ() + movementInfo.transport.pos.GetPositionZ(), movementInfo.pos.GetOrientation() + movementInfo.transport.pos.GetOrientation()))
-        {
-            recvPacket.rfinish();                 // prevent warnings spam
-            return;
-        }
 
         // if we boarded a transport, add us to it
         if (plrMover)
@@ -575,11 +626,8 @@ void WorldSession::HandleForceSpeedChangeAck(WorldPacket& recvData)
     uint32 opcode = request.opcode;
 
     // now can skip not our packet
-    if (_player->GetGUID() != movementInfo.guid)
-    {
-        recvData.rfinish();                   // prevent warnings spam
+    if (!ValidateSpeedChangeAck(recvData, _player, movementInfo))
         return;
-    }
 
     float newspeed = request.newSpeed;
     /*----------------*/
@@ -650,11 +698,7 @@ void WorldSession::HandleSetActiveMoverOpcode(WorldPacket& recvPacket)
     ActiveMoverRequest request = ReadActiveMoverRequest(recvPacket);
     ObjectGuid guid = request.guid;
 
-    if (GetPlayer()->IsInWorld())
-    {
-        if (_player->m_mover->GetGUID() != guid)
-            SF_LOG_ERROR("network", "HandleSetActiveMoverOpcode: incorrect mover guid: mover is " UI64FMTD " (%s - Entry: %u) and should be " UI64FMTD, uint64(guid), GetLogNameForGuid(guid), GUID_ENPART(guid), _player->m_mover->GetGUID());
-    }
+    ValidateActiveMoverGuid(_player, guid);
 }
 
 void WorldSession::HandleMoveNotActiveMover(WorldPacket& recvData)
@@ -698,7 +742,7 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recvData)
 
     MovementInfo movementInfo = ReadMovementInfoRequest(GetPlayer(), recvData);
 
-    if (_player->m_mover->GetGUID() != movementInfo.guid)
+    if (!ValidateKnockBackAck(_player->m_mover, movementInfo))
         return;
 
     _player->m_movementInfo = movementInfo;
