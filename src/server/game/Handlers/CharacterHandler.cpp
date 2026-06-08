@@ -288,6 +288,59 @@ struct RandomizeCharNameRequest
     uint8 race;
 };
 
+struct EquipmentSetSaveIndexRequest
+{
+    uint32 index;
+};
+
+struct EquipmentSetSaveHeaderRequest
+{
+    ObjectGuid setGuid;
+    ObjectGuid itemGuid[EQUIPMENT_SLOT_END];
+    uint8 iconNameLen;
+    uint8 setNameLen;
+};
+
+struct EquipmentSetSaveTailRequest
+{
+    ObjectGuid setGuid;
+    std::string iconName;
+    std::string name;
+};
+
+struct EquipmentSetUseRequest
+{
+    uint8 srcbag[EQUIPMENT_SLOT_END];
+    uint8 srcslot[EQUIPMENT_SLOT_END];
+    ObjectGuid itemGuid[EQUIPMENT_SLOT_END];
+    uint8 inventoryItemCounter;
+};
+
+struct CharFactionOrRaceChangeRequest
+{
+    ObjectGuid guid;
+    std::string newName;
+    uint8 gender;
+    uint8 skin;
+    uint8 face;
+    uint8 hairStyle;
+    uint8 hairColor;
+    uint8 facialHair;
+    uint8 race;
+    bool isFactionChange;
+};
+
+struct ReorderCharacterEntry
+{
+    ObjectGuid guid;
+    uint8 position;
+};
+
+struct ReorderCharactersRequest
+{
+    std::vector<ReorderCharacterEntry> characters;
+};
+
 CharacterGuidRequest ReadCharacterDeleteRequest(WorldPacket& recvData)
 {
     CharacterGuidRequest request;
@@ -421,6 +474,187 @@ RandomizeCharNameRequest ReadRandomizeCharNameRequest(WorldPacket& recvData)
     recvData >> request.gender;
     recvData >> request.race;
     return request;
+}
+
+EquipmentSetSaveIndexRequest ReadEquipmentSetSaveIndexRequest(WorldPacket& recvData)
+{
+    EquipmentSetSaveIndexRequest request;
+    recvData >> request.index;
+    return request;
+}
+
+EquipmentSetSaveHeaderRequest ReadEquipmentSetSaveHeaderRequest(WorldPacket& recvData)
+{
+    EquipmentSetSaveHeaderRequest request;
+
+    for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
+    {
+        request.itemGuid[i][5] = recvData.ReadBit();
+        request.itemGuid[i][0] = recvData.ReadBit();
+        request.itemGuid[i][1] = recvData.ReadBit();
+        request.itemGuid[i][4] = recvData.ReadBit();
+        request.itemGuid[i][6] = recvData.ReadBit();
+        request.itemGuid[i][3] = recvData.ReadBit();
+        request.itemGuid[i][7] = recvData.ReadBit();
+        request.itemGuid[i][2] = recvData.ReadBit();
+    }
+
+    request.setGuid[7] = recvData.ReadBit();
+    request.setGuid[1] = recvData.ReadBit();
+    request.setGuid[5] = recvData.ReadBit();
+    request.setGuid[2] = recvData.ReadBit();
+    request.setGuid[3] = recvData.ReadBit();
+    request.setGuid[0] = recvData.ReadBit();
+
+    request.setNameLen = recvData.ReadBits(8);
+    request.setGuid[6] = recvData.ReadBit();
+    request.iconNameLen = recvData.ReadBits(8);
+
+    request.setGuid[4] = recvData.ReadBit();
+
+    bool pair = recvData.ReadBit();
+    if (pair)
+        request.iconNameLen++;
+
+    recvData.ReadByteSeq(request.setGuid[4]);
+    recvData.ReadByteSeq(request.setGuid[0]);
+
+    return request;
+}
+
+void ReadEquipmentSetSaveItemGuidBytes(WorldPacket& recvData, ObjectGuid& itemGuid)
+{
+    recvData.ReadByteSeq(itemGuid[1]);
+    recvData.ReadByteSeq(itemGuid[0]);
+    recvData.ReadByteSeq(itemGuid[7]);
+    recvData.ReadByteSeq(itemGuid[3]);
+    recvData.ReadByteSeq(itemGuid[6]);
+    recvData.ReadByteSeq(itemGuid[2]);
+    recvData.ReadByteSeq(itemGuid[4]);
+    recvData.ReadByteSeq(itemGuid[5]);
+}
+
+EquipmentSetSaveTailRequest ReadEquipmentSetSaveTailRequest(WorldPacket& recvData, EquipmentSetSaveHeaderRequest const& header)
+{
+    EquipmentSetSaveTailRequest request;
+    request.setGuid = header.setGuid;
+    request.iconName = recvData.ReadString(header.iconNameLen);
+
+    recvData.ReadByteSeq(request.setGuid[7]);
+    recvData.ReadByteSeq(request.setGuid[2]);
+
+    request.name = recvData.ReadString(header.setNameLen);
+
+    recvData.ReadByteSeq(request.setGuid[6]);
+    recvData.ReadByteSeq(request.setGuid[1]);
+    recvData.ReadByteSeq(request.setGuid[5]);
+    recvData.ReadByteSeq(request.setGuid[3]);
+
+    return request;
+}
+
+EquipmentSetUseRequest ReadEquipmentSetUseRequest(WorldPacket& recvData)
+{
+    EquipmentSetUseRequest request;
+
+    for (uint8 i = 0; i < EQUIPMENT_SLOT_END; ++i)
+        recvData >> request.srcslot[i] >> request.srcbag[i];
+
+    for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
+        recvData.ReadGuidMask(request.itemGuid[i], 3, 1, 7, 4, 5, 6, 0, 2);
+
+    request.inventoryItemCounter = recvData.ReadBits(2);
+
+    for (uint8 i = 0; i < request.inventoryItemCounter; i++)
+    {
+        recvData.ReadBit(); // Container Slot
+        recvData.ReadBit(); // Slot
+    }
+
+    return request;
+}
+
+void ReadEquipmentSetUseItemGuidBytes(WorldPacket& recvData, ObjectGuid& itemGuid)
+{
+    recvData.ReadGuidBytes(itemGuid, 4, 7, 0, 3, 2, 5, 1, 6);
+}
+
+CharFactionOrRaceChangeRequest ReadCharFactionOrRaceChangeRequest(WorldPacket& recvData)
+{
+    CharFactionOrRaceChangeRequest request;
+    request.skin = 0;
+    request.face = 0;
+    request.hairStyle = 0;
+    request.hairColor = 0;
+    request.facialHair = 0;
+
+    recvData >> request.gender;
+    recvData >> request.race;
+    request.guid[3] = recvData.ReadBit();
+    request.guid[2] = recvData.ReadBit();
+    bool hasSkinColor = recvData.ReadBit();
+    bool hasFace = recvData.ReadBit();
+    request.guid[6] = recvData.ReadBit();
+    uint32 nameLength = recvData.ReadBits(6);
+    bool hasFacialHair = recvData.ReadBit();
+    bool hasHairStyle = recvData.ReadBit();
+    request.guid[4] = recvData.ReadBit();
+    request.guid[1] = recvData.ReadBit();
+    request.guid[0] = recvData.ReadBit();
+    request.guid[5] = recvData.ReadBit();
+    bool hasHairColor = recvData.ReadBit();
+    request.isFactionChange = recvData.ReadBit();
+    request.guid[7] = recvData.ReadBit();
+
+    recvData.ReadGuidBytes(request.guid, 2, 1, 4, 5, 0);
+    request.newName = recvData.ReadString(nameLength);
+    recvData.ReadGuidBytes(request.guid, 6, 3, 7);
+
+    if (hasHairColor)
+        recvData >> request.hairColor;
+    if (hasHairStyle)
+        recvData >> request.hairStyle;
+    if (hasSkinColor)
+        recvData >> request.skin;
+    if (hasFace)
+        recvData >> request.face;
+    if (hasFacialHair)
+        recvData >> request.facialHair;
+
+    return request;
+}
+
+ReorderCharactersRequest ReadReorderCharactersRequest(WorldPacket& recvData)
+{
+    ReorderCharactersRequest request;
+    request.characters.resize(recvData.ReadBits(9));
+
+    for (uint8 i = 0; i < request.characters.size(); ++i)
+    {
+        request.characters[i].guid[4] = recvData.ReadBit();
+        request.characters[i].guid[2] = recvData.ReadBit();
+        request.characters[i].guid[7] = recvData.ReadBit();
+        request.characters[i].guid[6] = recvData.ReadBit();
+        request.characters[i].guid[0] = recvData.ReadBit();
+        request.characters[i].guid[5] = recvData.ReadBit();
+        request.characters[i].guid[3] = recvData.ReadBit();
+        request.characters[i].guid[1] = recvData.ReadBit();
+    }
+
+    return request;
+}
+
+void ReadReorderCharacterEntryTail(WorldPacket& recvData, ReorderCharacterEntry& character)
+{
+    recvData.ReadByteSeq(character.guid[1]);
+    recvData.ReadByteSeq(character.guid[2]);
+    recvData.ReadByteSeq(character.guid[7]);
+    recvData.ReadByteSeq(character.guid[5]);
+    recvData.ReadByteSeq(character.guid[4]);
+    recvData.ReadByteSeq(character.guid[0]);
+    recvData.ReadByteSeq(character.guid[3]);
+    recvData.ReadByteSeq(character.guid[6]);
+    recvData >> character.position;
 }
 }
 
@@ -1845,63 +2079,21 @@ void WorldSession::HandleEquipmentSetSave(WorldPacket& recvData)
 {
     SF_LOG_DEBUG("network", "CMSG_EQUIPMENT_SET_SAVE");
 
-    ObjectGuid setGuid;
-    ObjectGuid itemGuid[EQUIPMENT_SLOT_END];
-    uint32 index;
+    EquipmentSetSaveIndexRequest indexRequest = ReadEquipmentSetSaveIndexRequest(recvData);
+    uint32 index = indexRequest.index;
     EquipmentSet eqSet;
-    uint8 iconNameLen, setNameLen;
-
-    recvData >> index;
 
     if (index >= MAX_EQUIPMENT_SET_INDEX)                    // client set slots amount
         return;
 
-    for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
-    {
-        itemGuid[i][5] = recvData.ReadBit();
-        itemGuid[i][0] = recvData.ReadBit();
-        itemGuid[i][1] = recvData.ReadBit();
-        itemGuid[i][4] = recvData.ReadBit();
-        itemGuid[i][6] = recvData.ReadBit();
-        itemGuid[i][3] = recvData.ReadBit();
-        itemGuid[i][7] = recvData.ReadBit();
-        itemGuid[i][2] = recvData.ReadBit();
-    }
-
-    setGuid[7] = recvData.ReadBit();
-    setGuid[1] = recvData.ReadBit();
-    setGuid[5] = recvData.ReadBit();
-    setGuid[2] = recvData.ReadBit();
-    setGuid[3] = recvData.ReadBit();
-    setGuid[0] = recvData.ReadBit();
-
-    setNameLen = recvData.ReadBits(8);
-    setGuid[6] = recvData.ReadBit();
-    iconNameLen = recvData.ReadBits(8);
-
-    setGuid[4] = recvData.ReadBit();
-
-    bool pair = recvData.ReadBit();
-
-    if (pair)
-        iconNameLen++;
-
-    recvData.ReadByteSeq(setGuid[4]);
-    recvData.ReadByteSeq(setGuid[0]);
+    EquipmentSetSaveHeaderRequest request = ReadEquipmentSetSaveHeaderRequest(recvData);
 
     for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
     {
-        recvData.ReadByteSeq(itemGuid[i][1]);
-        recvData.ReadByteSeq(itemGuid[i][0]);
-        recvData.ReadByteSeq(itemGuid[i][7]);
-        recvData.ReadByteSeq(itemGuid[i][3]);
-        recvData.ReadByteSeq(itemGuid[i][6]);
-        recvData.ReadByteSeq(itemGuid[i][2]);
-        recvData.ReadByteSeq(itemGuid[i][4]);
-        recvData.ReadByteSeq(itemGuid[i][5]);
+        ReadEquipmentSetSaveItemGuidBytes(recvData, request.itemGuid[i]);
 
         // equipment manager sends "1" (as raw GUID) for slots set to "ignore" (don't touch slot at equip set)
-        if (itemGuid[i] == 1)
+        if (request.itemGuid[i] == 1)
         {
             // ignored slots saved as bit mask because we have no free special values for Items[i]
             eqSet.IgnoreMask |= 1 << i;
@@ -1910,30 +2102,19 @@ void WorldSession::HandleEquipmentSetSave(WorldPacket& recvData)
 
         Item* item = _player->GetItemByPos(INVENTORY_SLOT_BAG_0, i);
 
-        if (!item && itemGuid[i])                               // cheating check 1
+        if (!item && request.itemGuid[i])                       // cheating check 1
             return;
 
-        if (item && item->GetGUID() != itemGuid[i])             // cheating check 2
+        if (item && item->GetGUID() != request.itemGuid[i])     // cheating check 2
             return;
 
-        eqSet.Items[i] = GUID_LOPART(itemGuid[i]);
+        eqSet.Items[i] = GUID_LOPART(request.itemGuid[i]);
     }
 
-    std::string iconName = recvData.ReadString(iconNameLen);
-
-    recvData.ReadByteSeq(setGuid[7]);
-    recvData.ReadByteSeq(setGuid[2]);
-
-    std::string name = recvData.ReadString(setNameLen);
-
-    recvData.ReadByteSeq(setGuid[6]);
-    recvData.ReadByteSeq(setGuid[1]);
-    recvData.ReadByteSeq(setGuid[5]);
-    recvData.ReadByteSeq(setGuid[3]);
-
-    eqSet.Guid = setGuid;
-    eqSet.Name = name;
-    eqSet.IconName = iconName;
+    EquipmentSetSaveTailRequest tail = ReadEquipmentSetSaveTailRequest(recvData, request);
+    eqSet.Guid = tail.setGuid;
+    eqSet.Name = tail.name;
+    eqSet.IconName = tail.iconName;
     eqSet.state = EquipmentSetUpdateState::EQUIPMENT_SET_NEW;
 
     _player->SetEquipmentSet(index, eqSet);
@@ -1953,39 +2134,21 @@ void WorldSession::HandleEquipmentSetUse(WorldPacket& recvData)
 {
     SF_LOG_DEBUG("network", "CMSG_EQUIPMENT_SET_USE");
 
-    uint8 srcbag[EQUIPMENT_SLOT_END];
-    uint8 srcslot[EQUIPMENT_SLOT_END];
-
-    ObjectGuid itemGuid[EQUIPMENT_SLOT_END];
-
+    EquipmentSetUseRequest request = ReadEquipmentSetUseRequest(recvData);
     EquipmentSlots startSlot = _player->IsInCombat() ? EQUIPMENT_SLOT_MAINHAND : EQUIPMENT_SLOT_START;
 
-    for (uint8 i = 0; i < EQUIPMENT_SLOT_END; ++i)
-        recvData >> srcslot[i] >> srcbag[i];
-
-    for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
-        recvData.ReadGuidMask(itemGuid[i], 3, 1, 7, 4, 5, 6, 0, 2);
-
-    uint8 InvItemCounter = recvData.ReadBits(2);
-
-    for (uint8 i = 0; i < InvItemCounter; i++)
-    {
-        recvData.ReadBit(); // Container Slot
-        recvData.ReadBit(); // Slot
-    }
-
     for (uint32 i = 0; i < EQUIPMENT_SLOT_END; ++i)
     {
-        recvData.ReadGuidBytes(itemGuid[i], 4, 7, 0, 3, 2, 5, 1, 6);
+        ReadEquipmentSetUseItemGuidBytes(recvData, request.itemGuid[i]);
 
         if (i < uint32(startSlot))
             continue;
 
         // check if item slot is set to "ignored" (raw value == 1), must not be unequipped then
-        if (itemGuid[i] == 1)
+        if (request.itemGuid[i] == 1)
             continue;
 
-        Item* item = _player->GetItemByGuid(itemGuid[i]);
+        Item* item = _player->GetItemByGuid(request.itemGuid[i]);
 
         uint16 dstpos = i | (INVENTORY_SLOT_BAG_0 << 8);
 
@@ -2025,41 +2188,17 @@ void WorldSession::HandleEquipmentSetUse(WorldPacket& recvData)
 
 void WorldSession::HandleCharFactionOrRaceChange(WorldPacket& recvData)
 {
-    ObjectGuid guid;
-    uint8 gender = 0, skin = 0, face = 0, hairStyle = 0, hairColor = 0, facialHair = 0, race = 0;
-
-    recvData >> gender;
-    recvData >> race;
-    guid[3] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    bool hasSkinColor = recvData.ReadBit();
-    bool hasFace = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    uint32 nameLength = recvData.ReadBits(6);
-    bool hasFacialHair = recvData.ReadBit();
-    bool hasHairStyle = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    bool hasHairColor = recvData.ReadBit();
-    bool isFactionChange = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-
-    recvData.ReadGuidBytes(guid, 2, 1, 4, 5, 0);
-    std::string newname = recvData.ReadString(nameLength);
-    recvData.ReadGuidBytes(guid, 6, 3, 7);
-
-    if (hasHairColor)
-        recvData >> hairColor;
-    if (hasHairStyle)
-        recvData >> hairStyle;
-    if (hasSkinColor)
-        recvData >> skin;
-    if (hasFace)
-        recvData >> face;
-    if (hasFacialHair)
-        recvData >> facialHair;
+    CharFactionOrRaceChangeRequest request = ReadCharFactionOrRaceChangeRequest(recvData);
+    ObjectGuid guid = request.guid;
+    std::string newname = request.newName;
+    uint8 gender = request.gender;
+    uint8 skin = request.skin;
+    uint8 face = request.face;
+    uint8 hairStyle = request.hairStyle;
+    uint8 hairColor = request.hairColor;
+    uint8 facialHair = request.facialHair;
+    uint8 race = request.race;
+    bool isFactionChange = request.isFactionChange;
 
     if (!IsLegitCharacterForAccount(GUID_LOPART(guid)))
     {
@@ -2632,39 +2771,16 @@ void WorldSession::HandleRandomizeCharNameOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleReorderCharacters(WorldPacket& recvData)
 {
-    uint32 charactersCount = recvData.ReadBits(9);
-
-    std::vector<ObjectGuid> guids(charactersCount);
-    uint8 position;
-
-    for (uint8 i = 0; i < charactersCount; ++i)
-    {
-        guids[i][4] = recvData.ReadBit();
-        guids[i][2] = recvData.ReadBit();
-        guids[i][7] = recvData.ReadBit();
-        guids[i][6] = recvData.ReadBit();
-        guids[i][0] = recvData.ReadBit();
-        guids[i][5] = recvData.ReadBit();
-        guids[i][3] = recvData.ReadBit();
-        guids[i][1] = recvData.ReadBit();
-    }
+    ReorderCharactersRequest request = ReadReorderCharactersRequest(recvData);
 
     SQLTransaction trans = CharacterDatabase.BeginTransaction();
-    for (uint8 i = 0; i < charactersCount; ++i)
+    for (uint8 i = 0; i < request.characters.size(); ++i)
     {
-        recvData.ReadByteSeq(guids[i][1]);
-        recvData.ReadByteSeq(guids[i][2]);
-        recvData.ReadByteSeq(guids[i][7]);
-        recvData.ReadByteSeq(guids[i][5]);
-        recvData.ReadByteSeq(guids[i][4]);
-        recvData.ReadByteSeq(guids[i][0]);
-        recvData.ReadByteSeq(guids[i][3]);
-        recvData.ReadByteSeq(guids[i][6]);
-        recvData >> position;
+        ReadReorderCharacterEntryTail(recvData, request.characters[i]);
 
         PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_LIST_SLOT);
-        stmt->setUInt8(0, position);
-        stmt->setUInt32(1, GUID_LOPART(guids[i]));
+        stmt->setUInt8(0, request.characters[i].position);
+        stmt->setUInt32(1, GUID_LOPART(request.characters[i].guid));
         trans->Append(stmt);
     }
 
