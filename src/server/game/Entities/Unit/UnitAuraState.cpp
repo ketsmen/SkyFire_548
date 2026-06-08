@@ -1552,3 +1552,274 @@ float Unit::GetTotalAuraMultiplierByAffectMask(AuraType auratype, SpellInfo cons
 
     return multiplier;
 }
+
+void Unit::ModifyAuraState(AuraStateType flag, bool apply)
+{
+    if (apply)
+    {
+        if (!HasFlag(UNIT_FIELD_AURA_STATE, 1 << (flag - 1)))
+        {
+            SetFlag(UNIT_FIELD_AURA_STATE, 1 << (flag - 1));
+            if (GetTypeId() == TypeID::TYPEID_PLAYER)
+            {
+                PlayerSpellMap const& sp_list = ToPlayer()->GetSpellMap();
+                for (PlayerSpellMap::const_iterator itr = sp_list.begin(); itr != sp_list.end(); ++itr)
+                {
+                    if (itr->second->state == PLAYERSPELL_REMOVED || itr->second->disabled)
+                        continue;
+                    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(itr->first);
+                    if (!spellInfo || !spellInfo->IsPassive())
+                        continue;
+                    if (spellInfo->CasterAuraState == uint32(flag))
+                        CastSpell(this, itr->first, true, NULL);
+                }
+            }
+            else if (Pet* pet = ToCreature()->ToPet())
+            {
+                for (PetSpellMap::const_iterator itr = pet->m_spells.begin(); itr != pet->m_spells.end(); ++itr)
+                {
+                    if (itr->second.state == PETSPELL_REMOVED)
+                        continue;
+                    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(itr->first);
+                    if (!spellInfo || !spellInfo->IsPassive())
+                        continue;
+                    if (spellInfo->CasterAuraState == uint32(flag))
+                        CastSpell(this, itr->first, true, NULL);
+                }
+            }
+        }
+    }
+    else
+    {
+        if (HasFlag(UNIT_FIELD_AURA_STATE, 1 << (flag - 1)))
+        {
+            RemoveFlag(UNIT_FIELD_AURA_STATE, 1 << (flag - 1));
+
+            if (flag != AURA_STATE_ENRAGE)                  // enrage aura state triggering continues auras
+            {
+                Unit::AuraApplicationMap& tAuras = GetAppliedAuras();
+                for (Unit::AuraApplicationMap::iterator itr = tAuras.begin(); itr != tAuras.end();)
+                {
+                    SpellInfo const* spellProto = (*itr).second->GetBase()->GetSpellInfo();
+                    if (spellProto->CasterAuraState == uint32(flag))
+                        RemoveAura(itr);
+                    else
+                        ++itr;
+                }
+            }
+        }
+    }
+}
+
+uint32 Unit::BuildAuraStateUpdateForTarget(Unit* target) const
+{
+    uint32 auraStates = GetUInt32Value(UNIT_FIELD_AURA_STATE) & ~(PER_CASTER_AURA_STATE_MASK);
+    for (AuraStateAurasMap::const_iterator itr = m_auraStateAuras.begin(); itr != m_auraStateAuras.end(); ++itr)
+        if ((1 << (itr->first - 1)) & PER_CASTER_AURA_STATE_MASK)
+            if (itr->second->GetBase()->GetCasterGUID() == target->GetGUID())
+                auraStates |= (1 << (itr->first - 1));
+
+    return auraStates;
+}
+
+bool Unit::HasAuraState(AuraStateType flag, SpellInfo const* spellProto, Unit const* Caster) const
+{
+    if (Caster)
+    {
+        if (spellProto)
+        {
+            AuraEffectList const& stateAuras = Caster->GetAuraEffectsByType(SPELL_AURA_ABILITY_IGNORE_AURASTATE);
+            for (AuraEffectList::const_iterator j = stateAuras.begin(); j != stateAuras.end(); ++j)
+                if ((*j)->IsAffectingSpell(spellProto))
+                    return true;
+        }
+        // Check per caster aura state
+        // If aura with aurastate by caster not found return false
+        if ((1 << (flag - 1)) & PER_CASTER_AURA_STATE_MASK)
+        {
+            AuraStateAurasMapBounds range = m_auraStateAuras.equal_range(flag);
+            for (AuraStateAurasMap::const_iterator itr = range.first; itr != range.second; ++itr)
+                if (itr->second->GetBase()->GetCasterGUID() == Caster->GetGUID())
+                    return true;
+            return false;
+        }
+    }
+
+    return HasFlag(UNIT_FIELD_AURA_STATE, 1 << (flag - 1));
+}
+
+float Unit::ApplyDiminishingToDuration(DiminishingGroup group, int32& duration, Unit* caster, DiminishingLevels Level, int32 limitduration)
+{
+    if (duration == -1 || group == DiminishingGroup::DIMINISHING_NONE)
+        return 1.0f;
+
+    // test pet/charm masters instead pets/charmeds
+    Unit const* tarGetOwner = GetCharmerOrOwner();
+    Unit const* casterOwner = caster->GetCharmerOrOwner();
+
+    // Duration of crowd control abilities on pvp target is limited by 10 sec. (2.2.0)
+    if (limitduration > 0 && duration > limitduration)
+    {
+        Unit const* target = tarGetOwner ? tarGetOwner : this;
+        Unit const* source = casterOwner ? casterOwner : caster;
+
+        if ((target->GetTypeId() == TypeID::TYPEID_PLAYER
+            || ((Creature*)target)->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_ALL_DIMINISH)
+            && source->GetTypeId() == TypeID::TYPEID_PLAYER)
+            duration = limitduration;
+    }
+
+    float mod = 1.0f;
+
+    if (group == DiminishingGroup::DIMINISHING_TAUNT)
+    {
+        if (GetTypeId() == TypeID::TYPEID_UNIT && (ToCreature()->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_TAUNT_DIMINISH))
+        {
+            DiminishingLevels diminish = Level;
+            switch (diminish)
+            {
+                case DIMINISHING_LEVEL_1: break;
+                case DIMINISHING_LEVEL_2: mod = 0.65f; break;
+                case DIMINISHING_LEVEL_3: mod = 0.4225f; break;
+                case DIMINISHING_LEVEL_4: mod = 0.274625f; break;
+                case DIMINISHING_LEVEL_TAUNT_IMMUNE: mod = 0.0f; break;
+                default: break;
+            }
+        }
+    }
+    // Some diminishings applies to mobs too (for example, Stun)
+    else if ((GetDiminishingReturnsGroupType(group) == DRTYPE_PLAYER
+        && ((tarGetOwner ? (tarGetOwner->GetTypeId() == TypeID::TYPEID_PLAYER) : (GetTypeId() == TypeID::TYPEID_PLAYER))
+            || (GetTypeId() == TypeID::TYPEID_UNIT && ToCreature()->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_ALL_DIMINISH)))
+        || GetDiminishingReturnsGroupType(group) == DRTYPE_ALL)
+    {
+        DiminishingLevels diminish = Level;
+        switch (diminish)
+        {
+            case DIMINISHING_LEVEL_1: break;
+            case DIMINISHING_LEVEL_2: mod = 0.5f; break;
+            case DIMINISHING_LEVEL_3: mod = 0.25f; break;
+            case DIMINISHING_LEVEL_IMMUNE: mod = 0.0f; break;
+            default: break;
+        }
+    }
+
+    duration = int32(duration * mod);
+    return mod;
+}
+
+void Unit::ApplyDiminishingAura(DiminishingGroup group, bool apply)
+{
+    // Checking for existing in the table
+    for (Diminishing::iterator i = m_Diminishing.begin(); i != m_Diminishing.end(); ++i)
+    {
+        if (i->DRGroup != group)
+            continue;
+
+        if (apply)
+            i->stack += 1;
+        else if (i->stack)
+        {
+            i->stack -= 1;
+            // Remember time after last aura from group removed
+            if (i->stack == 0)
+                i->hitTime = getMSTime();
+        }
+        break;
+    }
+}
+
+float Unit::GetTotalAuraModValue(UnitMods unitMod) const
+{
+    if (unitMod >= UNIT_MOD_END)
+    {
+        SF_LOG_ERROR("entities.unit", "attempt to access non-existing UnitMods in GetTotalAuraModValue()!");
+        return 0.0f;
+    }
+
+    if (m_auraModifiersGroup[unitMod][TOTAL_PCT] <= 0.0f)
+        return 0.0f;
+
+    float value = m_auraModifiersGroup[unitMod][BASE_VALUE];
+    value *= m_auraModifiersGroup[unitMod][BASE_PCT];
+    value += m_auraModifiersGroup[unitMod][TOTAL_VALUE];
+    value *= m_auraModifiersGroup[unitMod][TOTAL_PCT];
+
+    return value;
+}
+
+void Unit::UpdateAuraForGroup(uint8 slot)
+{
+    if (slot >= MAX_AURAS)                        // slot not found, return
+        return;
+    if (Player* player = ToPlayer())
+    {
+        if (player->GetGroup())
+        {
+            player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_AURAS);
+            player->SetAuraUpdateMaskForRaid(slot);
+        }
+    }
+    else if (GetTypeId() == TypeID::TYPEID_UNIT && ToCreature()->IsPet())
+    {
+        Pet* pet = ((Pet*)this);
+        if (pet->isControlled())
+        {
+            Unit* owner = GetOwner();
+            if (owner && (owner->GetTypeId() == TypeID::TYPEID_PLAYER) && owner->ToPlayer()->GetGroup())
+            {
+                owner->ToPlayer()->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_AURAS);
+                pet->SetAuraUpdateMaskForRaid(slot);
+            }
+        }
+    }
+}
+
+Aura* Unit::AddAura(uint32 spellId, Unit* target)
+{
+    if (!target)
+        return NULL;
+
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+    if (!spellInfo)
+        return NULL;
+
+    if (!target->IsAlive() && !(spellInfo->Attributes & SPELL_ATTR0_PASSIVE) && !(spellInfo->AttributesEx2 & SPELL_ATTR2_CAN_TARGET_DEAD))
+        return NULL;
+
+    return AddAura(spellInfo, MAX_EFFECT_MASK, target);
+}
+
+Aura* Unit::AddAura(SpellInfo const* spellInfo, uint32 effMask, Unit* target)
+{
+    if (!spellInfo)
+        return NULL;
+
+    if (target->IsImmunedToSpell(spellInfo))
+        return NULL;
+
+    for (uint32 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+    {
+        if (!(effMask & (1 << i)))
+            continue;
+
+        if (target->IsImmunedToSpellEffect(spellInfo, i))
+            effMask &= ~(1 << i);
+    }
+
+    if (Aura* aura = Aura::TryRefreshStackOrCreate(spellInfo, effMask, target, this))
+    {
+        aura->ApplyForTargets();
+        return aura;
+    }
+    return NULL;
+}
+
+void Unit::SetAuraStack(uint32 spellId, Unit* target, uint32 stack)
+{
+    Aura* aura = target->GetAura(spellId, GetGUID());
+    if (!aura)
+        aura = AddAura(spellId, target);
+    if (aura && stack)
+        aura->SetStackAmount(stack);
+}
