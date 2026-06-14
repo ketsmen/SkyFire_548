@@ -9,6 +9,7 @@
 #include "Player.h"
 #include "Spell.h"
 #include "SpellAuraDefines.h"
+#include "SpellCalculations.h"
 #include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "SpellValidation.h"
@@ -259,10 +260,7 @@ int32 SpellEffectInfo::CalcValue(Unit const* caster, int32 const* bp, Unit const
 
 int32 SpellEffectInfo::CalcBaseValue(int32 value) const
 {
-    if (DieSides == 0)
-        return value;
-    else
-        return value - 1;
+    return Skyfire::Spells::CalculateEffectBaseValue(value, DieSides);
 }
 
 float SpellEffectInfo::CalcBonusMultiplier(Unit* caster, Spell* spell) const
@@ -301,25 +299,22 @@ bool SpellEffectInfo::HasMaxRadius() const
 
 float SpellEffectInfo::CalcRadius(Unit* caster, Spell* spell) const
 {
-    if (!HasRadius())
+    Skyfire::Spells::SpellRadiusCalculationData data =
     {
-        if (HasMaxRadius())
-        {
-            //! Still not sure which to pick. Anyway at the current time (Patch 4.3.4) most of the spell effects
-            //! have no radius mod per level, and RadiusMin is equal to RadiusMax.
-            return MaxRadiusEntry->RadiusMin;
-        }
-        return 0.0f;
-    }
+        HasRadius(),
+        RadiusEntry ? RadiusEntry->RadiusMin : 0.0f,
+        RadiusEntry ? RadiusEntry->RadiusPerLevel : 0.0f,
+        RadiusEntry ? RadiusEntry->RadiusMax : 0.0f,
+        HasMaxRadius(),
+        MaxRadiusEntry ? MaxRadiusEntry->RadiusMin : 0.0f,
+        caster != NULL,
+        caster ? uint8(caster->getLevel()) : uint8(0)
+    };
 
-    float radius = RadiusEntry->RadiusMin;
-    if (caster)
-    {
-        radius += RadiusEntry->RadiusPerLevel * caster->getLevel();
-        radius = std::min(radius, RadiusEntry->RadiusMax);
+    float radius = Skyfire::Spells::CalculateRadius(data);
+    if (HasRadius() && caster)
         if (Player* modOwner = caster->GetSpellModOwner())
             modOwner->ApplySpellMod(_spellInfo->Id, SPELLMOD_RADIUS, radius, spell);
-    }
 
     return radius;
 }
@@ -1947,23 +1942,22 @@ SpellSpecificType SpellInfo::GetSpellSpecific() const
 
 float SpellInfo::GetMinRange(bool positive) const
 {
-    if (!RangeEntry)
-        return 0.0f;
-    if (positive)
-        return RangeEntry->minRangeFriend;
-    return RangeEntry->minRangeHostile;
+    return Skyfire::Spells::SelectSpellRange(
+        RangeEntry != NULL,
+        RangeEntry ? RangeEntry->minRangeFriend : 0.0f,
+        RangeEntry ? RangeEntry->minRangeHostile : 0.0f,
+        positive);
 }
 
 float SpellInfo::GetMaxRange(bool positive, Unit* caster, Spell* spell) const
 {
-    if (!RangeEntry)
-        return 0.0f;
-    float range;
-    if (positive)
-        range = RangeEntry->maxRangeFriend;
-    else
-        range = RangeEntry->maxRangeHostile;
-    if (caster)
+    float range = Skyfire::Spells::SelectSpellRange(
+        RangeEntry != NULL,
+        RangeEntry ? RangeEntry->maxRangeFriend : 0.0f,
+        RangeEntry ? RangeEntry->maxRangeHostile : 0.0f,
+        positive);
+
+    if (RangeEntry && caster)
         if (Player* modOwner = caster->GetSpellModOwner())
             modOwner->ApplySpellMod(Id, SPELLMOD_RANGE, range, spell);
     return range;
@@ -1971,33 +1965,25 @@ float SpellInfo::GetMaxRange(bool positive, Unit* caster, Spell* spell) const
 
 int32 SpellInfo::GetDuration() const
 {
-    if (!DurationEntry)
-        return 0;
-    return (DurationEntry->Duration[0] == -1) ? -1 : abs(DurationEntry->Duration[0]);
+    return Skyfire::Spells::CalculateDuration(DurationEntry != NULL, DurationEntry ? DurationEntry->Duration[0] : 0);
 }
 
 int32 SpellInfo::GetMaxDuration() const
 {
-    if (!DurationEntry)
-        return 0;
-    return (DurationEntry->Duration[2] == -1) ? -1 : abs(DurationEntry->Duration[2]);
+    return Skyfire::Spells::CalculateDuration(DurationEntry != NULL, DurationEntry ? DurationEntry->Duration[2] : 0);
 }
 
 uint32 SpellInfo::CalcCastTime(uint8 level, Spell* spell /*= NULL*/) const
 {
-    int32 castTime = 0;
     if (!level && spell)
         level = spell->GetCaster()->getLevel();
 
-    // not all spells have cast time index and this is all is pasiive abilities
-    if (level && CastTimeMax > 0)
-    {
-        castTime = CastTimeMax;
-        if (CastTimeMaxLevel > level)
-            castTime = CastTimeMin + int32(level - 1) * (CastTimeMax - CastTimeMin) / (CastTimeMaxLevel - 1);
-    }
-    else if (CastTimeEntry)
-        castTime = CastTimeEntry->CastTime;
+    int32 castTime = Skyfire::Spells::CalculateBaseCastTime(
+        level,
+        CastTimeMin,
+        CastTimeMax,
+        CastTimeMaxLevel,
+        CastTimeEntry ? CastTimeEntry->CastTime : 0);
 
     if (!castTime)
         return 0;
@@ -2005,42 +1991,26 @@ uint32 SpellInfo::CalcCastTime(uint8 level, Spell* spell /*= NULL*/) const
     if (spell)
         spell->GetCaster()->ModSpellCastTime(this, castTime, spell);
 
-    if (Attributes & SPELL_ATTR0_REQ_AMMO && (!IsAutoRepeatRangedSpell()) && !(AttributesEx9 & SPELL_ATTR9_AIMED_SHOT))
-        castTime += 500;
-
-    return (castTime > 0) ? uint32(castTime) : 0;
+    bool addRangedAmmoDelay = (Attributes & SPELL_ATTR0_REQ_AMMO) && (!IsAutoRepeatRangedSpell()) && !(AttributesEx9 & SPELL_ATTR9_AIMED_SHOT);
+    return Skyfire::Spells::FinalizeCastTime(castTime, addRangedAmmoDelay);
 }
 
 uint32 SpellInfo::GetMaxTicks() const
 {
-    int32 DotDuration = GetDuration();
-    if (DotDuration == 0)
-        return 1;
-
-    // 200% limit
-    if (DotDuration > 30000)
-        DotDuration = 30000;
-
-    for (uint8 x = 0; x < MAX_SPELL_EFFECTS; x++)
+    Skyfire::Spells::SpellTickEffectInfo effects[MAX_SPELL_EFFECTS];
+    for (uint8 x = 0; x < MAX_SPELL_EFFECTS; ++x)
     {
-        if (Effects[x].Effect == SPELL_EFFECT_APPLY_AURA)
-            switch (Effects[x].ApplyAuraName)
-            {
-                case SPELL_AURA_PERIODIC_DAMAGE:
-                case SPELL_AURA_PERIODIC_HEAL:
-                case SPELL_AURA_PERIODIC_LEECH:
-                    if (Effects[x].ApplyAuraTickCount != 0)
-                        return DotDuration / Effects[x].ApplyAuraTickCount;
-                    break;
-            }
+        effects[x].Effect = Effects[x].Effect;
+        effects[x].ApplyAuraName = Effects[x].ApplyAuraName;
+        effects[x].ApplyAuraTickCount = Effects[x].ApplyAuraTickCount;
     }
 
-    return 6;
+    return Skyfire::Spells::CalculateMaxTicks(GetDuration(), effects, MAX_SPELL_EFFECTS);
 }
 
 uint32 SpellInfo::GetRecoveryTime() const
 {
-    return RecoveryTime > CategoryRecoveryTime ? RecoveryTime : CategoryRecoveryTime;
+    return Skyfire::Spells::CalculateRecoveryTime(RecoveryTime, CategoryRecoveryTime);
 }
 /*
 int32 SpellInfo::CalcPowerCost(Unit const* caster, SpellSchoolMask schoolMask) const

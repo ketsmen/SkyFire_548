@@ -30,6 +30,7 @@
 #include "SharedDefines.h"
 #include "Spell.h"
 #include "SpellAuraEffects.h"
+#include "SpellCalculations.h"
 #include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "SpellScript.h"
@@ -3006,34 +3007,35 @@ void Spell::prepare(SpellCastTargets const* targets, AuraEffect const* triggered
             continue;
 
         m_powerType = spellPower->powerType;
-        tmpPeriodicPowerCost = spellPower->manaPerSecond;
-        tmpPowerCost = spellPower->manaCost;
+        uint32 maxPowerForCost = 0;
+        if (spellPower->ChannelCostPercentageFloat ||
+            (spellPower->ManaCostPercentageFloat && (m_powerType == POWER_MANA || m_powerType == POWER_DEMONIC_FURY)))
+            maxPowerForCost = m_caster->GetMaxPower(Powers(m_powerType));
 
-        if (spellPower->ChannelCostPercentageFloat)
+        Skyfire::Spells::SpellPowerCostCalculationData costData =
         {
-            tmpPeriodicPowerCost += int32(CalculatePct(m_caster->GetMaxPower(Powers(m_powerType)), spellPower->ChannelCostPercentageFloat));
-        }
+            spellPower->manaCost,
+            spellPower->manaPerSecond,
+            spellPower->ManaCostPercentageFloat,
+            spellPower->ChannelCostPercentageFloat,
+            m_powerType,
+            m_caster->GetCreateHealth(),
+            maxPowerForCost
+        };
+        Skyfire::Spells::SpellPowerCostCalculationResult costResult = Skyfire::Spells::CalculateSpellPowerCosts(costData);
+        tmpPowerCost = costResult.PowerCost;
+        tmpPeriodicPowerCost = costResult.PeriodicPowerCost;
 
-        // PCT cost from total amount
-        if (spellPower->ManaCostPercentageFloat)
+        switch (costResult.Status)
         {
-            switch (m_powerType)
-            {
-                // health as power used
-                case POWER_HEALTH:
-                    tmpPowerCost += int32(CalculatePct(m_caster->GetCreateHealth(), spellPower->ManaCostPercentageFloat));
-                    break;
-                case POWER_MANA:
-                case POWER_DEMONIC_FURY:
-                    tmpPowerCost += int32(CalculatePct(m_caster->GetMaxPower(Powers(m_powerType)), spellPower->ManaCostPercentageFloat));
-                    break;
-                case POWER_RUNIC_POWER:
-                    SF_LOG_DEBUG("spells", "CalculateManaCost: Not implemented yet!");
-                    break;
-                default:
-                    SF_LOG_ERROR("spells", "CalculateManaCost: Unknown power type '%d' in spell %d", m_powerType, m_spellInfo->Id);
-                    tmpPowerCost = 0;
-            }
+            case Skyfire::Spells::SPELL_POWER_COST_UNSUPPORTED_POWER_TYPE:
+                SF_LOG_DEBUG("spells", "CalculateManaCost: Not implemented yet!");
+                break;
+            case Skyfire::Spells::SPELL_POWER_COST_UNKNOWN_POWER_TYPE:
+                SF_LOG_ERROR("spells", "CalculateManaCost: Unknown power type '%d' in spell %d", m_powerType, m_spellInfo->Id);
+                break;
+            default:
+                break;
         }
 
         // Apply cost mod by spell

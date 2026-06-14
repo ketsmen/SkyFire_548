@@ -302,6 +302,18 @@ target_include_directories(time_utils_tests PRIVATE
 
 add_test(NAME time_utils_tests COMMAND time_utils_tests)
 
+add_executable(sfmt_random_tests
+  SfmtRandomTests.cpp
+)
+
+target_include_directories(sfmt_random_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/dep/SFMT
+)
+
+target_link_libraries(sfmt_random_tests SFMT)
+
+add_test(NAME sfmt_random_tests COMMAND sfmt_random_tests)
+
 add_executable(sfsoap_service_tests
   SFSoapServiceTests.cpp
 )
@@ -339,6 +351,13 @@ target_include_directories(world_socket_session_state_tests PRIVATE
 add_test(NAME world_socket_session_state_tests COMMAND world_socket_session_state_tests)
 
 add_executable(game_domain_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/Auras/SpellAuraMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellCalculations.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellCombatMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellEffectMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellItemMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellMovementMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellSummonMetadata.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellTargeting.cpp
   GameDomainTestSupport.cpp
   GameDomainTests.cpp

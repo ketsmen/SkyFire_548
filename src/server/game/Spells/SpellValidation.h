@@ -16,6 +16,22 @@ namespace Spells
 {
     uint32 const SpellMaskBitCount = 32;
 
+    enum SpellDispatchHandlerKind
+    {
+        SPELL_DISPATCH_HANDLER_REAL,
+        SPELL_DISPATCH_HANDLER_NULL,
+        SPELL_DISPATCH_HANDLER_UNUSED,
+        SPELL_DISPATCH_HANDLER_NO_IMMEDIATE_EFFECT
+    };
+
+    enum SpellDispatchValidationStatus
+    {
+        SPELL_DISPATCH_SUPPORTED,
+        SPELL_DISPATCH_INTENTIONALLY_UNUSED,
+        SPELL_DISPATCH_NO_IMMEDIATE_EFFECT,
+        SPELL_DISPATCH_MISSING_OR_UNSUPPORTED
+    };
+
     inline bool IsMaskBitRepresentable(uint32 bitIndex)
     {
         return bitIndex < SpellMaskBitCount;
@@ -67,6 +83,38 @@ namespace Spells
             return DISPEL_ALL_MASK;
 
         return GetMaskBit(uint32(type));
+    }
+
+    inline SpellDispatchValidationStatus ClassifySpellDispatchHandler(SpellDispatchHandlerKind kind)
+    {
+        switch (kind)
+        {
+            case SPELL_DISPATCH_HANDLER_REAL:
+                return SPELL_DISPATCH_SUPPORTED;
+            case SPELL_DISPATCH_HANDLER_UNUSED:
+                return SPELL_DISPATCH_INTENTIONALLY_UNUSED;
+            case SPELL_DISPATCH_HANDLER_NO_IMMEDIATE_EFFECT:
+                return SPELL_DISPATCH_NO_IMMEDIATE_EFFECT;
+            case SPELL_DISPATCH_HANDLER_NULL:
+            default:
+                return SPELL_DISPATCH_MISSING_OR_UNSUPPORTED;
+        }
+    }
+
+    inline char const* GetSpellDispatchValidationStatusName(SpellDispatchValidationStatus status)
+    {
+        switch (status)
+        {
+            case SPELL_DISPATCH_SUPPORTED:
+                return "supported";
+            case SPELL_DISPATCH_INTENTIONALLY_UNUSED:
+                return "intentionally unused";
+            case SPELL_DISPATCH_NO_IMMEDIATE_EFFECT:
+                return "no immediate effect";
+            case SPELL_DISPATCH_MISSING_OR_UNSUPPORTED:
+            default:
+                return "missing or unsupported";
+        }
     }
 }
 }
