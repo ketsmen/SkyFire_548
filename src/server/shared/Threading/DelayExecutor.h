@@ -20,13 +20,14 @@ public:
 struct DelayExecutorMetricsSnapshot
 {
     DelayExecutorMetricsSnapshot()
-        : Submitted(0), Completed(0), Rejected(0), Backlog(0), BacklogHighWater(0) { }
+        : Submitted(0), Completed(0), Rejected(0), Backlog(0), BacklogHighWater(0), BacklogHighWaterEvents(0) { }
 
     uint64 Submitted;
     uint64 Completed;
     uint64 Rejected;
     uint32 Backlog;
     uint32 BacklogHighWater;
+    uint64 BacklogHighWaterEvents;
 };
 
 class DelayExecutor
@@ -41,6 +42,7 @@ public:
     bool activated();
     int svc();
     DelayExecutorMetricsSnapshot GetMetricsSnapshot() const;
+    void ResetMetrics();
 
 private:
     struct Impl;

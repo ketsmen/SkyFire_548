@@ -21,6 +21,7 @@ namespace Diagnostics
         RuntimeSampleSnapshot();
 
         uint64 SampleCount;
+        uint64 SlowSamples;
         uint32 Last;
         uint32 Average;
         uint32 Maximum;
@@ -46,6 +47,7 @@ namespace Diagnostics
         uint64 PacketsProcessed;
         uint32 QueueDepth;
         uint32 QueueDepthHighWater;
+        uint64 QueueDepthHighWaterEvents;
     };
 
     struct SpellCastMetricsSnapshot
@@ -96,11 +98,12 @@ namespace Diagnostics
             RuntimeSample();
 
             void Reset();
-            void Record(uint32 value);
+            void Record(uint32 value, uint32 slowThresholdMs = 0);
             RuntimeSampleSnapshot Snapshot() const;
 
         private:
             std::atomic<uint64> _sampleCount;
+            std::atomic<uint64> _slowSamples;
             std::atomic<uint64> _total;
             std::atomic<uint32> _last;
             std::atomic<uint32> _maximum;
@@ -118,6 +121,7 @@ namespace Diagnostics
         std::atomic<uint64> _worldSessionPacketsProcessed;
         std::atomic<uint32> _worldSessionQueueDepth;
         std::atomic<uint32> _worldSessionQueueDepthHighWater;
+        std::atomic<uint64> _worldSessionQueueDepthHighWaterEvents;
         std::atomic<uint64> _spellCastFailures;
         std::atomic<uint32> _spellCastLastSpellId;
         std::atomic<uint32> _spellCastLastFailure;

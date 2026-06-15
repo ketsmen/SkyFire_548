@@ -13,13 +13,15 @@
 
 namespace
 {
-    void StoreMax(std::atomic<uint32>& target, uint32 value)
+    bool StoreMax(std::atomic<uint32>& target, uint32 value)
     {
         uint32 current = target.load(std::memory_order_relaxed);
         while (current < value &&
             !target.compare_exchange_weak(current, value, std::memory_order_relaxed, std::memory_order_relaxed))
         {
         }
+
+        return current < value;
     }
 }
 
@@ -31,7 +33,8 @@ struct DelayExecutor::Impl
           completed(0),
           rejected(0),
           backlog(0),
-          backlogHighWater(0)
+          backlogHighWater(0),
+          backlogHighWaterEvents(0)
     {
     }
 
@@ -45,6 +48,7 @@ struct DelayExecutor::Impl
     std::atomic<uint64> rejected;
     std::atomic<uint32> backlog;
     std::atomic<uint32> backlogHighWater;
+    std::atomic<uint64> backlogHighWaterEvents;
 };
 
 DelayExecutor* DelayExecutor::instance()
@@ -147,7 +151,8 @@ int DelayExecutor::execute(std::unique_ptr<DelayTask> new_req)
 
     impl_->submitted.fetch_add(1, std::memory_order_relaxed);
     uint32 const backlog = impl_->backlog.fetch_add(1, std::memory_order_relaxed) + 1;
-    StoreMax(impl_->backlogHighWater, backlog);
+    if (StoreMax(impl_->backlogHighWater, backlog))
+        impl_->backlogHighWaterEvents.fetch_add(1, std::memory_order_relaxed);
 
     impl_->threadGroup.GetExecutor().Post(
         [this, task = std::move(new_req)]() mutable
@@ -180,6 +185,18 @@ DelayExecutorMetricsSnapshot DelayExecutor::GetMetricsSnapshot() const
     snapshot.Rejected = impl_->rejected.load(std::memory_order_relaxed);
     snapshot.Backlog = impl_->backlog.load(std::memory_order_relaxed);
     snapshot.BacklogHighWater = impl_->backlogHighWater.load(std::memory_order_relaxed);
+    snapshot.BacklogHighWaterEvents = impl_->backlogHighWaterEvents.load(std::memory_order_relaxed);
 
     return snapshot;
+}
+
+void DelayExecutor::ResetMetrics()
+{
+    uint32 const backlog = impl_->backlog.load(std::memory_order_relaxed);
+
+    impl_->submitted.store(0, std::memory_order_relaxed);
+    impl_->completed.store(0, std::memory_order_relaxed);
+    impl_->rejected.store(0, std::memory_order_relaxed);
+    impl_->backlogHighWater.store(backlog, std::memory_order_relaxed);
+    impl_->backlogHighWaterEvents.store(0, std::memory_order_relaxed);
 }

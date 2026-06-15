@@ -9,13 +9,18 @@
 
 namespace
 {
-    void StoreMax(std::atomic<uint32>& target, uint32 value)
+    uint32 const SLOW_WORLD_UPDATE_THRESHOLD_MS = 100;
+    uint32 const SLOW_MAP_UPDATE_WAIT_THRESHOLD_MS = 100;
+
+    bool StoreMax(std::atomic<uint32>& target, uint32 value)
     {
         uint32 current = target.load(std::memory_order_relaxed);
         while (current < value &&
             !target.compare_exchange_weak(current, value, std::memory_order_relaxed, std::memory_order_relaxed))
         {
         }
+
+        return current < value;
     }
 }
 
@@ -24,13 +29,13 @@ namespace Skyfire
 namespace Diagnostics
 {
     RuntimeSampleSnapshot::RuntimeSampleSnapshot()
-        : SampleCount(0), Last(0), Average(0), Maximum(0) { }
+        : SampleCount(0), SlowSamples(0), Last(0), Average(0), Maximum(0) { }
 
     MapUpdaterMetricsSnapshot::MapUpdaterMetricsSnapshot()
         : Scheduled(0), Completed(0), ScheduleFailures(0), Pending(0), PendingHighWater(0), Wait() { }
 
     WorldSessionMetricsSnapshot::WorldSessionMetricsSnapshot()
-        : PacketsQueued(0), PacketsProcessed(0), QueueDepth(0), QueueDepthHighWater(0) { }
+        : PacketsQueued(0), PacketsProcessed(0), QueueDepth(0), QueueDepthHighWater(0), QueueDepthHighWaterEvents(0) { }
 
     SpellCastMetricsSnapshot::SpellCastMetricsSnapshot()
         : Failures(0), LastSpellId(0), LastFailure(0), LastCustomError(0), LastOpcode(0) { }
@@ -39,19 +44,23 @@ namespace Diagnostics
         : WorldUpdate(), MapUpdatePasses(), MapUpdater(), WorldSession(), SpellCast() { }
 
     RuntimeMetrics::RuntimeSample::RuntimeSample()
-        : _sampleCount(0), _total(0), _last(0), _maximum(0) { }
+        : _sampleCount(0), _slowSamples(0), _total(0), _last(0), _maximum(0) { }
 
     void RuntimeMetrics::RuntimeSample::Reset()
     {
         _sampleCount.store(0, std::memory_order_relaxed);
+        _slowSamples.store(0, std::memory_order_relaxed);
         _total.store(0, std::memory_order_relaxed);
         _last.store(0, std::memory_order_relaxed);
         _maximum.store(0, std::memory_order_relaxed);
     }
 
-    void RuntimeMetrics::RuntimeSample::Record(uint32 value)
+    void RuntimeMetrics::RuntimeSample::Record(uint32 value, uint32 slowThresholdMs)
     {
         _sampleCount.fetch_add(1, std::memory_order_relaxed);
+        if (slowThresholdMs && value >= slowThresholdMs)
+            _slowSamples.fetch_add(1, std::memory_order_relaxed);
+
         _total.fetch_add(value, std::memory_order_relaxed);
         _last.store(value, std::memory_order_relaxed);
         StoreMax(_maximum, value);
@@ -61,6 +70,7 @@ namespace Diagnostics
     {
         RuntimeSampleSnapshot snapshot;
         snapshot.SampleCount = _sampleCount.load(std::memory_order_relaxed);
+        snapshot.SlowSamples = _slowSamples.load(std::memory_order_relaxed);
         snapshot.Last = _last.load(std::memory_order_relaxed);
         snapshot.Maximum = _maximum.load(std::memory_order_relaxed);
 
@@ -83,6 +93,7 @@ namespace Diagnostics
           _worldSessionPacketsProcessed(0),
           _worldSessionQueueDepth(0),
           _worldSessionQueueDepthHighWater(0),
+          _worldSessionQueueDepthHighWaterEvents(0),
           _spellCastFailures(0),
           _spellCastLastSpellId(0),
           _spellCastLastFailure(0),
@@ -103,6 +114,7 @@ namespace Diagnostics
         _worldSessionPacketsProcessed.store(0, std::memory_order_relaxed);
         _worldSessionQueueDepth.store(0, std::memory_order_relaxed);
         _worldSessionQueueDepthHighWater.store(0, std::memory_order_relaxed);
+        _worldSessionQueueDepthHighWaterEvents.store(0, std::memory_order_relaxed);
         _spellCastFailures.store(0, std::memory_order_relaxed);
         _spellCastLastSpellId.store(0, std::memory_order_relaxed);
         _spellCastLastFailure.store(0, std::memory_order_relaxed);
@@ -112,7 +124,7 @@ namespace Diagnostics
 
     void RuntimeMetrics::RecordWorldUpdate(uint32 diffMs)
     {
-        _worldUpdate.Record(diffMs);
+        _worldUpdate.Record(diffMs, SLOW_WORLD_UPDATE_THRESHOLD_MS);
     }
 
     void RuntimeMetrics::RecordMapUpdatePass(uint32 mapCount)
@@ -141,14 +153,15 @@ namespace Diagnostics
 
     void RuntimeMetrics::RecordMapUpdateWait(uint32 waitMs)
     {
-        _mapUpdateWait.Record(waitMs);
+        _mapUpdateWait.Record(waitMs, SLOW_MAP_UPDATE_WAIT_THRESHOLD_MS);
     }
 
     void RuntimeMetrics::RecordWorldSessionPacketQueued(uint32 queueDepth)
     {
         _worldSessionPacketsQueued.fetch_add(1, std::memory_order_relaxed);
         _worldSessionQueueDepth.store(queueDepth, std::memory_order_relaxed);
-        StoreMax(_worldSessionQueueDepthHighWater, queueDepth);
+        if (StoreMax(_worldSessionQueueDepthHighWater, queueDepth))
+            _worldSessionQueueDepthHighWaterEvents.fetch_add(1, std::memory_order_relaxed);
     }
 
     void RuntimeMetrics::RecordWorldSessionPacketProcessed(uint32 queueDepth)
@@ -181,6 +194,7 @@ namespace Diagnostics
         snapshot.WorldSession.PacketsProcessed = _worldSessionPacketsProcessed.load(std::memory_order_relaxed);
         snapshot.WorldSession.QueueDepth = _worldSessionQueueDepth.load(std::memory_order_relaxed);
         snapshot.WorldSession.QueueDepthHighWater = _worldSessionQueueDepthHighWater.load(std::memory_order_relaxed);
+        snapshot.WorldSession.QueueDepthHighWaterEvents = _worldSessionQueueDepthHighWaterEvents.load(std::memory_order_relaxed);
         snapshot.SpellCast.Failures = _spellCastFailures.load(std::memory_order_relaxed);
         snapshot.SpellCast.LastSpellId = _spellCastLastSpellId.load(std::memory_order_relaxed);
         snapshot.SpellCast.LastFailure = _spellCastLastFailure.load(std::memory_order_relaxed);
@@ -205,7 +219,9 @@ namespace Diagnostics
         worldLine << "Runtime metrics - World update: samples " << snapshot.WorldUpdate.SampleCount
             << ", last " << snapshot.WorldUpdate.Last << " ms"
             << ", avg " << snapshot.WorldUpdate.Average << " ms"
-            << ", max " << snapshot.WorldUpdate.Maximum << " ms";
+            << ", max " << snapshot.WorldUpdate.Maximum << " ms"
+            << ", slow " << snapshot.WorldUpdate.SlowSamples
+            << " (>=" << SLOW_WORLD_UPDATE_THRESHOLD_MS << " ms)";
         lines.push_back(worldLine.str());
 
         std::ostringstream mapLine;
@@ -217,6 +233,8 @@ namespace Diagnostics
             << ", waits " << snapshot.MapUpdater.Wait.SampleCount
             << ", wait avg " << snapshot.MapUpdater.Wait.Average << " ms"
             << ", wait max " << snapshot.MapUpdater.Wait.Maximum << " ms"
+            << ", slow waits " << snapshot.MapUpdater.Wait.SlowSamples
+            << " (>=" << SLOW_MAP_UPDATE_WAIT_THRESHOLD_MS << " ms)"
             << ", map pass avg " << snapshot.MapUpdatePasses.Average
             << ", map pass max " << snapshot.MapUpdatePasses.Maximum;
         lines.push_back(mapLine.str());
@@ -225,7 +243,8 @@ namespace Diagnostics
         packetLine << "Runtime metrics - Packet queue: queued " << snapshot.WorldSession.PacketsQueued
             << ", processed " << snapshot.WorldSession.PacketsProcessed
             << ", depth " << snapshot.WorldSession.QueueDepth
-            << ", high-water " << snapshot.WorldSession.QueueDepthHighWater;
+            << ", high-water " << snapshot.WorldSession.QueueDepthHighWater
+            << ", high-water events " << snapshot.WorldSession.QueueDepthHighWaterEvents;
         lines.push_back(packetLine.str());
 
         std::ostringstream spellLine;

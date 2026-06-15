@@ -52,6 +52,12 @@ public:
             { ""   ,    rbac::RBAC_PERM_COMMAND_SERVER_SHUTDOWN,        true, &HandleServerShutDownCommand,       "", },
         };
 
+        static std::vector<ChatCommand> serverMetricsCommandTable =
+        {
+            { "reset", rbac::RBAC_PERM_COMMAND_SERVER_INFO, true, &HandleServerMetricsResetCommand, "", },
+            { ""     , rbac::RBAC_PERM_COMMAND_SERVER_INFO, true, &HandleServerMetricsCommand,      "", },
+        };
+
         static std::vector<ChatCommand> serverSetCommandTable =
         {
             { "difftime", rbac::RBAC_PERM_COMMAND_SERVER_SET_DIFFTIME, true, &HandleServerSetDiffTimeCommand, "", },
@@ -67,6 +73,7 @@ public:
             { "idlerestart",  rbac::RBAC_PERM_COMMAND_SERVER_IDLERESTART,  true, NULL,                        "", serverIdleRestartCommandTable },
             { "idleshutdown", rbac::RBAC_PERM_COMMAND_SERVER_IDLESHUTDOWN, true, NULL,                        "", serverIdleShutdownCommandTable },
             { "info",         rbac::RBAC_PERM_COMMAND_SERVER_INFO,         true, &HandleServerInfoCommand,    "", },
+            { "metrics",      rbac::RBAC_PERM_COMMAND_SERVER_INFO,         true, NULL,                        "", serverMetricsCommandTable },
             { "motd",         rbac::RBAC_PERM_COMMAND_SERVER_MOTD,         true, &HandleServerMotdCommand,    "", },
             { "plimit",       rbac::RBAC_PERM_COMMAND_SERVER_PLIMIT,       true, &HandleServerPLimitCommand,  "", },
             { "restart",      rbac::RBAC_PERM_COMMAND_SERVER_RESTART,      true, NULL,                        "", serverRestartCommandTable },
@@ -86,6 +93,35 @@ public:
     static bool HandleServerCorpsesCommand(ChatHandler* /*handler*/, char const* /*args*/)
     {
         sObjectAccessor->RemoveOldCorpses();
+        return true;
+    }
+
+    static void SendRuntimeMetrics(ChatHandler* handler)
+    {
+        std::vector<std::string> runtimeMetrics =
+            Skyfire::Diagnostics::FormatRuntimeMetricLines(Skyfire::Diagnostics::GetRuntimeMetrics().Snapshot());
+        for (std::vector<std::string>::const_iterator itr = runtimeMetrics.begin(); itr != runtimeMetrics.end(); ++itr)
+            handler->PSendSysMessage("%s", itr->c_str());
+
+        DelayExecutorMetricsSnapshot delayExecutorMetrics = sMapMgr->GetMapUpdater()->GetExecutorMetricsSnapshot();
+        handler->PSendSysMessage("Runtime metrics - Delay executor: submitted " UI64FMTD ", completed " UI64FMTD
+            ", rejected " UI64FMTD ", backlog %u, high-water %u, high-water events " UI64FMTD,
+            delayExecutorMetrics.Submitted, delayExecutorMetrics.Completed, delayExecutorMetrics.Rejected,
+            delayExecutorMetrics.Backlog, delayExecutorMetrics.BacklogHighWater,
+            delayExecutorMetrics.BacklogHighWaterEvents);
+    }
+
+    static bool HandleServerMetricsCommand(ChatHandler* handler, char const* /*args*/)
+    {
+        SendRuntimeMetrics(handler);
+        return true;
+    }
+
+    static bool HandleServerMetricsResetCommand(ChatHandler* handler, char const* /*args*/)
+    {
+        Skyfire::Diagnostics::GetRuntimeMetrics().Reset();
+        sMapMgr->GetMapUpdater()->ResetExecutorMetrics();
+        handler->SendSysMessage("Runtime metrics reset.");
         return true;
     }
 
@@ -109,15 +145,7 @@ public:
         handler->PSendSysMessage(LANG_UPTIME, uptime.c_str());
         std::string memoryInfo = Skyfire::GetProcessMemoryUsage(memoryUsage) ? Skyfire::FormatProcessMemoryUsage(memoryUsage) : "unavailable";
         handler->PSendSysMessage("Memory: %s", memoryInfo.c_str());
-        std::vector<std::string> runtimeMetrics =
-            Skyfire::Diagnostics::FormatRuntimeMetricLines(Skyfire::Diagnostics::GetRuntimeMetrics().Snapshot());
-        for (std::vector<std::string>::const_iterator itr = runtimeMetrics.begin(); itr != runtimeMetrics.end(); ++itr)
-            handler->PSendSysMessage("%s", itr->c_str());
-        DelayExecutorMetricsSnapshot delayExecutorMetrics = sMapMgr->GetMapUpdater()->GetExecutorMetricsSnapshot();
-        handler->PSendSysMessage("Runtime metrics - Delay executor: submitted " UI64FMTD ", completed " UI64FMTD
-            ", rejected " UI64FMTD ", backlog %u, high-water %u",
-            delayExecutorMetrics.Submitted, delayExecutorMetrics.Completed, delayExecutorMetrics.Rejected,
-            delayExecutorMetrics.Backlog, delayExecutorMetrics.BacklogHighWater);
+        SendRuntimeMetrics(handler);
         handler->PSendSysMessage(LANG_UPDATE_DIFF, updateTime);
 
         // Can't use sWorld->ShutdownMsg here in case of console command

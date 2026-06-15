@@ -111,7 +111,8 @@ int main()
     }
 
     DelayExecutorMetricsSnapshot submittedAfterStart = executor.GetMetricsSnapshot();
-    if (submittedAfterStart.Submitted != 1 || submittedAfterStart.BacklogHighWater == 0)
+    if (submittedAfterStart.Submitted != 1 || submittedAfterStart.BacklogHighWater == 0 ||
+        submittedAfterStart.BacklogHighWaterEvents != 1)
     {
         std::cerr << "DelayExecutor did not count submitted work or backlog after start\n";
         return 1;
@@ -127,6 +128,16 @@ int main()
     if (completedAfterRun.Completed != 1 || completedAfterRun.Backlog != 0 || completedAfterRun.BacklogHighWater != 1)
     {
         std::cerr << "DelayExecutor did not count completed work and backlog drain\n";
+        return 1;
+    }
+
+    executor.ResetMetrics();
+
+    DelayExecutorMetricsSnapshot resetAfterRun = executor.GetMetricsSnapshot();
+    if (resetAfterRun.Submitted != 0 || resetAfterRun.Completed != 0 || resetAfterRun.Rejected != 0 ||
+        resetAfterRun.Backlog != 0 || resetAfterRun.BacklogHighWater != 0 || resetAfterRun.BacklogHighWaterEvents != 0)
+    {
+        std::cerr << "DelayExecutor did not reset metrics counters\n";
         return 1;
     }
 
@@ -161,7 +172,7 @@ int main()
     }
 
     DelayExecutorMetricsSnapshot rejectedAfterStop = executor.GetMetricsSnapshot();
-    if (rejectedAfterStop.Rejected != 2)
+    if (rejectedAfterStop.Rejected != 1)
     {
         std::cerr << "DelayExecutor did not count rejected work after deactivate\n";
         return 1;
@@ -186,7 +197,8 @@ int main()
     }
 
     DelayExecutorMetricsSnapshot completedAfterRestart = executor.GetMetricsSnapshot();
-    if (completedAfterRestart.Submitted != 2 || completedAfterRestart.Completed != 2 || completedAfterRestart.Backlog != 0)
+    if (completedAfterRestart.Submitted != 1 || completedAfterRestart.Completed != 1 || completedAfterRestart.Backlog != 0 ||
+        completedAfterRestart.BacklogHighWaterEvents != 1)
     {
         std::cerr << "DelayExecutor did not keep cumulative counters after restart\n";
         return 1;
