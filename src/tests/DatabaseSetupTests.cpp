@@ -104,11 +104,12 @@ namespace
         state.SchemaTableCount = 12;
         state.UpdateTrackingExists = true;
         state.AppliedUpdates.insert("2026-01-23_auth_00.sql");
+        state.AppliedUpdateHashes["2026-01-23_auth_00.sql"] = "hash-a";
 
         std::vector<Skyfire::Database::SqlUpdateFile> updates =
         {
-            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql" },
-            { "2026-02-03_auth_00.sql", "sql/updates/auth/2026-02-03_auth_00.sql" }
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "hash-a" },
+            { "2026-02-03_auth_00.sql", "sql/updates/auth/2026-02-03_auth_00.sql", "hash-b" }
         };
 
         Skyfire::Database::SetupPlan plan =
@@ -119,6 +120,33 @@ namespace
         passed &= Expect(!plan.ShouldInstallBase, "Existing auth schema should not reinstall base SQL");
         passed &= Expect(plan.PendingUpdates.size() == 1, "Existing auth schema should skip applied updates");
         passed &= Expect(plan.PendingUpdates[0].Name == "2026-02-03_auth_00.sql", "Existing auth schema should keep unapplied updates");
+
+        return passed;
+    }
+
+    bool TestExistingAuthDatabaseRejectsChangedAppliedUpdate()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = true;
+        state.AppliedUpdates.insert("2026-01-23_auth_00.sql");
+        state.AppliedUpdateHashes["2026-01-23_auth_00.sql"] = "old-hash";
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "new-hash" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(!plan.IsValid(), "Changed applied auth update should fail version control validation");
+        passed &= Expect(!plan.Error.empty(), "Changed applied auth update should explain the hash mismatch");
+        passed &= Expect(plan.PendingUpdates.empty(), "Changed applied auth update should not be queued");
 
         return passed;
     }
@@ -194,6 +222,8 @@ namespace
         passed &= Expect(updates[1].Name == "2026-03-01_auth_00.sql", "Auth discovery should preserve later sorted update");
         passed &= ExpectEqual(updates[0].Path, (updatesDir / "2026-01-23_auth_00.sql").string(),
             "Auth discovery should return full configured update paths");
+        passed &= Expect(updates[0].Hash == Skyfire::Database::CalculateStableSqlHash("SELECT 2;"),
+            "Auth discovery should hash update file contents for version control");
 
         std::filesystem::remove_all(root);
 
@@ -274,6 +304,7 @@ int main()
     passed &= TestSqlUpdatesAreFilteredAndSorted();
     passed &= TestEmptyAuthDatabaseInstallsBaseAndPendingUpdates();
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
+    passed &= TestExistingAuthDatabaseRejectsChangedAppliedUpdate();
     passed &= TestExistingAuthDatabaseWithoutTrackingFailsSafe();
     passed &= TestMissingDatabaseRequiresAutoCreate();
     passed &= TestSqlUpdatesAreDiscoveredFromConfiguredRoot();

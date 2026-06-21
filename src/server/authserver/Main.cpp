@@ -275,7 +275,7 @@ namespace
         if (!state.UpdateTrackingExists)
             return true;
 
-        if (mysql_query(setupConnection, "SELECT `filename` FROM `skyfire_db_updates` WHERE `domain` = 'auth'"))
+        if (mysql_query(setupConnection, "SELECT `filename`, `hash` FROM `skyfire_db_updates` WHERE `domain` = 'auth'"))
         {
             SF_LOG_ERROR("server.authserver", "Could not read auth database applied updates: %s",
                 mysql_error(setupConnection));
@@ -292,8 +292,14 @@ namespace
 
         std::unique_ptr<MYSQL_RES, decltype(&mysql_free_result)> resultGuard(result, mysql_free_result);
         while (MYSQL_ROW row = mysql_fetch_row(result))
+        {
             if (row[0])
+            {
                 state.AppliedUpdates.insert(row[0]);
+                if (row[1])
+                    state.AppliedUpdateHashes[row[0]] = row[1];
+            }
+        }
 
         return true;
     }
@@ -329,7 +335,7 @@ namespace
         std::string filename = Skyfire::Database::EscapeSqlString(update.Name);
         std::string hash = Skyfire::Database::CalculateStableSqlHash(sql);
 
-        std::string recordSql = "REPLACE INTO `" + std::string(AUTH_UPDATE_TRACKING_TABLE) +
+        std::string recordSql = "INSERT INTO `" + std::string(AUTH_UPDATE_TRACKING_TABLE) +
             "` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('auth', '" +
             filename + "', '" + hash + "', NOW())";
 

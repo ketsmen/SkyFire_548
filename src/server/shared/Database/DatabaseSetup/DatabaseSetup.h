@@ -7,6 +7,7 @@
 #define SKYFIRE_DATABASE_SETUP_H
 
 #include <functional>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -31,12 +32,14 @@ namespace Database
         bool UpdateTrackingExists = false;
         unsigned int SchemaTableCount = 0;
         std::set<std::string> AppliedUpdates;
+        std::map<std::string, std::string> AppliedUpdateHashes;
     };
 
     struct SqlUpdateFile
     {
         std::string Name;
         std::string Path;
+        std::string Hash;
     };
 
     struct SetupPlan

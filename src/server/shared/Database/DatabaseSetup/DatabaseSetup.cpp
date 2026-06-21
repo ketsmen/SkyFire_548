@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <utility>
@@ -55,6 +56,18 @@ namespace Database
                 --end;
 
             return text.substr(begin, end - begin);
+        }
+
+        bool ReadTextFile(std::filesystem::path const& path, std::string& contents)
+        {
+            std::ifstream file(path, std::ios::in | std::ios::binary);
+            if (!file)
+                return false;
+
+            std::ostringstream stream;
+            stream << file.rdbuf();
+            contents = stream.str();
+            return true;
         }
     }
 
@@ -115,7 +128,15 @@ namespace Database
                 names.push_back(entry.path().filename().string());
         }
 
-        return BuildSortedSqlUpdateList(names, updatesDirectory.string());
+        std::vector<SqlUpdateFile> updates = BuildSortedSqlUpdateList(names, updatesDirectory.string());
+        for (SqlUpdateFile& update : updates)
+        {
+            std::string contents;
+            if (ReadTextFile(update.Path, contents))
+                update.Hash = CalculateStableSqlHash(contents);
+        }
+
+        return updates;
     }
 
     std::vector<std::string> SplitSqlStatements(std::string const& sql)
@@ -270,7 +291,19 @@ namespace Database
         for (SqlUpdateFile const& update : updates)
         {
             if (state.AppliedUpdates.find(update.Name) == state.AppliedUpdates.end())
+            {
                 plan.PendingUpdates.push_back(update);
+                continue;
+            }
+
+            std::map<std::string, std::string>::const_iterator appliedHash = state.AppliedUpdateHashes.find(update.Name);
+            if (appliedHash != state.AppliedUpdateHashes.end() && !appliedHash->second.empty() &&
+                !update.Hash.empty() && appliedHash->second != update.Hash)
+            {
+                plan.Error = "Auth database update `" + update.Name + "` was already applied with a different hash.";
+                plan.PendingUpdates.clear();
+                return plan;
+            }
         }
 
         return plan;
