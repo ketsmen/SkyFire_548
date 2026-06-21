@@ -56,7 +56,7 @@ extern int m_ServiceStatus;
 
 namespace
 {
-    char const* CHARACTER_UPDATE_TRACKING_TABLE = "skyfire_db_updates";
+    char const* DATABASE_UPDATE_TRACKING_TABLE = "skyfire_db_updates";
 
     Skyfire::Database::SetupOptions LoadCharacterDatabaseSetupOptions()
     {
@@ -67,9 +67,27 @@ namespace
             sConfigMgr->GetStringDefault("CharacterDatabase.SqlPath", ""));
     }
 
+    Skyfire::Database::SetupOptions LoadWorldDatabaseSetupOptions()
+    {
+        return Skyfire::Database::MakeWorldDatabaseSetupOptions(
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoSetup", false),
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoCreate", false),
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoBaseline", false),
+            sConfigMgr->GetStringDefault("WorldDatabase.SqlPath", ""),
+            sConfigMgr->GetStringDefault("WorldDatabase.BaseSqlFile", ""));
+    }
+
     std::filesystem::path GetDatabaseBaseSqlPath(Skyfire::Database::SetupOptions const& options)
     {
         std::filesystem::path path = std::filesystem::path(options.SqlPath) / "base" / options.BaseFileName;
+        path.make_preferred();
+        return path;
+    }
+
+    std::filesystem::path GetDatabaseBaseSqlPath(Skyfire::Database::SetupOptions const& options,
+        std::string const& baseFileName)
+    {
+        std::filesystem::path path = std::filesystem::path(options.SqlPath) / "base" / baseFileName;
         path.make_preferred();
         return path;
     }
@@ -222,9 +240,9 @@ namespace
         return true;
     }
 
-    bool EnsureCharacterUpdateTrackingTable(MYSQL* setupConnection)
+    bool EnsureDatabaseUpdateTrackingTable(MYSQL* setupConnection, char const* context)
     {
-        std::string sql = "CREATE TABLE IF NOT EXISTS `" + std::string(CHARACTER_UPDATE_TRACKING_TABLE) + "` ("
+        std::string sql = "CREATE TABLE IF NOT EXISTS `" + std::string(DATABASE_UPDATE_TRACKING_TABLE) + "` ("
             "`domain` varchar(32) NOT NULL,"
             "`filename` varchar(255) NOT NULL,"
             "`hash` varchar(64) NOT NULL,"
@@ -232,7 +250,7 @@ namespace
             "PRIMARY KEY (`domain`,`filename`)"
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb3";
 
-        return ExecuteSetupQuery(setupConnection, sql, "Could not create character database update tracking table");
+        return ExecuteSetupQuery(setupConnection, sql, context);
     }
 
     bool LoadCharacterDatabaseSetupState(MYSQL* setupConnection, Skyfire::Database::SetupState& state)
@@ -286,15 +304,16 @@ namespace
         return true;
     }
 
-    bool ExecuteSqlText(MYSQL* setupConnection, std::string const& sql)
+    bool ExecuteSqlText(MYSQL* setupConnection, std::string const& sql, char const* context)
     {
-        return Skyfire::Database::ExecuteSqlScript(sql, [setupConnection](std::string const& statement)
+        return Skyfire::Database::ExecuteSqlScript(sql, [setupConnection, context](std::string const& statement)
         {
-            return ExecuteSetupQuery(setupConnection, statement, "Failed while executing character setup SQL");
+            return ExecuteSetupQuery(setupConnection, statement, context);
         });
     }
 
-    bool ExecuteSqlFile(MYSQL* setupConnection, std::filesystem::path const& path, std::string& contents)
+    bool ExecuteSqlFile(MYSQL* setupConnection, std::filesystem::path const& path, std::string& contents,
+        char const* context)
     {
         if (!ReadDatabaseSetupTextFile(path, contents))
         {
@@ -302,7 +321,7 @@ namespace
             return false;
         }
 
-        if (!ExecuteSqlText(setupConnection, contents))
+        if (!ExecuteSqlText(setupConnection, contents, context))
         {
             SF_LOG_ERROR("server.worldserver", "Failed while executing SQL file %s.", path.string().c_str());
             return false;
@@ -324,7 +343,7 @@ namespace
         std::string filename = Skyfire::Database::EscapeSqlString(update.Name);
         std::string escapedHash = Skyfire::Database::EscapeSqlString(hash);
 
-        std::string recordSql = "INSERT INTO `" + std::string(CHARACTER_UPDATE_TRACKING_TABLE) +
+        std::string recordSql = "INSERT INTO `" + std::string(DATABASE_UPDATE_TRACKING_TABLE) +
             "` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('characters', '" +
             filename + "', '" + escapedHash + "', NOW())";
 
@@ -385,11 +404,13 @@ namespace
             std::string baseSql;
             SF_LOG_INFO("server.worldserver", "Installing character database base SQL from %s.",
                 baseSqlPath.string().c_str());
-            if (!ExecuteSqlFile(setupConnection.get(), baseSqlPath, baseSql))
+            if (!ExecuteSqlFile(setupConnection.get(), baseSqlPath, baseSql,
+                "Failed while executing character setup SQL"))
                 return false;
         }
 
-        if (!EnsureCharacterUpdateTrackingTable(setupConnection.get()))
+        if (!EnsureDatabaseUpdateTrackingTable(setupConnection.get(),
+            "Could not create character database update tracking table"))
         {
             SF_LOG_ERROR("server.worldserver", "Could not create character database update tracking table.");
             return false;
@@ -418,7 +439,8 @@ namespace
         {
             std::string updateSql;
             SF_LOG_INFO("server.worldserver", "Applying character database update %s.", update.Name.c_str());
-            if (!ExecuteSqlFile(setupConnection.get(), update.Path, updateSql))
+            if (!ExecuteSqlFile(setupConnection.get(), update.Path, updateSql,
+                "Failed while executing character setup SQL"))
                 return false;
 
             if (!RecordAppliedCharacterUpdate(setupConnection.get(), update, updateSql))
@@ -431,6 +453,239 @@ namespace
 
         SF_LOG_INFO("server.worldserver",
             "Character database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
+            uint32(plan.BaselineUpdates.size()));
+        return true;
+    }
+
+    bool EnsureWorldDatabaseExists(MySQLConnectionInfo const& connectionInfo,
+        Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup || !options.AutoCreate)
+            return true;
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoCreate requires a world database name.");
+            return false;
+        }
+
+        MYSQL* setupConnection = NULL;
+        if (!ConnectToMySQLServer(connectionInfo, NULL, setupConnection))
+            return false;
+
+        std::string sql = "CREATE DATABASE IF NOT EXISTS `" + EscapeSqlIdentifier(connectionInfo._database) +
+            "` DEFAULT CHARACTER SET utf8";
+
+        if (mysql_query(setupConnection, sql.c_str()))
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not create world database `%s`: %s",
+                connectionInfo._database.c_str(), mysql_error(setupConnection));
+            mysql_close(setupConnection);
+            return false;
+        }
+
+        SF_LOG_INFO("server.worldserver", "World database `%s` exists or was created.",
+            connectionInfo._database.c_str());
+        mysql_close(setupConnection);
+        return true;
+    }
+
+    bool LoadWorldDatabaseSetupState(MYSQL* setupConnection, Skyfire::Database::SetupState& state)
+    {
+        state.DatabaseExists = true;
+
+        if (!QuerySetupUInt32(setupConnection,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()",
+            state.SchemaTableCount,
+            "Could not inspect world database table count"))
+            return false;
+
+        uint32 updateTrackingTableCount = 0;
+        if (!QuerySetupUInt32(setupConnection,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() "
+            "AND table_name = 'skyfire_db_updates'",
+            updateTrackingTableCount,
+            "Could not inspect world database update tracking table"))
+            return false;
+
+        state.UpdateTrackingExists = updateTrackingTableCount != 0;
+        if (!state.UpdateTrackingExists)
+            return true;
+
+        if (mysql_query(setupConnection, "SELECT `filename`, `hash` FROM `skyfire_db_updates` WHERE `domain` = 'world'"))
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not read world database applied updates: %s",
+                mysql_error(setupConnection));
+            return false;
+        }
+
+        MYSQL_RES* result = mysql_store_result(setupConnection);
+        if (!result)
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not read world database applied updates: %s",
+                mysql_error(setupConnection));
+            return false;
+        }
+
+        std::unique_ptr<MYSQL_RES, decltype(&mysql_free_result)> resultGuard(result, mysql_free_result);
+        while (MYSQL_ROW row = mysql_fetch_row(result))
+        {
+            if (row[0])
+            {
+                state.AppliedUpdates.insert(row[0]);
+                if (row[1])
+                    state.AppliedUpdateHashes[row[0]] = row[1];
+            }
+        }
+
+        return true;
+    }
+
+    bool RecordWorldUpdateMetadata(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
+        std::string const& hash)
+    {
+        if (hash.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "World database update %s has no content hash.",
+                update.Name.c_str());
+            return false;
+        }
+
+        std::string filename = Skyfire::Database::EscapeSqlString(update.Name);
+        std::string escapedHash = Skyfire::Database::EscapeSqlString(hash);
+
+        std::string recordSql = "INSERT INTO `" + std::string(DATABASE_UPDATE_TRACKING_TABLE) +
+            "` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('world', '" +
+            filename + "', '" + escapedHash + "', NOW())";
+
+        return ExecuteSetupQuery(setupConnection, recordSql, "Could not record world database update");
+    }
+
+    bool RecordAppliedWorldUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
+        std::string const& sql)
+    {
+        return RecordWorldUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql));
+    }
+
+    bool RunWorldDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
+        Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup)
+            return true;
+
+        if (options.SqlPath.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires WorldDatabase.SqlPath.");
+            return false;
+        }
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires a world database name.");
+            return false;
+        }
+
+        if (!EnsureWorldDatabaseExists(connectionInfo, options))
+            return false;
+
+        MYSQL* setupConnectionRaw = NULL;
+        if (!ConnectToMySQLServer(connectionInfo, connectionInfo._database.c_str(), setupConnectionRaw))
+            return false;
+
+        std::unique_ptr<MYSQL, decltype(&mysql_close)> setupConnection(setupConnectionRaw, mysql_close);
+
+        std::filesystem::path externalBaseSqlPath = options.ExternalBaseFile;
+        externalBaseSqlPath.make_preferred();
+        bool externalBaseSqlExists = !options.ExternalBaseFile.empty() && std::filesystem::exists(externalBaseSqlPath);
+
+        bool requiredBaseSqlExists = true;
+        std::vector<std::filesystem::path> requiredBaseSqlPaths;
+        for (std::string const& baseFileName : options.RequiredBaseFileNames)
+        {
+            std::filesystem::path requiredBaseSqlPath = GetDatabaseBaseSqlPath(options, baseFileName);
+            requiredBaseSqlPaths.push_back(requiredBaseSqlPath);
+            requiredBaseSqlExists = requiredBaseSqlExists && std::filesystem::exists(requiredBaseSqlPath);
+        }
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates = Skyfire::Database::DiscoverSqlUpdates(options);
+
+        Skyfire::Database::SetupState state;
+        if (!LoadWorldDatabaseSetupState(setupConnection.get(), state))
+            return false;
+
+        Skyfire::Database::SetupPlan plan = Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state,
+            externalBaseSqlExists, requiredBaseSqlExists, updates);
+        if (!plan.IsValid())
+        {
+            SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
+            return false;
+        }
+
+        if (plan.ShouldInstallBase)
+        {
+            std::string baseSql;
+            SF_LOG_INFO("server.worldserver", "Installing world database base SQL from %s.",
+                externalBaseSqlPath.string().c_str());
+            if (!ExecuteSqlFile(setupConnection.get(), externalBaseSqlPath, baseSql,
+                "Failed while executing world setup SQL"))
+                return false;
+
+            for (std::filesystem::path const& requiredBaseSqlPath : requiredBaseSqlPaths)
+            {
+                std::string requiredBaseSql;
+                SF_LOG_INFO("server.worldserver", "Installing world database required SQL from %s.",
+                    requiredBaseSqlPath.string().c_str());
+                if (!ExecuteSqlFile(setupConnection.get(), requiredBaseSqlPath, requiredBaseSql,
+                    "Failed while executing world setup SQL"))
+                    return false;
+            }
+        }
+
+        if (!EnsureDatabaseUpdateTrackingTable(setupConnection.get(),
+            "Could not create world database update tracking table"))
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not create world database update tracking table.");
+            return false;
+        }
+
+        if (plan.ShouldBaselineUpdates)
+        {
+            SF_LOG_WARN("server.worldserver",
+                "WorldDatabase.AutoBaseline is enabled. Recording %u world updates as already applied without executing them.",
+                uint32(plan.BaselineUpdates.size()));
+            SF_LOG_WARN("server.worldserver",
+                "Disable WorldDatabase.AutoBaseline after this startup to keep future update checks strict.");
+
+            for (Skyfire::Database::SqlUpdateFile const& update : plan.BaselineUpdates)
+            {
+                if (!RecordWorldUpdateMetadata(setupConnection.get(), update, update.Hash))
+                {
+                    SF_LOG_ERROR("server.worldserver", "Could not baseline world database update %s.",
+                        update.Name.c_str());
+                    return false;
+                }
+            }
+        }
+
+        for (Skyfire::Database::SqlUpdateFile const& update : plan.PendingUpdates)
+        {
+            std::string updateSql;
+            SF_LOG_INFO("server.worldserver", "Applying world database update %s.", update.Name.c_str());
+            if (!ExecuteSqlFile(setupConnection.get(), update.Path, updateSql,
+                "Failed while executing world setup SQL"))
+                return false;
+
+            if (!RecordAppliedWorldUpdate(setupConnection.get(), update, updateSql))
+            {
+                SF_LOG_ERROR("server.worldserver", "Could not record world database update %s.",
+                    update.Name.c_str());
+                return false;
+            }
+        }
+
+        SF_LOG_INFO("server.worldserver",
+            "World database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
             plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
             uint32(plan.BaselineUpdates.size()));
         return true;
@@ -800,6 +1055,14 @@ bool Master::_StartDB()
     }
 
     synchThreads = uint8(sConfigMgr->GetIntDefault("WorldDatabase.SynchThreads", 1));
+
+    Skyfire::Database::SetupOptions worldSetupOptions = LoadWorldDatabaseSetupOptions();
+    MySQLConnectionInfo worldSetupConnectionInfo = _noUseConfigDatabaseInfo == false
+        ? MySQLConnectionInfo(dbString)
+        : MySQLConnectionInfo(_dbHost, _dbPort, _dbUser, _dbPassword, _worldDB);
+
+    if (!RunWorldDatabaseSetup(worldSetupConnectionInfo, worldSetupOptions))
+        return false;
 
     if (_noUseConfigDatabaseInfo == false)
     {

@@ -24,6 +24,8 @@ namespace Database
         std::string Domain;
         std::string SqlPath;
         std::string BaseFileName;
+        std::string ExternalBaseFile;
+        std::vector<std::string> RequiredBaseFileNames;
         std::string UpdatesDirectory;
     };
 
@@ -59,6 +61,10 @@ namespace Database
     SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath);
     SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath);
     SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath);
+    SetupOptions MakeWorldDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath,
+        std::string externalBaseFile);
+    SetupOptions MakeWorldDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath,
+        std::string externalBaseFile);
     std::vector<SqlUpdateFile> BuildSortedSqlUpdateList(std::vector<std::string> const& names, std::string const& directory);
     std::vector<SqlUpdateFile> DiscoverSqlUpdates(SetupOptions const& options);
     std::vector<std::string> SplitSqlStatements(std::string const& sql);
@@ -71,6 +77,8 @@ namespace Database
         std::vector<SqlUpdateFile> const& updates);
     SetupPlan BuildCharacterDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates);
+    SetupPlan BuildWorldDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool externalBaseSqlExists,
+        bool requiredBaseSqlExists, std::vector<SqlUpdateFile> const& updates);
 }
 }
 

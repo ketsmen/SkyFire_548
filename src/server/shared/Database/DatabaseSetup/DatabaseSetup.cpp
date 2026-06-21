@@ -69,6 +69,91 @@ namespace Database
             contents = stream.str();
             return true;
         }
+
+        bool StartsWithCaseInsensitive(std::string const& text, std::string const& prefix)
+        {
+            if (text.length() < prefix.length())
+                return false;
+
+            for (std::string::size_type i = 0; i < prefix.length(); ++i)
+            {
+                if (std::tolower(static_cast<unsigned char>(text[i])) !=
+                    std::tolower(static_cast<unsigned char>(prefix[i])))
+                    return false;
+            }
+
+            return true;
+        }
+
+        bool TryReadDelimiterCommand(std::string const& line, std::string& delimiter)
+        {
+            std::string trimmed = Trim(line);
+            if (!StartsWithCaseInsensitive(trimmed, "delimiter"))
+                return false;
+
+            if (trimmed.length() != 9 && !std::isspace(static_cast<unsigned char>(trimmed[9])))
+                return false;
+
+            delimiter = Trim(trimmed.substr(9));
+            return !delimiter.empty();
+        }
+
+        std::string::size_type FindDelimiterOutsideQuotedText(std::string const& sql, std::string const& delimiter)
+        {
+            bool inSingleQuote = false;
+            bool inDoubleQuote = false;
+            bool inBacktick = false;
+            bool escaped = false;
+
+            for (std::string::size_type i = 0; i < sql.length(); ++i)
+            {
+                char c = sql[i];
+
+                if (inSingleQuote)
+                {
+                    if (escaped)
+                        escaped = false;
+                    else if (c == '\\')
+                        escaped = true;
+                    else if (c == '\'')
+                        inSingleQuote = false;
+
+                    continue;
+                }
+
+                if (inDoubleQuote)
+                {
+                    if (escaped)
+                        escaped = false;
+                    else if (c == '\\')
+                        escaped = true;
+                    else if (c == '"')
+                        inDoubleQuote = false;
+
+                    continue;
+                }
+
+                if (inBacktick)
+                {
+                    if (c == '`')
+                        inBacktick = false;
+
+                    continue;
+                }
+
+                if (!delimiter.empty() && sql.compare(i, delimiter.length(), delimiter) == 0)
+                    return i;
+
+                if (c == '\'')
+                    inSingleQuote = true;
+                else if (c == '"')
+                    inDoubleQuote = true;
+                else if (c == '`')
+                    inBacktick = true;
+            }
+
+            return std::string::npos;
+        }
     }
 
     bool SetupPlan::IsValid() const
@@ -110,6 +195,29 @@ namespace Database
         options.SqlPath = std::move(sqlPath);
         options.BaseFileName = "characters_database.sql";
         options.UpdatesDirectory = "updates/characters";
+
+        return options;
+    }
+
+    SetupOptions MakeWorldDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath,
+        std::string externalBaseFile)
+    {
+        return MakeWorldDatabaseSetupOptions(autoSetup, autoCreate, false, std::move(sqlPath),
+            std::move(externalBaseFile));
+    }
+
+    SetupOptions MakeWorldDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath,
+        std::string externalBaseFile)
+    {
+        SetupOptions options;
+        options.AutoSetup = autoSetup;
+        options.AutoCreate = autoCreate;
+        options.AutoBaseline = autoBaseline;
+        options.Domain = "world";
+        options.SqlPath = std::move(sqlPath);
+        options.ExternalBaseFile = std::move(externalBaseFile);
+        options.RequiredBaseFileNames.push_back("stored_procs.sql");
+        options.UpdatesDirectory = "updates/world";
 
         return options;
     }
@@ -168,66 +276,34 @@ namespace Database
     {
         std::vector<std::string> statements;
         std::string current;
-        bool inSingleQuote = false;
-        bool inDoubleQuote = false;
-        bool inBacktick = false;
-        bool escaped = false;
+        std::string delimiter = ";";
+        std::istringstream input(sql);
+        std::string line;
 
-        for (char c : sql)
+        while (std::getline(input, line))
         {
-            if (inSingleQuote)
+            std::string newDelimiter;
+            if (Trim(current).empty() && TryReadDelimiterCommand(line, newDelimiter))
             {
-                current.push_back(c);
-                if (escaped)
-                    escaped = false;
-                else if (c == '\\')
-                    escaped = true;
-                else if (c == '\'')
-                    inSingleQuote = false;
-
+                current.clear();
+                delimiter = newDelimiter;
                 continue;
             }
 
-            if (inDoubleQuote)
+            current += line;
+            current.push_back('\n');
+            while (true)
             {
-                current.push_back(c);
-                if (escaped)
-                    escaped = false;
-                else if (c == '\\')
-                    escaped = true;
-                else if (c == '"')
-                    inDoubleQuote = false;
+                std::string::size_type delimiterPosition = FindDelimiterOutsideQuotedText(current, delimiter);
+                if (delimiterPosition == std::string::npos)
+                    break;
 
-                continue;
-            }
-
-            if (inBacktick)
-            {
-                current.push_back(c);
-                if (c == '`')
-                    inBacktick = false;
-
-                continue;
-            }
-
-            if (c == ';')
-            {
-                std::string statement = Trim(current);
+                std::string statement = Trim(current.substr(0, delimiterPosition));
                 if (!statement.empty())
                     statements.push_back(statement);
 
-                current.clear();
-                continue;
+                current.erase(0, delimiterPosition + delimiter.length());
             }
-
-            current.push_back(c);
-
-            if (c == '\'')
-                inSingleQuote = true;
-            else if (c == '"')
-                inDoubleQuote = true;
-            else if (c == '`')
-                inBacktick = true;
         }
 
         std::string statement = Trim(current);
@@ -362,6 +438,28 @@ namespace Database
         std::vector<SqlUpdateFile> const& updates)
     {
         return BuildDatabaseSetupPlan(options, state, baseSqlExists, updates);
+    }
+
+    SetupPlan BuildWorldDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool externalBaseSqlExists,
+        bool requiredBaseSqlExists, std::vector<SqlUpdateFile> const& updates)
+    {
+        SetupPlan plan = BuildDatabaseSetupPlan(options, state, true, updates);
+        if (!plan.IsValid() || !plan.ShouldInstallBase)
+            return plan;
+
+        if (options.ExternalBaseFile.empty() || !externalBaseSqlExists)
+        {
+            plan.Error = "world database external base SQL file was not found.";
+            return plan;
+        }
+
+        if (!requiredBaseSqlExists)
+        {
+            plan.Error = "world database required base SQL file was not found.";
+            return plan;
+        }
+
+        return plan;
     }
 }
 }

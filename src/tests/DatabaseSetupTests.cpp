@@ -64,6 +64,26 @@ namespace
         return passed;
     }
 
+    bool TestWorldDefaultsAreConservative()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeWorldDatabaseSetupOptions(false, false, "", "");
+
+        bool passed = true;
+        passed &= Expect(options.Domain == "world", "World setup domain should be world");
+        passed &= Expect(!options.AutoSetup, "World auto setup should default off");
+        passed &= Expect(!options.AutoCreate, "World auto create should default off");
+        passed &= Expect(!options.AutoBaseline, "World auto baseline should default off");
+        passed &= Expect(options.SqlPath.empty(), "World setup SQL path should default empty");
+        passed &= Expect(options.BaseFileName.empty(), "World setup should not assume an in-tree base SQL file");
+        passed &= Expect(options.ExternalBaseFile.empty(), "World external base SQL file should default empty");
+        passed &= Expect(options.RequiredBaseFileNames.size() == 1, "World setup should require stored procedures after base install");
+        passed &= Expect(options.RequiredBaseFileNames[0] == "stored_procs.sql",
+            "World setup should use the in-tree stored procedures file");
+        passed &= Expect(options.UpdatesDirectory == "updates/world", "World setup should use the world updates directory");
+
+        return passed;
+    }
+
     bool TestExistingAuthDatabaseCanBaselineUpdates()
     {
         Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, true, "sql");
@@ -181,6 +201,50 @@ namespace
         passed &= Expect(!plan.ShouldCreateDatabase, "Existing character database should not be created");
         passed &= Expect(plan.ShouldInstallBase, "Empty character database should install base SQL");
         passed &= Expect(plan.PendingUpdates.empty(), "Empty character database with no updates should not queue updates");
+
+        return passed;
+    }
+
+    bool TestEmptyWorldDatabaseRequiresExternalBase()
+    {
+        Skyfire::Database::SetupOptions options =
+            Skyfire::Database::MakeWorldDatabaseSetupOptions(true, false, "sql", "");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 0;
+
+        Skyfire::Database::SetupPlan missingPlan =
+            Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state, false, true, {});
+
+        options.ExternalBaseFile = "D:/SkyFire/world_database.sql";
+        Skyfire::Database::SetupPlan validPlan =
+            Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state, true, true, {});
+
+        bool passed = true;
+        passed &= Expect(!missingPlan.IsValid(), "Empty world database should require the external base dump");
+        passed &= Expect(!missingPlan.Error.empty(), "Missing world base dump should explain why setup stopped");
+        passed &= Expect(validPlan.IsValid(), "Empty world database should be valid when base and stored procedures exist");
+        passed &= Expect(validPlan.ShouldInstallBase, "Empty world database should install base SQL");
+
+        return passed;
+    }
+
+    bool TestEmptyWorldDatabaseRequiresStoredProcedures()
+    {
+        Skyfire::Database::SetupOptions options =
+            Skyfire::Database::MakeWorldDatabaseSetupOptions(true, false, "sql", "D:/SkyFire/world_database.sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 0;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state, true, false, {});
+
+        bool passed = true;
+        passed &= Expect(!plan.IsValid(), "Empty world database should require stored procedures");
+        passed &= Expect(!plan.Error.empty(), "Missing stored procedures should explain why setup stopped");
 
         return passed;
     }
@@ -344,6 +408,34 @@ namespace
         return passed;
     }
 
+    bool TestSqlScriptSplitsDelimiterStatements()
+    {
+        std::string sql =
+            "CREATE TABLE `world_test` (`id` int);\n"
+            "DELIMITER ;;\n"
+            "CREATE PROCEDURE `sp_world_test`()\n"
+            "BEGIN\n"
+            "  SELECT 'semi;colon';\n"
+            "END ;;\n"
+            "DELIMITER ;\n"
+            "CALL `sp_world_test`();\n";
+
+        std::vector<std::string> statements = Skyfire::Database::SplitSqlStatements(sql);
+
+        bool passed = true;
+        passed &= Expect(statements.size() == 3, "SQL splitter should honor custom DELIMITER commands");
+        passed &= Expect(statements[0].find("CREATE TABLE") != std::string::npos,
+            "Delimiter-aware splitter should keep the first table statement");
+        passed &= Expect(statements[1].find("CREATE PROCEDURE") != std::string::npos,
+            "Delimiter-aware splitter should keep the procedure body as one statement");
+        passed &= Expect(statements[1].find("'semi;colon'") != std::string::npos,
+            "Delimiter-aware splitter should ignore semicolons inside procedure strings");
+        passed &= Expect(statements[2].find("CALL `sp_world_test`()") != std::string::npos,
+            "Delimiter-aware splitter should return to semicolon splitting after DELIMITER reset");
+
+        return passed;
+    }
+
     bool TestSqlScriptExecutorStopsOnFailure()
     {
         std::vector<std::string> executed;
@@ -392,9 +484,12 @@ int main()
 
     passed &= TestAuthDefaultsAreConservative();
     passed &= TestCharacterDefaultsAreConservative();
+    passed &= TestWorldDefaultsAreConservative();
     passed &= TestSqlUpdatesAreFilteredAndSorted();
     passed &= TestEmptyAuthDatabaseInstallsBaseAndPendingUpdates();
     passed &= TestEmptyCharacterDatabaseInstallsBase();
+    passed &= TestEmptyWorldDatabaseRequiresExternalBase();
+    passed &= TestEmptyWorldDatabaseRequiresStoredProcedures();
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
     passed &= TestExistingAuthDatabaseRejectsChangedAppliedUpdate();
     passed &= TestExistingAuthDatabaseWithoutTrackingFailsSafe();
@@ -403,6 +498,7 @@ int main()
     passed &= TestMissingDatabaseRequiresAutoCreate();
     passed &= TestSqlUpdatesAreDiscoveredFromConfiguredRoot();
     passed &= TestSqlScriptSplitsStatementsSafely();
+    passed &= TestSqlScriptSplitsDelimiterStatements();
     passed &= TestSqlScriptExecutorStopsOnFailure();
     passed &= TestStableSqlHash();
     passed &= TestSqlStringEscaping();
