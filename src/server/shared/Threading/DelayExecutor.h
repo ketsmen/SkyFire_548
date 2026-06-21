@@ -6,6 +6,8 @@
 #ifndef _M_DELAY_EXECUTOR_H
 #define _M_DELAY_EXECUTOR_H
 
+#include "Define.h"
+
 #include <memory>
 
 class DelayTask
@@ -13,6 +15,19 @@ class DelayTask
 public:
     virtual ~DelayTask() { }
     virtual int call() = 0;
+};
+
+struct DelayExecutorMetricsSnapshot
+{
+    DelayExecutorMetricsSnapshot()
+        : Submitted(0), Completed(0), Rejected(0), Backlog(0), BacklogHighWater(0), BacklogHighWaterEvents(0) { }
+
+    uint64 Submitted;
+    uint64 Completed;
+    uint64 Rejected;
+    uint32 Backlog;
+    uint32 BacklogHighWater;
+    uint64 BacklogHighWaterEvents;
 };
 
 class DelayExecutor
@@ -26,6 +41,8 @@ public:
     int deactivate();
     bool activated();
     int svc();
+    DelayExecutorMetricsSnapshot GetMetricsSnapshot() const;
+    void ResetMetrics();
 
 private:
     struct Impl;

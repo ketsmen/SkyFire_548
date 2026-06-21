@@ -7,13 +7,34 @@
 #include "Platform/Singleton.h"
 #include "Threading/BoostAsioThreadGroup.h"
 
+#include <atomic>
 #include <mutex>
 #include <utility>
+
+namespace
+{
+    bool StoreMax(std::atomic<uint32>& target, uint32 value)
+    {
+        uint32 current = target.load(std::memory_order_relaxed);
+        while (current < value &&
+            !target.compare_exchange_weak(current, value, std::memory_order_relaxed, std::memory_order_relaxed))
+        {
+        }
+
+        return current < value;
+    }
+}
 
 struct DelayExecutor::Impl
 {
     Impl()
-        : activated(false)
+        : activated(false),
+          submitted(0),
+          completed(0),
+          rejected(0),
+          backlog(0),
+          backlogHighWater(0),
+          backlogHighWaterEvents(0)
     {
     }
 
@@ -22,6 +43,12 @@ struct DelayExecutor::Impl
     std::unique_ptr<DelayTask> postSvcHook;
     std::mutex stateLock;
     bool activated;
+    std::atomic<uint64> submitted;
+    std::atomic<uint64> completed;
+    std::atomic<uint64> rejected;
+    std::atomic<uint32> backlog;
+    std::atomic<uint32> backlogHighWater;
+    std::atomic<uint64> backlogHighWaterEvents;
 };
 
 DelayExecutor* DelayExecutor::instance()
@@ -106,20 +133,33 @@ int DelayExecutor::start(int num_threads, std::unique_ptr<DelayTask> pre_svc_hoo
 
 int DelayExecutor::execute(std::unique_ptr<DelayTask> new_req)
 {
-    if (!new_req)
+    auto reject = [this]
+    {
+        impl_->rejected.fetch_add(1, std::memory_order_relaxed);
         return -1;
+    };
+
+    if (!new_req)
+        return reject();
 
     {
         std::lock_guard<std::mutex> guard(impl_->stateLock);
 
         if (!impl_->activated)
-            return -1;
+            return reject();
     }
 
+    impl_->submitted.fetch_add(1, std::memory_order_relaxed);
+    uint32 const backlog = impl_->backlog.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (StoreMax(impl_->backlogHighWater, backlog))
+        impl_->backlogHighWaterEvents.fetch_add(1, std::memory_order_relaxed);
+
     impl_->threadGroup.GetExecutor().Post(
-        [task = std::move(new_req)]() mutable
+        [this, task = std::move(new_req)]() mutable
         {
             task->call();
+            impl_->completed.fetch_add(1, std::memory_order_relaxed);
+            impl_->backlog.fetch_sub(1, std::memory_order_relaxed);
         });
 
     return 0;
@@ -135,4 +175,28 @@ void DelayExecutor::activated(bool s)
 {
     std::lock_guard<std::mutex> guard(impl_->stateLock);
     impl_->activated = s;
+}
+
+DelayExecutorMetricsSnapshot DelayExecutor::GetMetricsSnapshot() const
+{
+    DelayExecutorMetricsSnapshot snapshot;
+    snapshot.Submitted = impl_->submitted.load(std::memory_order_relaxed);
+    snapshot.Completed = impl_->completed.load(std::memory_order_relaxed);
+    snapshot.Rejected = impl_->rejected.load(std::memory_order_relaxed);
+    snapshot.Backlog = impl_->backlog.load(std::memory_order_relaxed);
+    snapshot.BacklogHighWater = impl_->backlogHighWater.load(std::memory_order_relaxed);
+    snapshot.BacklogHighWaterEvents = impl_->backlogHighWaterEvents.load(std::memory_order_relaxed);
+
+    return snapshot;
+}
+
+void DelayExecutor::ResetMetrics()
+{
+    uint32 const backlog = impl_->backlog.load(std::memory_order_relaxed);
+
+    impl_->submitted.store(0, std::memory_order_relaxed);
+    impl_->completed.store(0, std::memory_order_relaxed);
+    impl_->rejected.store(0, std::memory_order_relaxed);
+    impl_->backlogHighWater.store(backlog, std::memory_order_relaxed);
+    impl_->backlogHighWaterEvents.store(0, std::memory_order_relaxed);
 }

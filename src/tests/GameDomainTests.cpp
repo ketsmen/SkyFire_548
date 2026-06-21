@@ -9,6 +9,7 @@
 #include "GridDefines.h"
 #include "MapLifecycle.h"
 #include "ObjectAccessorLifecycle.h"
+#include "RuntimeMetrics.h"
 #include "SpellCalculations.h"
 #include "SpellAuraMetadata.h"
 #include "SpellAuraDefines.h"
@@ -27,6 +28,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -1410,6 +1412,140 @@ namespace
 
         return passed;
     }
+
+    bool TestRuntimeMetricsRules()
+    {
+        bool passed = true;
+
+        Skyfire::Diagnostics::RuntimeMetrics metrics;
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot emptySnapshot = metrics.Snapshot();
+        passed &= Expect(emptySnapshot.WorldUpdate.SampleCount == 0,
+            "Runtime metrics should start with no world update samples");
+
+        metrics.RecordWorldUpdate(12);
+        metrics.RecordWorldUpdate(28);
+        metrics.RecordWorldUpdate(250);
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot worldSnapshot = metrics.Snapshot();
+        passed &= Expect(worldSnapshot.WorldUpdate.SampleCount == 3,
+            "Runtime metrics should count world update samples");
+        passed &= Expect(worldSnapshot.WorldUpdate.Last == 250,
+            "Runtime metrics should remember the latest world update diff");
+        passed &= Expect(worldSnapshot.WorldUpdate.Average == 96,
+            "Runtime metrics should average world update samples");
+        passed &= Expect(worldSnapshot.WorldUpdate.Maximum == 250,
+            "Runtime metrics should keep the maximum world update sample");
+        passed &= Expect(worldSnapshot.WorldUpdate.SlowSamples == 1,
+            "Runtime metrics should count slow world update samples");
+
+        metrics.RecordMapUpdatePass(3);
+        metrics.RecordMapUpdatePass(5);
+        metrics.RecordMapUpdateScheduled(1);
+        metrics.RecordMapUpdateScheduled(2);
+        metrics.RecordMapUpdateCompleted(1);
+        metrics.RecordMapUpdateScheduleFailed(1);
+        metrics.RecordMapUpdateWait(7);
+        metrics.RecordMapUpdateWait(11);
+        metrics.RecordMapUpdateWait(125);
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot mapSnapshot = metrics.Snapshot();
+        passed &= Expect(mapSnapshot.MapUpdatePasses.SampleCount == 2,
+            "Runtime metrics should count map update passes");
+        passed &= Expect(mapSnapshot.MapUpdatePasses.Last == 5,
+            "Runtime metrics should remember the latest map update pass size");
+        passed &= Expect(mapSnapshot.MapUpdatePasses.Average == 4,
+            "Runtime metrics should average map update pass sizes");
+        passed &= Expect(mapSnapshot.MapUpdatePasses.Maximum == 5,
+            "Runtime metrics should keep the largest map update pass size");
+        passed &= Expect(mapSnapshot.MapUpdater.Scheduled == 2,
+            "Runtime metrics should count scheduled map updates");
+        passed &= Expect(mapSnapshot.MapUpdater.Completed == 1,
+            "Runtime metrics should count completed map updates");
+        passed &= Expect(mapSnapshot.MapUpdater.ScheduleFailures == 1,
+            "Runtime metrics should count failed map update schedules");
+        passed &= Expect(mapSnapshot.MapUpdater.Pending == 1,
+            "Runtime metrics should report current pending map updates");
+        passed &= Expect(mapSnapshot.MapUpdater.PendingHighWater == 2,
+            "Runtime metrics should keep pending map update high-water");
+        passed &= Expect(mapSnapshot.MapUpdater.Wait.SampleCount == 3,
+            "Runtime metrics should count map updater wait samples");
+        passed &= Expect(mapSnapshot.MapUpdater.Wait.Average == 47,
+            "Runtime metrics should average map updater wait samples");
+        passed &= Expect(mapSnapshot.MapUpdater.Wait.Maximum == 125,
+            "Runtime metrics should keep the largest map updater wait sample");
+        passed &= Expect(mapSnapshot.MapUpdater.Wait.SlowSamples == 1,
+            "Runtime metrics should count slow map updater waits");
+
+        metrics.RecordWorldSessionPacketQueued(1);
+        metrics.RecordWorldSessionPacketQueued(3);
+        metrics.RecordWorldSessionPacketQueued(2);
+        metrics.RecordWorldSessionPacketProcessed(1);
+        metrics.RecordWorldSessionPacketProcessed(0);
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot packetSnapshot = metrics.Snapshot();
+        passed &= Expect(packetSnapshot.WorldSession.PacketsQueued == 3,
+            "Runtime metrics should count queued world session packets");
+        passed &= Expect(packetSnapshot.WorldSession.PacketsProcessed == 2,
+            "Runtime metrics should count processed world session packets");
+        passed &= Expect(packetSnapshot.WorldSession.QueueDepth == 0,
+            "Runtime metrics should remember current world session packet queue depth");
+        passed &= Expect(packetSnapshot.WorldSession.QueueDepthHighWater == 3,
+            "Runtime metrics should keep world session packet queue high-water");
+        passed &= Expect(packetSnapshot.WorldSession.QueueDepthHighWaterEvents == 2,
+            "Runtime metrics should count world session packet queue high-water events");
+
+        metrics.RecordSpellCastFailure(133, 24, 0, 1234);
+        metrics.RecordSpellCastFailure(116, 46, 7, 5678);
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot spellSnapshot = metrics.Snapshot();
+        passed &= Expect(spellSnapshot.SpellCast.Failures == 2,
+            "Runtime metrics should count reported spell cast failures");
+        passed &= Expect(spellSnapshot.SpellCast.LastSpellId == 116,
+            "Runtime metrics should remember the latest failed spell id");
+        passed &= Expect(spellSnapshot.SpellCast.LastFailure == 46,
+            "Runtime metrics should remember the latest spell failure reason");
+        passed &= Expect(spellSnapshot.SpellCast.LastCustomError == 7,
+            "Runtime metrics should remember the latest spell custom error");
+        passed &= Expect(spellSnapshot.SpellCast.LastOpcode == 5678,
+            "Runtime metrics should remember the latest spell failure opcode");
+
+        std::vector<std::string> lines = Skyfire::Diagnostics::FormatRuntimeMetricLines(spellSnapshot);
+        passed &= Expect(lines.size() == 4,
+            "Runtime metrics formatting should produce four server info lines");
+        passed &= Expect(lines[0].find("World update: samples 3") != std::string::npos,
+            "Runtime metrics world line should include sample count");
+        passed &= Expect(lines[0].find("slow 1") != std::string::npos,
+            "Runtime metrics world line should include slow sample count");
+        passed &= Expect(lines[1].find("Map updater: scheduled 2") != std::string::npos,
+            "Runtime metrics map line should include scheduled count");
+        passed &= Expect(lines[1].find("slow waits 1") != std::string::npos,
+            "Runtime metrics map line should include slow wait count");
+        passed &= Expect(lines[2].find("Packet queue: queued 3") != std::string::npos,
+            "Runtime metrics packet line should include queued packet count");
+        passed &= Expect(lines[2].find("high-water events 2") != std::string::npos,
+            "Runtime metrics packet line should include queue high-water event count");
+        passed &= Expect(lines[3].find("Spell cast failures: count 2") != std::string::npos,
+            "Runtime metrics spell line should include failure count");
+
+        metrics.Reset();
+
+        Skyfire::Diagnostics::RuntimeMetricsSnapshot resetSnapshot = metrics.Snapshot();
+        passed &= Expect(resetSnapshot.WorldUpdate.SampleCount == 0,
+            "Runtime metrics reset should clear world update samples");
+        passed &= Expect(resetSnapshot.WorldUpdate.SlowSamples == 0,
+            "Runtime metrics reset should clear slow world update samples");
+        passed &= Expect(resetSnapshot.MapUpdater.Pending == 0,
+            "Runtime metrics reset should clear pending map updates");
+        passed &= Expect(resetSnapshot.WorldSession.QueueDepthHighWater == 0,
+            "Runtime metrics reset should clear packet queue high-water");
+        passed &= Expect(resetSnapshot.WorldSession.QueueDepthHighWaterEvents == 0,
+            "Runtime metrics reset should clear packet queue high-water events");
+        passed &= Expect(resetSnapshot.SpellCast.Failures == 0,
+            "Runtime metrics reset should clear spell cast failure counts");
+
+        return passed;
+    }
 }
 
 int main()
@@ -1433,6 +1569,7 @@ int main()
     passed &= TestMapDelayedListLifecycleRules();
     passed &= TestObjectAccessorLifecycleRules();
     passed &= TestWorldShutdownLifecycleRules();
+    passed &= TestRuntimeMetricsRules();
 
     return passed ? 0 : 1;
 }
