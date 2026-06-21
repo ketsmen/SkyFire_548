@@ -141,6 +141,35 @@ WrongPass.BanType = 0
 LoginDatabaseInfo = "127.0.0.1;3306;skyfire;skyfire;auth"
 
 #
+#    LoginDatabase.AutoSetup
+#        Description: Enables auth database setup and update checks during authserver startup.
+#        Important:   Disabled by default. When enabled, setup failures stop startup before the
+#                     auth listener is opened.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+LoginDatabase.AutoSetup = 0
+
+#
+#    LoginDatabase.AutoCreate
+#        Description: Allows authserver to create the configured auth database when it is missing.
+#        Important:   Used only when LoginDatabase.AutoSetup is enabled. The MySQL account must
+#                     have permission to create databases.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+LoginDatabase.AutoCreate = 0
+
+#
+#    LoginDatabase.SqlPath
+#        Description: Root SQL directory used by auth database setup.
+#        Example:     "D:/SkyFire/sql" or "/opt/skyfire/sql"
+#        Important:   The directory must contain base/auth_database.sql and updates/auth.
+#        Default:     "" - (No SQL directory configured)
+
+LoginDatabase.SqlPath = ""
+
+#
 #    LoginDatabase.WorkerThreads
 #        Description: The amount of worker threads spawned to handle asynchronous (delayed) MySQL
 #                     statements. Each worker thread is mirrored with its own connection to the

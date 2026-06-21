@@ -13,9 +13,19 @@
 #pragma comment (lib, "Crypt32")
 #include <openssl/crypto.h>
 #include <openssl/opensslv.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+#include <mysql.h>
 #include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <sstream>
 
 #include "Common.h"
+#include "Database/DatabaseSetup/DatabaseSetup.h"
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
@@ -63,6 +73,346 @@ LoginDatabaseWorkerPool LoginDatabase;                      // Accessor to the a
 #ifndef _SKYFIRE_AUTH_DATABASE
 # define _SKYFIRE_AUTH_DATABASE  ""
 #endif
+
+namespace
+{
+    char const* AUTH_UPDATE_TRACKING_TABLE = "skyfire_db_updates";
+
+    Skyfire::Database::SetupOptions LoadAuthDatabaseSetupOptions()
+    {
+        return Skyfire::Database::MakeAuthDatabaseSetupOptions(
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoSetup", false),
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoCreate", false),
+            sConfigMgr->GetStringDefault("LoginDatabase.SqlPath", ""));
+    }
+
+    std::filesystem::path GetAuthBaseSqlPath(Skyfire::Database::SetupOptions const& options)
+    {
+        std::filesystem::path path = std::filesystem::path(options.SqlPath) / "base" / options.BaseFileName;
+        path.make_preferred();
+        return path;
+    }
+
+    bool ReadTextFile(std::filesystem::path const& path, std::string& contents)
+    {
+        std::ifstream file(path, std::ios::in | std::ios::binary);
+        if (!file)
+            return false;
+
+        std::ostringstream stream;
+        stream << file.rdbuf();
+        contents = stream.str();
+        return true;
+    }
+
+    std::string EscapeSqlIdentifier(std::string const& identifier)
+    {
+        std::string escaped;
+        escaped.reserve(identifier.length());
+
+        for (char c : identifier)
+        {
+            if (c == '`')
+                escaped.push_back('`');
+
+            escaped.push_back(c);
+        }
+
+        return escaped;
+    }
+
+    bool ConnectToMySQLServer(MySQLConnectionInfo const& connectionInfo, char const* databaseName, MYSQL*& handle)
+    {
+        MYSQL* mysqlInit = mysql_init(NULL);
+        if (!mysqlInit)
+        {
+            SF_LOG_ERROR("server.authserver", "Could not initialize MySQL setup connection.");
+            return false;
+        }
+
+        mysql_options(mysqlInit, MYSQL_SET_CHARSET_NAME, "utf8");
+
+        int port = 0;
+        char const* unixSocket = NULL;
+        std::string host = connectionInfo._host;
+
+#ifdef _WIN32
+        if (host == ".")
+        {
+            unsigned int protocol = MYSQL_PROTOCOL_PIPE;
+            mysql_options(mysqlInit, MYSQL_OPT_PROTOCOL, reinterpret_cast<char const*>(&protocol));
+        }
+        else
+            port = atoi(connectionInfo._port_or_socket.c_str());
+#else
+        if (host == ".")
+        {
+            unsigned int protocol = MYSQL_PROTOCOL_SOCKET;
+            mysql_options(mysqlInit, MYSQL_OPT_PROTOCOL, reinterpret_cast<char const*>(&protocol));
+            host = "localhost";
+            unixSocket = connectionInfo._port_or_socket.c_str();
+        }
+        else
+            port = atoi(connectionInfo._port_or_socket.c_str());
+#endif
+
+        handle = mysql_real_connect(mysqlInit, host.c_str(), connectionInfo._user.c_str(),
+            connectionInfo._password.c_str(), databaseName, port, unixSocket, 0);
+
+        if (!handle)
+        {
+            SF_LOG_ERROR("server.authserver", "Could not connect to MySQL server for setup: %s",
+                mysql_error(mysqlInit));
+            mysql_close(mysqlInit);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool EnsureAuthDatabaseExists(MySQLConnectionInfo const& connectionInfo,
+        Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup || !options.AutoCreate)
+            return true;
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoCreate requires an auth database name.");
+            return false;
+        }
+
+        MYSQL* setupConnection = NULL;
+        if (!ConnectToMySQLServer(connectionInfo, NULL, setupConnection))
+            return false;
+
+        std::string sql = "CREATE DATABASE IF NOT EXISTS `" + EscapeSqlIdentifier(connectionInfo._database) +
+            "` DEFAULT CHARACTER SET utf8";
+
+        if (mysql_query(setupConnection, sql.c_str()))
+        {
+            SF_LOG_ERROR("server.authserver", "Could not create auth database `%s`: %s",
+                connectionInfo._database.c_str(), mysql_error(setupConnection));
+            mysql_close(setupConnection);
+            return false;
+        }
+
+        SF_LOG_INFO("server.authserver", "Auth database `%s` exists or was created.", connectionInfo._database.c_str());
+        mysql_close(setupConnection);
+        return true;
+    }
+
+    bool ExecuteSetupQuery(MYSQL* setupConnection, std::string const& sql, char const* context)
+    {
+        if (mysql_query(setupConnection, sql.c_str()))
+        {
+            SF_LOG_ERROR("server.authserver", "%s: %s", context, mysql_error(setupConnection));
+            return false;
+        }
+
+        return true;
+    }
+
+    bool QuerySetupUInt32(MYSQL* setupConnection, char const* sql, uint32& value, char const* context)
+    {
+        if (mysql_query(setupConnection, sql))
+        {
+            SF_LOG_ERROR("server.authserver", "%s: %s", context, mysql_error(setupConnection));
+            return false;
+        }
+
+        MYSQL_RES* result = mysql_store_result(setupConnection);
+        if (!result)
+        {
+            SF_LOG_ERROR("server.authserver", "%s: %s", context, mysql_error(setupConnection));
+            return false;
+        }
+
+        std::unique_ptr<MYSQL_RES, decltype(&mysql_free_result)> resultGuard(result, mysql_free_result);
+        MYSQL_ROW row = mysql_fetch_row(result);
+        if (!row || !row[0])
+        {
+            SF_LOG_ERROR("server.authserver", "%s returned no value.", context);
+            return false;
+        }
+
+        value = uint32(std::strtoul(row[0], NULL, 10));
+        return true;
+    }
+
+    bool EnsureAuthUpdateTrackingTable(MYSQL* setupConnection)
+    {
+        std::string sql = "CREATE TABLE IF NOT EXISTS `" + std::string(AUTH_UPDATE_TRACKING_TABLE) + "` ("
+            "`domain` varchar(32) NOT NULL,"
+            "`filename` varchar(255) NOT NULL,"
+            "`hash` varchar(64) NOT NULL,"
+            "`applied_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+            "PRIMARY KEY (`domain`,`filename`)"
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb3";
+
+        return ExecuteSetupQuery(setupConnection, sql, "Could not create auth database update tracking table");
+    }
+
+    bool LoadAuthDatabaseSetupState(MYSQL* setupConnection, Skyfire::Database::SetupState& state)
+    {
+        state.DatabaseExists = true;
+
+        if (!QuerySetupUInt32(setupConnection,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()",
+            state.SchemaTableCount,
+            "Could not inspect auth database table count"))
+            return false;
+
+        uint32 updateTrackingTableCount = 0;
+        if (!QuerySetupUInt32(setupConnection,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() "
+            "AND table_name = 'skyfire_db_updates'",
+            updateTrackingTableCount,
+            "Could not inspect auth database update tracking table"))
+            return false;
+
+        state.UpdateTrackingExists = updateTrackingTableCount != 0;
+        if (!state.UpdateTrackingExists)
+            return true;
+
+        if (mysql_query(setupConnection, "SELECT `filename` FROM `skyfire_db_updates` WHERE `domain` = 'auth'"))
+        {
+            SF_LOG_ERROR("server.authserver", "Could not read auth database applied updates: %s",
+                mysql_error(setupConnection));
+            return false;
+        }
+
+        MYSQL_RES* result = mysql_store_result(setupConnection);
+        if (!result)
+        {
+            SF_LOG_ERROR("server.authserver", "Could not read auth database applied updates: %s",
+                mysql_error(setupConnection));
+            return false;
+        }
+
+        std::unique_ptr<MYSQL_RES, decltype(&mysql_free_result)> resultGuard(result, mysql_free_result);
+        while (MYSQL_ROW row = mysql_fetch_row(result))
+            if (row[0])
+                state.AppliedUpdates.insert(row[0]);
+
+        return true;
+    }
+
+    bool ExecuteSqlText(MYSQL* setupConnection, std::string const& sql)
+    {
+        return Skyfire::Database::ExecuteSqlScript(sql, [setupConnection](std::string const& statement)
+        {
+            return ExecuteSetupQuery(setupConnection, statement, "Failed while executing auth setup SQL");
+        });
+    }
+
+    bool ExecuteSqlFile(MYSQL* setupConnection, std::filesystem::path const& path, std::string& contents)
+    {
+        if (!ReadTextFile(path, contents))
+        {
+            SF_LOG_ERROR("server.authserver", "Could not read SQL file %s.", path.string().c_str());
+            return false;
+        }
+
+        if (!ExecuteSqlText(setupConnection, contents))
+        {
+            SF_LOG_ERROR("server.authserver", "Failed while executing SQL file %s.", path.string().c_str());
+            return false;
+        }
+
+        return true;
+    }
+
+    bool RecordAppliedAuthUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
+        std::string const& sql)
+    {
+        std::string filename = Skyfire::Database::EscapeSqlString(update.Name);
+        std::string hash = Skyfire::Database::CalculateStableSqlHash(sql);
+
+        std::string recordSql = "REPLACE INTO `" + std::string(AUTH_UPDATE_TRACKING_TABLE) +
+            "` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('auth', '" +
+            filename + "', '" + hash + "', NOW())";
+
+        return ExecuteSetupQuery(setupConnection, recordSql, "Could not record auth database update");
+    }
+
+    bool RunAuthDatabaseSetup(MySQLConnectionInfo const& connectionInfo, Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup)
+            return true;
+
+        if (options.SqlPath.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires LoginDatabase.SqlPath.");
+            return false;
+        }
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires an auth database name.");
+            return false;
+        }
+
+        if (!EnsureAuthDatabaseExists(connectionInfo, options))
+            return false;
+
+        MYSQL* setupConnectionRaw = NULL;
+        if (!ConnectToMySQLServer(connectionInfo, connectionInfo._database.c_str(), setupConnectionRaw))
+            return false;
+
+        std::unique_ptr<MYSQL, decltype(&mysql_close)> setupConnection(setupConnectionRaw, mysql_close);
+
+        std::filesystem::path baseSqlPath = GetAuthBaseSqlPath(options);
+        bool baseSqlExists = std::filesystem::exists(baseSqlPath);
+        std::vector<Skyfire::Database::SqlUpdateFile> updates = Skyfire::Database::DiscoverSqlUpdates(options);
+
+        Skyfire::Database::SetupState state;
+        if (!LoadAuthDatabaseSetupState(setupConnection.get(), state))
+            return false;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, baseSqlExists, updates);
+        if (!plan.IsValid())
+        {
+            SF_LOG_ERROR("server.authserver", "%s", plan.Error.c_str());
+            return false;
+        }
+
+        if (plan.ShouldInstallBase)
+        {
+            std::string baseSql;
+            SF_LOG_INFO("server.authserver", "Installing auth database base SQL from %s.",
+                baseSqlPath.string().c_str());
+            if (!ExecuteSqlFile(setupConnection.get(), baseSqlPath, baseSql))
+                return false;
+        }
+
+        if (!EnsureAuthUpdateTrackingTable(setupConnection.get()))
+        {
+            SF_LOG_ERROR("server.authserver", "Could not create auth database update tracking table.");
+            return false;
+        }
+
+        for (Skyfire::Database::SqlUpdateFile const& update : plan.PendingUpdates)
+        {
+            std::string updateSql;
+            SF_LOG_INFO("server.authserver", "Applying auth database update %s.", update.Name.c_str());
+            if (!ExecuteSqlFile(setupConnection.get(), update.Path, updateSql))
+                return false;
+
+            if (!RecordAppliedAuthUpdate(setupConnection.get(), update, updateSql))
+            {
+                SF_LOG_ERROR("server.authserver", "Could not record auth database update %s.",
+                    update.Name.c_str());
+                return false;
+            }
+        }
+
+        SF_LOG_INFO("server.authserver", "Auth database setup complete. Base installed: %s, updates applied: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()));
+        return true;
+    }
+}
 
 void AuthServerSignalHandler(int sigNum)
 {
@@ -395,6 +745,14 @@ bool StartDB(const char* host, const char* port, const char* user, const char* p
             return false;
         }
     }
+
+    Skyfire::Database::SetupOptions setupOptions = LoadAuthDatabaseSetupOptions();
+    MySQLConnectionInfo setupConnectionInfo = noUseConfigDatabaseInfo == false
+        ? MySQLConnectionInfo(dbstring)
+        : MySQLConnectionInfo(host, port, user, pass, database);
+
+    if (!RunAuthDatabaseSetup(setupConnectionInfo, setupOptions))
+        return false;
 
     int32 worker_threads = sConfigMgr->GetIntDefault("LoginDatabase.WorkerThreads", 1);
     if (worker_threads < 1 || worker_threads > 32)
