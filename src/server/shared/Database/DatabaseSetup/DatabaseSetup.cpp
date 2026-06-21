@@ -95,6 +95,25 @@ namespace Database
         return options;
     }
 
+    SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath)
+    {
+        return MakeCharacterDatabaseSetupOptions(autoSetup, autoCreate, false, std::move(sqlPath));
+    }
+
+    SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath)
+    {
+        SetupOptions options;
+        options.AutoSetup = autoSetup;
+        options.AutoCreate = autoCreate;
+        options.AutoBaseline = autoBaseline;
+        options.Domain = "characters";
+        options.SqlPath = std::move(sqlPath);
+        options.BaseFileName = "characters_database.sql";
+        options.UpdatesDirectory = "updates/characters";
+
+        return options;
+    }
+
     std::vector<SqlUpdateFile> BuildSortedSqlUpdateList(std::vector<std::string> const& names, std::string const& directory)
     {
         std::vector<SqlUpdateFile> updates;
@@ -260,7 +279,7 @@ namespace Database
         return escaped;
     }
 
-    SetupPlan BuildAuthDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
+    SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates)
     {
         SetupPlan plan;
@@ -272,7 +291,7 @@ namespace Database
         {
             if (!options.AutoCreate)
             {
-                plan.Error = "Auth database does not exist and LoginDatabase.AutoCreate is disabled.";
+                plan.Error = options.Domain + " database does not exist and auto create is disabled.";
                 return plan;
             }
 
@@ -284,7 +303,7 @@ namespace Database
 
         if (plan.ShouldInstallBase && !baseSqlExists)
         {
-            plan.Error = "Auth database base SQL file was not found.";
+            plan.Error = options.Domain + " database base SQL file was not found.";
             return plan;
         }
 
@@ -292,7 +311,7 @@ namespace Database
         {
             if (!options.AutoBaseline)
             {
-                plan.Error = "Auth database update tracking table is missing on a non-empty schema.";
+                plan.Error = options.Domain + " database update tracking table is missing on a non-empty schema.";
                 return plan;
             }
 
@@ -304,7 +323,7 @@ namespace Database
                 {
                     plan.ShouldBaselineUpdates = false;
                     plan.BaselineUpdates.clear();
-                    plan.Error = "Auth database update `" + update.Name + "` has no content hash for baseline.";
+                    plan.Error = options.Domain + " database update `" + update.Name + "` has no content hash for baseline.";
                     return plan;
                 }
             }
@@ -324,13 +343,25 @@ namespace Database
             if (appliedHash != state.AppliedUpdateHashes.end() && !appliedHash->second.empty() &&
                 !update.Hash.empty() && appliedHash->second != update.Hash)
             {
-                plan.Error = "Auth database update `" + update.Name + "` was already applied with a different hash.";
+                plan.Error = options.Domain + " database update `" + update.Name + "` was already applied with a different hash.";
                 plan.PendingUpdates.clear();
                 return plan;
             }
         }
 
         return plan;
+    }
+
+    SetupPlan BuildAuthDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
+        std::vector<SqlUpdateFile> const& updates)
+    {
+        return BuildDatabaseSetupPlan(options, state, baseSqlExists, updates);
+    }
+
+    SetupPlan BuildCharacterDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
+        std::vector<SqlUpdateFile> const& updates)
+    {
+        return BuildDatabaseSetupPlan(options, state, baseSqlExists, updates);
     }
 }
 }

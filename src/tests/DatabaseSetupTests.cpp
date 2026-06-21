@@ -48,6 +48,22 @@ namespace
         return passed;
     }
 
+    bool TestCharacterDefaultsAreConservative()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeCharacterDatabaseSetupOptions(false, false, "");
+
+        bool passed = true;
+        passed &= Expect(options.Domain == "characters", "Character setup domain should be characters");
+        passed &= Expect(!options.AutoSetup, "Character auto setup should default off");
+        passed &= Expect(!options.AutoCreate, "Character auto create should default off");
+        passed &= Expect(!options.AutoBaseline, "Character auto baseline should default off");
+        passed &= Expect(options.SqlPath.empty(), "Character setup SQL path should default empty");
+        passed &= Expect(options.BaseFileName == "characters_database.sql", "Character setup should use the characters base SQL file");
+        passed &= Expect(options.UpdatesDirectory == "updates/characters", "Character setup should use the characters updates directory");
+
+        return passed;
+    }
+
     bool TestExistingAuthDatabaseCanBaselineUpdates()
     {
         Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, true, "sql");
@@ -145,6 +161,26 @@ namespace
         passed &= Expect(!plan.ShouldCreateDatabase, "Existing auth database should not be created");
         passed &= Expect(plan.ShouldInstallBase, "Empty auth database should install base SQL");
         passed &= Expect(plan.PendingUpdates.size() == 1, "Empty auth database should apply pending auth updates");
+
+        return passed;
+    }
+
+    bool TestEmptyCharacterDatabaseInstallsBase()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeCharacterDatabaseSetupOptions(true, false, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 0;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildCharacterDatabaseSetupPlan(options, state, true, {});
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Character setup plan should be valid when base SQL exists");
+        passed &= Expect(!plan.ShouldCreateDatabase, "Existing character database should not be created");
+        passed &= Expect(plan.ShouldInstallBase, "Empty character database should install base SQL");
+        passed &= Expect(plan.PendingUpdates.empty(), "Empty character database with no updates should not queue updates");
 
         return passed;
     }
@@ -355,8 +391,10 @@ int main()
     bool passed = true;
 
     passed &= TestAuthDefaultsAreConservative();
+    passed &= TestCharacterDefaultsAreConservative();
     passed &= TestSqlUpdatesAreFilteredAndSorted();
     passed &= TestEmptyAuthDatabaseInstallsBaseAndPendingUpdates();
+    passed &= TestEmptyCharacterDatabaseInstallsBase();
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
     passed &= TestExistingAuthDatabaseRejectsChangedAppliedUpdate();
     passed &= TestExistingAuthDatabaseWithoutTrackingFailsSafe();

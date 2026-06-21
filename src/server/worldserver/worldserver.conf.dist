@@ -92,6 +92,51 @@ WorldDatabaseInfo     = "127.0.0.1;3306;skyfire;skyfire;world"
 CharacterDatabaseInfo = "127.0.0.1;3306;skyfire;skyfire;characters"
 
 #
+#    CharacterDatabase.AutoSetup
+#        Description: Enables character database setup and update checks during worldserver
+#                     startup.
+#        Important:   Disabled by default. When enabled, setup failures stop startup before the
+#                     world listener is opened.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+CharacterDatabase.AutoSetup = 0
+
+#
+#    CharacterDatabase.AutoCreate
+#        Description: Allows worldserver to create the configured character database when it is
+#                     missing.
+#        Important:   Used only when CharacterDatabase.AutoSetup is enabled. The MySQL account
+#                     must have permission to create databases.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+CharacterDatabase.AutoCreate = 0
+
+#
+#    CharacterDatabase.AutoBaseline
+#        Description: Records discovered character update files as already applied when the
+#                     character database is non-empty and the update tracking table does not
+#                     exist.
+#        Important:   Used only when CharacterDatabase.AutoSetup is enabled. This is a one-time
+#                     bootstrap mode for existing databases. Disable it after the first
+#                     successful startup.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+CharacterDatabase.AutoBaseline = 0
+
+#
+#    CharacterDatabase.SqlPath
+#        Description: Root SQL directory used by character database setup.
+#        Example:     "D:/SkyFire/sql" or "/opt/skyfire/sql"
+#        Important:   The directory must contain base/characters_database.sql and
+#                     updates/characters.
+#        Default:     "" - (No SQL directory configured)
+
+CharacterDatabase.SqlPath = ""
+
+#
 #    LoginDatabase.WorkerThreads
 #    WorldDatabase.WorkerThreads
 #    CharacterDatabase.WorkerThreads

@@ -57,13 +57,19 @@ namespace Database
 
     SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath);
     SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath);
+    SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath);
+    SetupOptions MakeCharacterDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath);
     std::vector<SqlUpdateFile> BuildSortedSqlUpdateList(std::vector<std::string> const& names, std::string const& directory);
     std::vector<SqlUpdateFile> DiscoverSqlUpdates(SetupOptions const& options);
     std::vector<std::string> SplitSqlStatements(std::string const& sql);
     bool ExecuteSqlScript(std::string const& sql, std::function<bool(std::string const&)> const& executor);
     std::string CalculateStableSqlHash(std::string const& sql);
     std::string EscapeSqlString(std::string const& value);
+    SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
+        std::vector<SqlUpdateFile> const& updates);
     SetupPlan BuildAuthDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
+        std::vector<SqlUpdateFile> const& updates);
+    SetupPlan BuildCharacterDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates);
 }
 }
