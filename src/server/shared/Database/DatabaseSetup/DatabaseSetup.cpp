@@ -411,6 +411,29 @@ namespace Database
             EscapeSqlString(filename) + "')";
     }
 
+    std::string BuildSetupPlanSummary(std::string const& databaseName, SetupPlan const& plan,
+        std::size_t discoveredUpdateCount, bool appliesRequiredSql)
+    {
+        char const* mode = "check-only";
+        if (plan.ShouldInstallBase)
+            mode = "install-base";
+        else if (plan.ShouldBaselineUpdates)
+            mode = "baseline";
+        else if (!plan.PendingUpdates.empty())
+            mode = "apply-updates";
+
+        std::ostringstream stream;
+        stream << databaseName << " database setup plan: mode=" << mode
+            << ", discovered updates=" << discoveredUpdateCount
+            << ", pending updates=" << plan.PendingUpdates.size()
+            << ", baseline updates=" << plan.BaselineUpdates.size()
+            << ", install base=" << (plan.ShouldInstallBase ? "yes" : "no")
+            << ", required SQL=" << (appliesRequiredSql ? "yes" : "no")
+            << ".";
+
+        return stream.str();
+    }
+
     SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates)
     {

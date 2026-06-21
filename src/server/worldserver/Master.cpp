@@ -143,6 +143,7 @@ namespace
             SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
             return false;
         }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), false, context);
 
         if (plan.ShouldInstallBase)
         {
@@ -224,6 +225,7 @@ namespace
             SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
             return false;
         }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), !requiredBaseSqlPaths.empty(), context);
 
         if (plan.ShouldInstallBase)
         {

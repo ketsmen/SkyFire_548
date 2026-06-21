@@ -280,6 +280,14 @@ namespace Database
         return true;
     }
 
+    void LogSetupPlan(SetupPlan const& plan, std::size_t discoveredUpdateCount, bool appliesRequiredSql,
+        SetupRuntimeContext const& context)
+    {
+        std::string summary = BuildSetupPlanSummary(context.DatabaseNameTitle, plan, discoveredUpdateCount,
+            appliesRequiredSql);
+        SF_LOG_INFO(context.LogFilter, "%s", summary.c_str());
+    }
+
     bool EnsureSetupTrackingTables(MYSQL* setupConnection, SetupRuntimeContext const& context)
     {
         std::string trackingContext = "Could not create " + std::string(context.DatabaseName) +

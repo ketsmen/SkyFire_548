@@ -546,6 +546,36 @@ namespace
 
         return passed;
     }
+
+    bool TestSetupPlanSummary()
+    {
+        Skyfire::Database::SetupPlan updatePlan;
+        updatePlan.PendingUpdates.push_back({ "2026-06-21_auth.sql", "sql/updates/auth/2026-06-21_auth.sql", "hash-a" });
+
+        Skyfire::Database::SetupPlan worldInstallPlan;
+        worldInstallPlan.ShouldInstallBase = true;
+        worldInstallPlan.PendingUpdates.push_back({ "2026-06-21_world.sql", "sql/updates/world/2026-06-21_world.sql", "hash-b" });
+
+        Skyfire::Database::SetupPlan baselinePlan;
+        baselinePlan.ShouldBaselineUpdates = true;
+        baselinePlan.BaselineUpdates.push_back({ "2026-06-21_characters.sql", "sql/updates/characters/2026-06-21_characters.sql", "hash-c" });
+
+        bool passed = true;
+        passed &= ExpectEqual(
+            Skyfire::Database::BuildSetupPlanSummary("Auth", updatePlan, 2, false),
+            "Auth database setup plan: mode=apply-updates, discovered updates=2, pending updates=1, baseline updates=0, install base=no, required SQL=no.",
+            "Setup plan summary should describe pending update mode");
+        passed &= ExpectEqual(
+            Skyfire::Database::BuildSetupPlanSummary("World", worldInstallPlan, 3, true),
+            "World database setup plan: mode=install-base, discovered updates=3, pending updates=1, baseline updates=0, install base=yes, required SQL=yes.",
+            "Setup plan summary should describe base install mode and required SQL");
+        passed &= ExpectEqual(
+            Skyfire::Database::BuildSetupPlanSummary("Character", baselinePlan, 1, false),
+            "Character database setup plan: mode=baseline, discovered updates=1, pending updates=0, baseline updates=1, install base=no, required SQL=no.",
+            "Setup plan summary should describe baseline mode");
+
+        return passed;
+    }
 }
 
 int main()
@@ -575,6 +605,7 @@ int main()
     passed &= TestSqlStringEscaping();
     passed &= TestDbUpdateAuditSql();
     passed &= TestDatabaseSetupRuntimeSqlHelpers();
+    passed &= TestSetupPlanSummary();
 
     return passed ? 0 : 1;
 }

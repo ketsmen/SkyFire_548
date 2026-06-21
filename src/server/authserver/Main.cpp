@@ -139,6 +139,7 @@ namespace
             SF_LOG_ERROR("server.authserver", "%s", plan.Error.c_str());
             return false;
         }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), false, context);
 
         if (plan.ShouldInstallBase)
         {

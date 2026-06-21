@@ -8,6 +8,7 @@
 
 #include "DatabaseSetup.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 
@@ -37,6 +38,8 @@ namespace Database
     bool LoadDatabaseSetupState(MYSQL* setupConnection, SetupOptions const& options, SetupState& state,
         SetupRuntimeContext const& context);
     bool ExecuteSqlFile(MYSQL* setupConnection, std::filesystem::path const& path, std::string& contents,
+        SetupRuntimeContext const& context);
+    void LogSetupPlan(SetupPlan const& plan, std::size_t discoveredUpdateCount, bool appliesRequiredSql,
         SetupRuntimeContext const& context);
     bool EnsureSetupTrackingTables(MYSQL* setupConnection, SetupRuntimeContext const& context);
     bool BaselineSetupUpdates(MYSQL* setupConnection, SetupOptions const& options, SetupPlan const& plan,

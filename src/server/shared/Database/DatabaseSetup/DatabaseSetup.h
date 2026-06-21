@@ -6,6 +6,7 @@
 #ifndef SKYFIRE_DATABASE_SETUP_H
 #define SKYFIRE_DATABASE_SETUP_H
 
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <set>
@@ -78,6 +79,8 @@ namespace Database
         std::string const& hash);
     std::string BuildDbUpdateAuditTableSql();
     std::string BuildDbUpdateAuditInsertSql(std::string const& filename);
+    std::string BuildSetupPlanSummary(std::string const& databaseName, SetupPlan const& plan,
+        std::size_t discoveredUpdateCount, bool appliesRequiredSql);
     SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates);
     SetupPlan BuildAuthDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
