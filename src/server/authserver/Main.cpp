@@ -83,6 +83,7 @@ namespace
         return Skyfire::Database::MakeAuthDatabaseSetupOptions(
             sConfigMgr->GetBoolDefault("LoginDatabase.AutoSetup", false),
             sConfigMgr->GetBoolDefault("LoginDatabase.AutoCreate", false),
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoBaseline", false),
             sConfigMgr->GetStringDefault("LoginDatabase.SqlPath", ""));
     }
 
@@ -329,17 +330,30 @@ namespace
         return true;
     }
 
-    bool RecordAppliedAuthUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
-        std::string const& sql)
+    bool RecordAuthUpdateMetadata(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
+        std::string const& hash)
     {
+        if (hash.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "Auth database update %s has no content hash.",
+                update.Name.c_str());
+            return false;
+        }
+
         std::string filename = Skyfire::Database::EscapeSqlString(update.Name);
-        std::string hash = Skyfire::Database::CalculateStableSqlHash(sql);
+        std::string escapedHash = Skyfire::Database::EscapeSqlString(hash);
 
         std::string recordSql = "INSERT INTO `" + std::string(AUTH_UPDATE_TRACKING_TABLE) +
             "` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('auth', '" +
-            filename + "', '" + hash + "', NOW())";
+            filename + "', '" + escapedHash + "', NOW())";
 
         return ExecuteSetupQuery(setupConnection, recordSql, "Could not record auth database update");
+    }
+
+    bool RecordAppliedAuthUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
+        std::string const& sql)
+    {
+        return RecordAuthUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql));
     }
 
     bool RunAuthDatabaseSetup(MySQLConnectionInfo const& connectionInfo, Skyfire::Database::SetupOptions const& options)
@@ -399,6 +413,25 @@ namespace
             return false;
         }
 
+        if (plan.ShouldBaselineUpdates)
+        {
+            SF_LOG_WARN("server.authserver",
+                "LoginDatabase.AutoBaseline is enabled. Recording %u auth updates as already applied without executing them.",
+                uint32(plan.BaselineUpdates.size()));
+            SF_LOG_WARN("server.authserver",
+                "Disable LoginDatabase.AutoBaseline after this startup to keep future update checks strict.");
+
+            for (Skyfire::Database::SqlUpdateFile const& update : plan.BaselineUpdates)
+            {
+                if (!RecordAuthUpdateMetadata(setupConnection.get(), update, update.Hash))
+                {
+                    SF_LOG_ERROR("server.authserver", "Could not baseline auth database update %s.",
+                        update.Name.c_str());
+                    return false;
+                }
+            }
+        }
+
         for (Skyfire::Database::SqlUpdateFile const& update : plan.PendingUpdates)
         {
             std::string updateSql;
@@ -414,8 +447,10 @@ namespace
             }
         }
 
-        SF_LOG_INFO("server.authserver", "Auth database setup complete. Base installed: %s, updates applied: %u.",
-            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()));
+        SF_LOG_INFO("server.authserver",
+            "Auth database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
+            uint32(plan.BaselineUpdates.size()));
         return true;
     }
 }

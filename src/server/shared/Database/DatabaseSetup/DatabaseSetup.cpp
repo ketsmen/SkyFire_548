@@ -78,9 +78,15 @@ namespace Database
 
     SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath)
     {
+        return MakeAuthDatabaseSetupOptions(autoSetup, autoCreate, false, std::move(sqlPath));
+    }
+
+    SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath)
+    {
         SetupOptions options;
         options.AutoSetup = autoSetup;
         options.AutoCreate = autoCreate;
+        options.AutoBaseline = autoBaseline;
         options.Domain = "auth";
         options.SqlPath = std::move(sqlPath);
         options.BaseFileName = "auth_database.sql";
@@ -284,7 +290,25 @@ namespace Database
 
         if (!plan.ShouldInstallBase && !state.UpdateTrackingExists && !updates.empty())
         {
-            plan.Error = "Auth database update tracking table is missing on a non-empty schema.";
+            if (!options.AutoBaseline)
+            {
+                plan.Error = "Auth database update tracking table is missing on a non-empty schema.";
+                return plan;
+            }
+
+            plan.ShouldBaselineUpdates = true;
+            plan.BaselineUpdates = updates;
+            for (SqlUpdateFile const& update : plan.BaselineUpdates)
+            {
+                if (update.Hash.empty())
+                {
+                    plan.ShouldBaselineUpdates = false;
+                    plan.BaselineUpdates.clear();
+                    plan.Error = "Auth database update `" + update.Name + "` has no content hash for baseline.";
+                    return plan;
+                }
+            }
+
             return plan;
         }
 

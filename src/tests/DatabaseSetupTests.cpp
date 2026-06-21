@@ -40,9 +40,63 @@ namespace
         passed &= Expect(options.Domain == "auth", "Auth setup domain should be auth");
         passed &= Expect(!options.AutoSetup, "Auth auto setup should default off");
         passed &= Expect(!options.AutoCreate, "Auth auto create should default off");
+        passed &= Expect(!options.AutoBaseline, "Auth auto baseline should default off");
         passed &= Expect(options.SqlPath.empty(), "Auth setup SQL path should default empty");
         passed &= Expect(options.BaseFileName == "auth_database.sql", "Auth setup should use the auth base SQL file");
         passed &= Expect(options.UpdatesDirectory == "updates/auth", "Auth setup should use the auth updates directory");
+
+        return passed;
+    }
+
+    bool TestExistingAuthDatabaseCanBaselineUpdates()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, true, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = false;
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "hash-a" },
+            { "2026-02-03_auth_00.sql", "sql/updates/auth/2026-02-03_auth_00.sql", "hash-b" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Existing auth schema should allow explicit baseline mode");
+        passed &= Expect(!plan.ShouldInstallBase, "Baseline mode should not reinstall base SQL");
+        passed &= Expect(plan.ShouldBaselineUpdates, "Baseline mode should record update metadata");
+        passed &= Expect(plan.PendingUpdates.empty(), "Baseline mode should not execute historical updates");
+        passed &= Expect(plan.BaselineUpdates.size() == 2, "Baseline mode should record all discovered updates");
+
+        return passed;
+    }
+
+    bool TestExistingAuthDatabaseBaselineRequiresHashes()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, true, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = false;
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(!plan.IsValid(), "Baseline mode should reject updates without content hashes");
+        passed &= Expect(!plan.Error.empty(), "Baseline mode should explain missing content hashes");
+        passed &= Expect(!plan.ShouldBaselineUpdates, "Baseline mode should not continue without hashes");
 
         return passed;
     }
@@ -306,6 +360,8 @@ int main()
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
     passed &= TestExistingAuthDatabaseRejectsChangedAppliedUpdate();
     passed &= TestExistingAuthDatabaseWithoutTrackingFailsSafe();
+    passed &= TestExistingAuthDatabaseCanBaselineUpdates();
+    passed &= TestExistingAuthDatabaseBaselineRequiresHashes();
     passed &= TestMissingDatabaseRequiresAutoCreate();
     passed &= TestSqlUpdatesAreDiscoveredFromConfiguredRoot();
     passed &= TestSqlScriptSplitsStatementsSafely();

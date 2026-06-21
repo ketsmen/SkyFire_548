@@ -20,6 +20,7 @@ namespace Database
     {
         bool AutoSetup = false;
         bool AutoCreate = false;
+        bool AutoBaseline = false;
         std::string Domain;
         std::string SqlPath;
         std::string BaseFileName;
@@ -46,13 +47,16 @@ namespace Database
     {
         bool ShouldCreateDatabase = false;
         bool ShouldInstallBase = false;
+        bool ShouldBaselineUpdates = false;
         std::vector<SqlUpdateFile> PendingUpdates;
+        std::vector<SqlUpdateFile> BaselineUpdates;
         std::string Error;
 
         bool IsValid() const;
     };
 
     SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, std::string sqlPath);
+    SetupOptions MakeAuthDatabaseSetupOptions(bool autoSetup, bool autoCreate, bool autoBaseline, std::string sqlPath);
     std::vector<SqlUpdateFile> BuildSortedSqlUpdateList(std::vector<std::string> const& names, std::string const& directory);
     std::vector<SqlUpdateFile> DiscoverSqlUpdates(SetupOptions const& options);
     std::vector<std::string> SplitSqlStatements(std::string const& sql);
