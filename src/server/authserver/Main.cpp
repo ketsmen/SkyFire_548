@@ -254,6 +254,11 @@ namespace
         return ExecuteSetupQuery(setupConnection, sql, "Could not create auth database update tracking table");
     }
 
+    bool EnsureDbUpdateAuditTable(MYSQL* setupConnection, char const* context)
+    {
+        return ExecuteSetupQuery(setupConnection, Skyfire::Database::BuildDbUpdateAuditTableSql(), context);
+    }
+
     bool LoadAuthDatabaseSetupState(MYSQL* setupConnection, Skyfire::Database::SetupState& state)
     {
         state.DatabaseExists = true;
@@ -353,7 +358,11 @@ namespace
     bool RecordAppliedAuthUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
         std::string const& sql)
     {
-        return RecordAuthUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql));
+        if (!RecordAuthUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql)))
+            return false;
+
+        return ExecuteSetupQuery(setupConnection, Skyfire::Database::BuildDbUpdateAuditInsertSql(update.Name),
+            "Could not record auth database update audit row");
     }
 
     bool RunAuthDatabaseSetup(MySQLConnectionInfo const& connectionInfo, Skyfire::Database::SetupOptions const& options)
@@ -410,6 +419,12 @@ namespace
         if (!EnsureAuthUpdateTrackingTable(setupConnection.get()))
         {
             SF_LOG_ERROR("server.authserver", "Could not create auth database update tracking table.");
+            return false;
+        }
+
+        if (!EnsureDbUpdateAuditTable(setupConnection.get(), "Could not create auth database update audit table"))
+        {
+            SF_LOG_ERROR("server.authserver", "Could not create auth database update audit table.");
             return false;
         }
 

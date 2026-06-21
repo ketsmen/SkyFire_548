@@ -71,6 +71,8 @@ namespace Database
     bool ExecuteSqlScript(std::string const& sql, std::function<bool(std::string const&)> const& executor);
     std::string CalculateStableSqlHash(std::string const& sql);
     std::string EscapeSqlString(std::string const& value);
+    std::string BuildDbUpdateAuditTableSql();
+    std::string BuildDbUpdateAuditInsertSql(std::string const& filename);
     SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates);
     SetupPlan BuildAuthDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,

@@ -476,6 +476,32 @@ namespace
 
         return passed;
     }
+
+    bool TestDbUpdateAuditSql()
+    {
+        bool passed = true;
+        std::string createSql = Skyfire::Database::BuildDbUpdateAuditTableSql();
+        std::string insertSql = Skyfire::Database::BuildDbUpdateAuditInsertSql("2026-06-21_world.sql");
+
+        passed &= Expect(createSql.find("CREATE TABLE IF NOT EXISTS `db_update`") != std::string::npos,
+            "DB update audit table SQL should create db_update");
+        passed &= Expect(createSql.find("`date` date NOT NULL") != std::string::npos,
+            "DB update audit table SQL should include a date column");
+        passed &= Expect(createSql.find("`time` time NOT NULL") != std::string::npos,
+            "DB update audit table SQL should include a time column");
+        passed &= Expect(createSql.find("`filename` varchar(255) NOT NULL") != std::string::npos,
+            "DB update audit table SQL should include a filename column");
+        passed &= Expect(insertSql.find("INSERT INTO `db_update`") != std::string::npos,
+            "DB update audit insert should target db_update");
+        passed &= Expect(insertSql.find("CURDATE()") != std::string::npos,
+            "DB update audit insert should record the current date");
+        passed &= Expect(insertSql.find("CURTIME()") != std::string::npos,
+            "DB update audit insert should record the current time");
+        passed &= Expect(insertSql.find("'2026-06-21_world.sql'") != std::string::npos,
+            "DB update audit insert should record the update filename");
+
+        return passed;
+    }
 }
 
 int main()
@@ -502,6 +528,7 @@ int main()
     passed &= TestSqlScriptExecutorStopsOnFailure();
     passed &= TestStableSqlHash();
     passed &= TestSqlStringEscaping();
+    passed &= TestDbUpdateAuditSql();
 
     return passed ? 0 : 1;
 }

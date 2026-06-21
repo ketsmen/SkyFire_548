@@ -355,6 +355,21 @@ namespace Database
         return escaped;
     }
 
+    std::string BuildDbUpdateAuditTableSql()
+    {
+        return "CREATE TABLE IF NOT EXISTS `db_update` ("
+            "`date` date NOT NULL,"
+            "`time` time NOT NULL,"
+            "`filename` varchar(255) NOT NULL"
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb3";
+    }
+
+    std::string BuildDbUpdateAuditInsertSql(std::string const& filename)
+    {
+        return "INSERT INTO `db_update` (`date`, `time`, `filename`) VALUES (CURDATE(), CURTIME(), '" +
+            EscapeSqlString(filename) + "')";
+    }
+
     SetupPlan BuildDatabaseSetupPlan(SetupOptions const& options, SetupState const& state, bool baseSqlExists,
         std::vector<SqlUpdateFile> const& updates)
     {

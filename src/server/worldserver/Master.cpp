@@ -253,6 +253,11 @@ namespace
         return ExecuteSetupQuery(setupConnection, sql, context);
     }
 
+    bool EnsureDbUpdateAuditTable(MYSQL* setupConnection, char const* context)
+    {
+        return ExecuteSetupQuery(setupConnection, Skyfire::Database::BuildDbUpdateAuditTableSql(), context);
+    }
+
     bool LoadCharacterDatabaseSetupState(MYSQL* setupConnection, Skyfire::Database::SetupState& state)
     {
         state.DatabaseExists = true;
@@ -353,7 +358,11 @@ namespace
     bool RecordAppliedCharacterUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
         std::string const& sql)
     {
-        return RecordCharacterUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql));
+        if (!RecordCharacterUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql)))
+            return false;
+
+        return ExecuteSetupQuery(setupConnection, Skyfire::Database::BuildDbUpdateAuditInsertSql(update.Name),
+            "Could not record character database update audit row");
     }
 
     bool RunCharacterDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
@@ -413,6 +422,12 @@ namespace
             "Could not create character database update tracking table"))
         {
             SF_LOG_ERROR("server.worldserver", "Could not create character database update tracking table.");
+            return false;
+        }
+
+        if (!EnsureDbUpdateAuditTable(setupConnection.get(), "Could not create character database update audit table"))
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not create character database update audit table.");
             return false;
         }
 
@@ -565,7 +580,11 @@ namespace
     bool RecordAppliedWorldUpdate(MYSQL* setupConnection, Skyfire::Database::SqlUpdateFile const& update,
         std::string const& sql)
     {
-        return RecordWorldUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql));
+        if (!RecordWorldUpdateMetadata(setupConnection, update, Skyfire::Database::CalculateStableSqlHash(sql)))
+            return false;
+
+        return ExecuteSetupQuery(setupConnection, Skyfire::Database::BuildDbUpdateAuditInsertSql(update.Name),
+            "Could not record world database update audit row");
     }
 
     bool RunWorldDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
@@ -646,6 +665,12 @@ namespace
             "Could not create world database update tracking table"))
         {
             SF_LOG_ERROR("server.worldserver", "Could not create world database update tracking table.");
+            return false;
+        }
+
+        if (!EnsureDbUpdateAuditTable(setupConnection.get(), "Could not create world database update audit table"))
+        {
+            SF_LOG_ERROR("server.worldserver", "Could not create world database update audit table.");
             return false;
         }
 
