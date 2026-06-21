@@ -355,6 +355,47 @@ namespace Database
         return escaped;
     }
 
+    std::string EscapeSqlIdentifier(std::string const& identifier)
+    {
+        std::string escaped;
+        escaped.reserve(identifier.length());
+
+        for (char c : identifier)
+        {
+            if (c == '`')
+                escaped.push_back('`');
+
+            escaped.push_back(c);
+        }
+
+        return escaped;
+    }
+
+    std::string BuildCreateDatabaseSql(std::string const& databaseName)
+    {
+        return "CREATE DATABASE IF NOT EXISTS `" + EscapeSqlIdentifier(databaseName) +
+            "` DEFAULT CHARACTER SET utf8";
+    }
+
+    std::string BuildUpdateTrackingTableSql()
+    {
+        return "CREATE TABLE IF NOT EXISTS `skyfire_db_updates` ("
+            "`domain` varchar(32) NOT NULL,"
+            "`filename` varchar(255) NOT NULL,"
+            "`hash` varchar(64) NOT NULL,"
+            "`applied_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+            "PRIMARY KEY (`domain`,`filename`)"
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb3";
+    }
+
+    std::string BuildUpdateTrackingInsertSql(std::string const& domain, std::string const& filename,
+        std::string const& hash)
+    {
+        return "INSERT INTO `skyfire_db_updates` (`domain`, `filename`, `hash`, `applied_at`) VALUES ('" +
+            EscapeSqlString(domain) + "', '" + EscapeSqlString(filename) + "', '" + EscapeSqlString(hash) +
+            "', NOW())";
+    }
+
     std::string BuildDbUpdateAuditTableSql()
     {
         return "CREATE TABLE IF NOT EXISTS `db_update` ("

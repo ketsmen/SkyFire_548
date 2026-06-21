@@ -522,6 +522,30 @@ namespace
 
         return passed;
     }
+
+    bool TestDatabaseSetupRuntimeSqlHelpers()
+    {
+        bool passed = true;
+        std::string createDatabaseSql = Skyfire::Database::BuildCreateDatabaseSql("sky`fire_auth");
+        std::string trackingTableSql = Skyfire::Database::BuildUpdateTrackingTableSql();
+        std::string insertTrackingSql = Skyfire::Database::BuildUpdateTrackingInsertSql(
+            "world", "2026-06-21_world's.sql", "hash\\value");
+
+        passed &= Expect(createDatabaseSql == "CREATE DATABASE IF NOT EXISTS `sky``fire_auth` DEFAULT CHARACTER SET utf8",
+            "Database creation SQL should escape MySQL identifiers");
+        passed &= Expect(trackingTableSql.find("CREATE TABLE IF NOT EXISTS `skyfire_db_updates`") != std::string::npos,
+            "Update tracking table SQL should create skyfire_db_updates");
+        passed &= Expect(trackingTableSql.find("PRIMARY KEY (`domain`,`filename`)") != std::string::npos,
+            "Update tracking table SQL should key by domain and filename");
+        passed &= Expect(insertTrackingSql.find("'world'") != std::string::npos,
+            "Update tracking insert should record the setup domain");
+        passed &= Expect(insertTrackingSql.find("'2026-06-21_world\\'s.sql'") != std::string::npos,
+            "Update tracking insert should escape filenames");
+        passed &= Expect(insertTrackingSql.find("'hash\\\\value'") != std::string::npos,
+            "Update tracking insert should escape hashes");
+
+        return passed;
+    }
 }
 
 int main()
@@ -550,6 +574,7 @@ int main()
     passed &= TestStableSqlHash();
     passed &= TestSqlStringEscaping();
     passed &= TestDbUpdateAuditSql();
+    passed &= TestDatabaseSetupRuntimeSqlHelpers();
 
     return passed ? 0 : 1;
 }
