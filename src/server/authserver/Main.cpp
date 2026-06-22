@@ -13,9 +13,17 @@
 #pragma comment (lib, "Crypt32")
 #include <openssl/crypto.h>
 #include <openssl/opensslv.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+#include <mysql.h>
 #include <csignal>
+#include <filesystem>
+#include <memory>
 
 #include "Common.h"
+#include "Database/DatabaseSetup/DatabaseSetup.h"
+#include "Database/DatabaseSetup/DatabaseSetupRuntime.h"
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
@@ -63,6 +71,101 @@ LoginDatabaseWorkerPool LoginDatabase;                      // Accessor to the a
 #ifndef _SKYFIRE_AUTH_DATABASE
 # define _SKYFIRE_AUTH_DATABASE  ""
 #endif
+
+namespace
+{
+    Skyfire::Database::SetupOptions LoadAuthDatabaseSetupOptions()
+    {
+        return Skyfire::Database::MakeAuthDatabaseSetupOptions(
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoSetup", false),
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoCreate", false),
+            sConfigMgr->GetBoolDefault("LoginDatabase.AutoBaseline", false),
+            sConfigMgr->GetStringDefault("LoginDatabase.SqlPath", ""));
+    }
+
+    Skyfire::Database::SetupRuntimeContext GetAuthSetupRuntimeContext()
+    {
+        return
+        {
+            "server.authserver",
+            "LoginDatabase",
+            "auth",
+            "an auth",
+            "Auth",
+            "Failed while executing auth setup SQL"
+        };
+    }
+
+    bool RunAuthDatabaseSetup(MySQLConnectionInfo const& connectionInfo, Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup)
+            return true;
+
+        if (options.SqlPath.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires LoginDatabase.SqlPath.");
+            return false;
+        }
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires an auth database name.");
+            return false;
+        }
+
+        Skyfire::Database::SetupRuntimeContext context = GetAuthSetupRuntimeContext();
+        if (!Skyfire::Database::EnsureDatabaseExists(connectionInfo, options, context))
+            return false;
+
+        MYSQL* setupConnectionRaw = NULL;
+        if (!Skyfire::Database::ConnectToMySQLServer(connectionInfo, connectionInfo._database.c_str(),
+            setupConnectionRaw, context))
+            return false;
+
+        std::unique_ptr<MYSQL, decltype(&mysql_close)> setupConnection(setupConnectionRaw, mysql_close);
+
+        std::filesystem::path baseSqlPath = Skyfire::Database::GetDatabaseBaseSqlPath(options);
+        bool baseSqlExists = std::filesystem::exists(baseSqlPath);
+        std::vector<Skyfire::Database::SqlUpdateFile> updates = Skyfire::Database::DiscoverSqlUpdates(options);
+
+        Skyfire::Database::SetupState state;
+        if (!Skyfire::Database::LoadDatabaseSetupState(setupConnection.get(), options, state, context))
+            return false;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, baseSqlExists, updates);
+        if (!plan.IsValid())
+        {
+            SF_LOG_ERROR("server.authserver", "%s", plan.Error.c_str());
+            return false;
+        }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), false, context);
+
+        if (plan.ShouldInstallBase)
+        {
+            std::string baseSql;
+            SF_LOG_INFO("server.authserver", "Installing auth database base SQL from %s.",
+                baseSqlPath.string().c_str());
+            if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), baseSqlPath, baseSql, context))
+                return false;
+        }
+
+        if (!Skyfire::Database::EnsureSetupTrackingTables(setupConnection.get(), context))
+            return false;
+
+        if (!Skyfire::Database::BaselineSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        if (!Skyfire::Database::ApplyPendingSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        SF_LOG_INFO("server.authserver",
+            "Auth database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
+            uint32(plan.BaselineUpdates.size()));
+        return true;
+    }
+}
 
 void AuthServerSignalHandler(int sigNum)
 {
@@ -395,6 +498,14 @@ bool StartDB(const char* host, const char* port, const char* user, const char* p
             return false;
         }
     }
+
+    Skyfire::Database::SetupOptions setupOptions = LoadAuthDatabaseSetupOptions();
+    MySQLConnectionInfo setupConnectionInfo = noUseConfigDatabaseInfo == false
+        ? MySQLConnectionInfo(dbstring)
+        : MySQLConnectionInfo(host, port, user, pass, database);
+
+    if (!RunAuthDatabaseSetup(setupConnectionInfo, setupOptions))
+        return false;
 
     int32 worker_threads = sConfigMgr->GetIntDefault("LoginDatabase.WorkerThreads", 1);
     if (worker_threads < 1 || worker_threads > 32)

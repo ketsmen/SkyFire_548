@@ -2,7 +2,7 @@
 #   SkyFire Auth Server configuration file    #
 ###############################################
 [authserver]
-ConfVersion=2017021900
+ConfVersion=2026310600
 
 ###################################################################################################
 # SECTION INDEX
@@ -139,6 +139,47 @@ WrongPass.BanType = 0
 #        Default:     "127.0.0.1;3306;skyfire;skyfire;auth"
 
 LoginDatabaseInfo = "127.0.0.1;3306;skyfire;skyfire;auth"
+
+#
+#    LoginDatabase.AutoSetup
+#        Description: Enables auth database setup and update checks during authserver startup.
+#        Important:   Disabled by default. When enabled, setup failures stop startup before the
+#                     auth listener is opened.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+LoginDatabase.AutoSetup = 0
+
+#
+#    LoginDatabase.AutoCreate
+#        Description: Allows authserver to create the configured auth database when it is missing.
+#        Important:   Used only when LoginDatabase.AutoSetup is enabled. The MySQL account must
+#                     have permission to create databases.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+LoginDatabase.AutoCreate = 0
+
+#
+#    LoginDatabase.AutoBaseline
+#        Description: Records discovered auth update files as already applied when the auth
+#                     database is non-empty and the update tracking table does not exist.
+#        Important:   Used only when LoginDatabase.AutoSetup is enabled. This is a one-time
+#                     bootstrap mode for existing databases. Disable it after the first
+#                     successful startup.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+LoginDatabase.AutoBaseline = 0
+
+#
+#    LoginDatabase.SqlPath
+#        Description: Root SQL directory used by auth database setup.
+#        Example:     "D:/SkyFire/sql" or "/opt/skyfire/sql"
+#        Important:   The directory must contain base/auth_database.sql and updates/auth.
+#        Default:     "" - (No SQL directory configured)
+
+LoginDatabase.SqlPath = ""
 
 #
 #    LoginDatabase.WorkerThreads

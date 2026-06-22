@@ -7,9 +7,19 @@
     \ingroup Skyfired
 */
 
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+#include <mysql.h>
+#include <csignal>
+#include <filesystem>
+#include <memory>
+
 #include "Common.h"
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
+#include "Database/DatabaseSetup/DatabaseSetup.h"
+#include "Database/DatabaseSetup/DatabaseSetupRuntime.h"
 #include "Database/DatabaseWorkerPool.h"
 #include "SystemConfig.h"
 #include "World.h"
@@ -30,8 +40,6 @@
 #include "Util.h"
 
 #include "BigNumber.h"
-#include <csignal>
-#include <memory>
 
 #ifdef _WIN32
 #include "ServiceWin32.h"
@@ -43,6 +51,217 @@ extern int m_ServiceStatus;
 #include <sys/resource.h>
 #define PROCESS_HIGH_PRIORITY -15 // [-20, 19], default is 0
 #endif
+
+namespace
+{
+    Skyfire::Database::SetupOptions LoadCharacterDatabaseSetupOptions()
+    {
+        return Skyfire::Database::MakeCharacterDatabaseSetupOptions(
+            sConfigMgr->GetBoolDefault("CharacterDatabase.AutoSetup", false),
+            sConfigMgr->GetBoolDefault("CharacterDatabase.AutoCreate", false),
+            sConfigMgr->GetBoolDefault("CharacterDatabase.AutoBaseline", false),
+            sConfigMgr->GetStringDefault("CharacterDatabase.SqlPath", ""));
+    }
+
+    Skyfire::Database::SetupOptions LoadWorldDatabaseSetupOptions()
+    {
+        return Skyfire::Database::MakeWorldDatabaseSetupOptions(
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoSetup", false),
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoCreate", false),
+            sConfigMgr->GetBoolDefault("WorldDatabase.AutoBaseline", false),
+            sConfigMgr->GetStringDefault("WorldDatabase.SqlPath", ""),
+            sConfigMgr->GetStringDefault("WorldDatabase.BaseSqlFile", ""));
+    }
+
+    Skyfire::Database::SetupRuntimeContext GetCharacterSetupRuntimeContext()
+    {
+        return
+        {
+            "server.worldserver",
+            "CharacterDatabase",
+            "character",
+            "a character",
+            "Character",
+            "Failed while executing character setup SQL"
+        };
+    }
+
+    Skyfire::Database::SetupRuntimeContext GetWorldSetupRuntimeContext()
+    {
+        return
+        {
+            "server.worldserver",
+            "WorldDatabase",
+            "world",
+            "a world",
+            "World",
+            "Failed while executing world setup SQL"
+        };
+    }
+
+    bool RunCharacterDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
+        Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup)
+            return true;
+
+        if (options.SqlPath.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "CharacterDatabase.AutoSetup requires CharacterDatabase.SqlPath.");
+            return false;
+        }
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "CharacterDatabase.AutoSetup requires a character database name.");
+            return false;
+        }
+
+        Skyfire::Database::SetupRuntimeContext context = GetCharacterSetupRuntimeContext();
+        if (!Skyfire::Database::EnsureDatabaseExists(connectionInfo, options, context))
+            return false;
+
+        MYSQL* setupConnectionRaw = NULL;
+        if (!Skyfire::Database::ConnectToMySQLServer(connectionInfo, connectionInfo._database.c_str(),
+            setupConnectionRaw, context))
+            return false;
+
+        std::unique_ptr<MYSQL, decltype(&mysql_close)> setupConnection(setupConnectionRaw, mysql_close);
+
+        std::filesystem::path baseSqlPath = Skyfire::Database::GetDatabaseBaseSqlPath(options);
+        bool baseSqlExists = std::filesystem::exists(baseSqlPath);
+        std::vector<Skyfire::Database::SqlUpdateFile> updates = Skyfire::Database::DiscoverSqlUpdates(options);
+
+        Skyfire::Database::SetupState state;
+        if (!Skyfire::Database::LoadDatabaseSetupState(setupConnection.get(), options, state, context))
+            return false;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildCharacterDatabaseSetupPlan(options, state, baseSqlExists, updates);
+        if (!plan.IsValid())
+        {
+            SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
+            return false;
+        }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), false, context);
+
+        if (plan.ShouldInstallBase)
+        {
+            std::string baseSql;
+            SF_LOG_INFO("server.worldserver", "Installing character database base SQL from %s.",
+                baseSqlPath.string().c_str());
+            if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), baseSqlPath, baseSql, context))
+                return false;
+        }
+
+        if (!Skyfire::Database::EnsureSetupTrackingTables(setupConnection.get(), context))
+            return false;
+
+        if (!Skyfire::Database::BaselineSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        if (!Skyfire::Database::ApplyPendingSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        SF_LOG_INFO("server.worldserver",
+            "Character database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
+            uint32(plan.BaselineUpdates.size()));
+        return true;
+    }
+
+    bool RunWorldDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
+        Skyfire::Database::SetupOptions const& options)
+    {
+        if (!options.AutoSetup)
+            return true;
+
+        if (options.SqlPath.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires WorldDatabase.SqlPath.");
+            return false;
+        }
+
+        if (connectionInfo._database.empty())
+        {
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires a world database name.");
+            return false;
+        }
+
+        Skyfire::Database::SetupRuntimeContext context = GetWorldSetupRuntimeContext();
+        if (!Skyfire::Database::EnsureDatabaseExists(connectionInfo, options, context))
+            return false;
+
+        MYSQL* setupConnectionRaw = NULL;
+        if (!Skyfire::Database::ConnectToMySQLServer(connectionInfo, connectionInfo._database.c_str(),
+            setupConnectionRaw, context))
+            return false;
+
+        std::unique_ptr<MYSQL, decltype(&mysql_close)> setupConnection(setupConnectionRaw, mysql_close);
+
+        std::filesystem::path externalBaseSqlPath = options.ExternalBaseFile;
+        externalBaseSqlPath.make_preferred();
+        bool externalBaseSqlExists = !options.ExternalBaseFile.empty() && std::filesystem::exists(externalBaseSqlPath);
+
+        bool requiredBaseSqlExists = true;
+        std::vector<std::filesystem::path> requiredBaseSqlPaths;
+        for (std::string const& baseFileName : options.RequiredBaseFileNames)
+        {
+            std::filesystem::path requiredBaseSqlPath = Skyfire::Database::GetDatabaseBaseSqlPath(options, baseFileName);
+            requiredBaseSqlPaths.push_back(requiredBaseSqlPath);
+            requiredBaseSqlExists = requiredBaseSqlExists && std::filesystem::exists(requiredBaseSqlPath);
+        }
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates = Skyfire::Database::DiscoverSqlUpdates(options);
+
+        Skyfire::Database::SetupState state;
+        if (!Skyfire::Database::LoadDatabaseSetupState(setupConnection.get(), options, state, context))
+            return false;
+
+        Skyfire::Database::SetupPlan plan = Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state,
+            externalBaseSqlExists, requiredBaseSqlExists, updates);
+        if (!plan.IsValid())
+        {
+            SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
+            return false;
+        }
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), !requiredBaseSqlPaths.empty(), context);
+
+        if (plan.ShouldInstallBase)
+        {
+            std::string baseSql;
+            SF_LOG_INFO("server.worldserver", "Installing world database base SQL from %s.",
+                externalBaseSqlPath.string().c_str());
+            if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), externalBaseSqlPath, baseSql, context))
+                return false;
+        }
+
+        for (std::filesystem::path const& requiredBaseSqlPath : requiredBaseSqlPaths)
+        {
+            std::string requiredBaseSql;
+            SF_LOG_INFO("server.worldserver", "Applying world database required SQL from %s.",
+                requiredBaseSqlPath.string().c_str());
+            if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), requiredBaseSqlPath, requiredBaseSql,
+                context))
+                return false;
+        }
+
+        if (!Skyfire::Database::EnsureSetupTrackingTables(setupConnection.get(), context))
+            return false;
+
+        if (!Skyfire::Database::BaselineSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        if (!Skyfire::Database::ApplyPendingSetupUpdates(setupConnection.get(), options, plan, context))
+            return false;
+
+        SF_LOG_INFO("server.worldserver",
+            "World database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
+            uint32(plan.BaselineUpdates.size()));
+        return true;
+    }
+}
 
 void WorldServerSignalHandler(int sigNum)
 {
@@ -408,6 +627,14 @@ bool Master::_StartDB()
 
     synchThreads = uint8(sConfigMgr->GetIntDefault("WorldDatabase.SynchThreads", 1));
 
+    Skyfire::Database::SetupOptions worldSetupOptions = LoadWorldDatabaseSetupOptions();
+    MySQLConnectionInfo worldSetupConnectionInfo = _noUseConfigDatabaseInfo == false
+        ? MySQLConnectionInfo(dbString)
+        : MySQLConnectionInfo(_dbHost, _dbPort, _dbUser, _dbPassword, _worldDB);
+
+    if (!RunWorldDatabaseSetup(worldSetupConnectionInfo, worldSetupOptions))
+        return false;
+
     if (_noUseConfigDatabaseInfo == false)
     {
 
@@ -447,6 +674,14 @@ bool Master::_StartDB()
     }
 
     synchThreads = uint8(sConfigMgr->GetIntDefault("CharacterDatabase.SynchThreads", 2));
+
+    Skyfire::Database::SetupOptions characterSetupOptions = LoadCharacterDatabaseSetupOptions();
+    MySQLConnectionInfo characterSetupConnectionInfo = _noUseConfigDatabaseInfo == false
+        ? MySQLConnectionInfo(dbString)
+        : MySQLConnectionInfo(_dbHost, _dbPort, _dbUser, _dbPassword, _charactersDB);
+
+    if (!RunCharacterDatabaseSetup(characterSetupConnectionInfo, characterSetupOptions))
+        return false;
 
     if (_noUseConfigDatabaseInfo == false)
     {

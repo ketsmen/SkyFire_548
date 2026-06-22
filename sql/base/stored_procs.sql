@@ -1,4 +1,3 @@
-SET GLOBAL log_bin_trust_function_creators = 1;
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
@@ -12,7 +11,7 @@ SET GLOBAL log_bin_trust_function_creators = 1;
 DELIMITER ;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_CharExtraLevelHPMP` */;;
 /*!50003 SET SESSION SQL_MODE=""*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`SkyFire`@`%`*/ /*!50003 PROCEDURE `sp_CharExtraLevelHPMP`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_CharExtraLevelHPMP`()
 BEGIN
   
   DECLARE intMaxHP           INT   DEFAULT 65535000; 
@@ -20,7 +19,7 @@ BEGIN
   DECLARE sngHPInc           FLOAT DEFAULT 0.001;    
   DECLARE sngManaInc         FLOAT DEFAULT 0.001;    
   DECLARE intStartLvl        INT   DEFAULT 80;      
-  DECLARE intFinishLvl       INT   DEFAULT 85;     
+  DECLARE intFinishLvl       INT   DEFAULT 90;
   
   DECLARE intRecordDone      INT   DEFAULT 0;
   DECLARE intClass           INT   DEFAULT 0;
@@ -69,13 +68,13 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_CharExtraLevelStats` */;;
 /*!50003 SET SESSION SQL_MODE=""*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`SkyFire`@`%`*/ /*!50003 PROCEDURE `sp_CharExtraLevelStats`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_CharExtraLevelStats`()
 BEGIN
   
   DECLARE intMaxStats        INT   DEFAULT 2556541;    
   DECLARE sngStatsInc        FLOAT DEFAULT 0.00000000001;    
   DECLARE intStartLvl        INT   DEFAULT 80;      
-  DECLARE intFinishLvl       INT   DEFAULT 85;     
+  DECLARE intFinishLvl       INT   DEFAULT 90;
   
   DECLARE intRecordDone      INT   DEFAULT 0;
   DECLARE intRace            INT   DEFAULT 0;
@@ -146,7 +145,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_loot` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_loot`(IN loot_type VARCHAR(10),IN loot_entry INT(10),IN item_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_loot`(IN loot_type VARCHAR(10),IN loot_entry INT(10),IN item_entry INT(10))
 BEGIN
 	IF loot_entry IS NOT NULL OR item_entry IS NOT NULL THEN
 		CASE UCASE(loot_type)
@@ -206,7 +205,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_npc_trainer` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_npc_trainer`(IN npc_entry INT(10), IN spell_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_npc_trainer`(IN npc_entry INT(10), IN spell_id INT(10))
 BEGIN
 	IF spell_id IS NOT NULL OR npc_entry IS NOT NULL THEN
 		DELETE FROM `npc_trainer` WHERE `entry`=IFNULL(npc_entry,`entry`) AND `spell`=IFNULL(spell_id,`spell`);
@@ -217,7 +216,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_npc_vendor` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_npc_vendor`(IN npc_entry INT(10), IN item_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_npc_vendor`(IN npc_entry INT(10), IN item_entry INT(10))
 BEGIN
 	IF item_entry IS NOT NULL OR npc_entry IS NOT NULL THEN
 		DELETE FROM `npc_vendor` WHERE `entry`=IFNULL(npc_entry,`entry`) AND `item`=IFNULL(item_entry,`item`);
@@ -228,7 +227,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_questgiver` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_questgiver`(IN qg_type VARCHAR(10),IN qg_entry INT(10), IN quest_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_questgiver`(IN qg_type VARCHAR(10),IN qg_entry INT(10), IN quest_entry INT(10))
 BEGIN
 	IF qg_entry IS NOT NULL OR quest_entry IS NOT NULL THEN
 		CASE UCASE(qg_type)
@@ -246,7 +245,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_questtaker` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_questtaker`(IN qt_type VARCHAR(10),IN qt_entry INT(10), IN quest_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_questtaker`(IN qt_type VARCHAR(10),IN qt_entry INT(10), IN quest_entry INT(10))
 BEGIN
 	IF qt_entry IS NOT NULL OR quest_entry IS NOT NULL THEN
 		CASE UCASE(qt_type)
@@ -264,7 +263,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_script` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_script`(IN script_type VARCHAR(10), IN script_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_script`(IN script_type VARCHAR(10), IN script_id INT(10))
 BEGIN
 	CASE UCASE(script_type)
 		WHEN 'EAI' THEN BEGIN
@@ -294,7 +293,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_script_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_script_bylist`(IN script_type VARCHAR(10), IN script_id_list LONGTEXT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_script_bylist`(IN script_type VARCHAR(10), IN script_id_list LONGTEXT)
 BEGIN
 	CALL `sp_set_entry_list` (script_id_list,null);
 	CASE UCASE(script_type)
@@ -326,7 +325,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_spawn` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_spawn`(IN spawn_type VARCHAR(10),IN spawn_guid INT(10), IN spawn_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_spawn`(IN spawn_type VARCHAR(10),IN spawn_guid INT(10), IN spawn_entry INT(10))
 BEGIN
 	IF spawn_guid IS NOT NULL OR spawn_entry IS NOT NULL THEN
 		CASE UCASE(spawn_type)
@@ -347,7 +346,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_spell_area` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_spell_area`(IN spell_id INT(10), IN area_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_spell_area`(IN spell_id INT(10), IN area_id INT(10))
 BEGIN
  
 	IF spell_id IS NOT NULL OR area_id IS NOT NULL THEN
@@ -359,14 +358,14 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_spell_position` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_spell_position`(IN spell_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_spell_position`(IN spell_id INT(10))
 BEGIN
 	DELETE FROM `spell_target_position` WHERE `id`=spell_id;
 END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_spell_position_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_spell_position_bylist`(IN spell_list LONGTEXT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_spell_position_bylist`(IN spell_list LONGTEXT)
 BEGIN
 	CALL `sp_set_entry_list` (spell_list,null);
 	DELETE FROM `spell_target_position` WHERE `id` IN (SELECT * FROM `tdb_entry_list`);
@@ -375,7 +374,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_delete_spell_target` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_delete_spell_target`(IN spell_id INT(10),IN target_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_delete_spell_target`(IN spell_id INT(10),IN target_entry INT(10))
 BEGIN
 	IF spell_id IS NOT NULL OR target_entry IS NOT NULL THEN
 		DELETE FROM `spell_script_target` WHERE `entry`=IFNULL(spell_id,`entry`) AND `targetEntry`=IFNULL(target_entry,`targetEntry`);
@@ -386,7 +385,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_dev_cleanup_loot` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_dev_cleanup_loot`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_dev_cleanup_loot`()
 BEGIN
 CREATE TABLE `Loot_temp` (
     `lootid` INT(8) UNSIGNED NOT NULL PRIMARY KEY DEFAULT '0'
@@ -411,7 +410,7 @@ DELETE FROM `mail_loot_template` WHERE `item` NOT IN (SELECT `entry` FROM `item_
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_dev_cleanup_reference_loot` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_dev_cleanup_reference_loot`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_dev_cleanup_reference_loot`()
 BEGIN
 CREATE TABLE `RL_temp` (
     `ref_id` INT(8) UNSIGNED NOT NULL PRIMARY KEY DEFAULT '0'
@@ -430,7 +429,7 @@ DROP TABLE `RL_temp`;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_dev_cleanup_world` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_dev_cleanup_world`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_dev_cleanup_world`()
 BEGIN
 DELETE FROM `gameobject` WHERE `id` NOT IN (SELECT `entry` FROM `gameobject_template`);
 DELETE FROM `creature` WHERE `id` NOT IN (SELECT `entry` FROM `creature_template`);
@@ -490,7 +489,7 @@ DELETE FROM `spell_script_target` WHERE `targetEntry` NOT IN (SELECT `entry` FRO
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_dev_reguid_alter_tables` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_dev_reguid_alter_tables`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_dev_reguid_alter_tables`()
 BEGIN
             CREATE TABLE `creature_temp` (
   `guid` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Global Unique Identifier',
@@ -532,7 +531,7 @@ BEGIN
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_dev_re_guid` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_dev_re_guid`(IN new_base_guid INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_dev_re_guid`(IN new_base_guid INT(10))
 BEGIN
     CALL `sp_dev_reguid_alter_tables`();
     SET @s = CONCAT("ALTER TABLE `creature_temp` AUTO_INCREMENT=",new_base_guid,";");
@@ -641,7 +640,7 @@ BEGIN
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_cast_onspawn` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_cast_onspawn`(IN npc_entry INT(10), spell_id MEDIUMINT(6))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_cast_onspawn`(IN npc_entry INT(10), spell_id MEDIUMINT(6))
 BEGIN
     CALL `sp_error_entry`('NPC',npc_entry);
     UPDATE `creature_template` SET `AIName`= 'EventAI' WHERE `entry`=npc_entry; 
@@ -654,13 +653,13 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_inverse_phase_mask` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_inverse_phase_mask`(IN max_phase INT, IN phase_list VARCHAR(255))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_inverse_phase_mask`(IN max_phase INT, IN phase_list VARCHAR(255))
 BEGIN
 DECLARE max_phase_mask INT;
 DECLARE phase_yes INT;
 DECLARE inverse_phase_mask INT;
 CALL `sp_eai_table_phase_mask`();
-CALL `sp_set_entry_list`(phase_list);
+CALL `sp_set_entry_list`(phase_list, NULL);
 SET max_phase_mask = (SELECT SUM(phase_mask) FROM phase_mask WHERE phaseID <= max_phase);
 SET phase_yes = (SELECT SUM(phase_mask) FROM phase_mask WHERE phaseID IN (SELECT `value` FROM tdb_entry_list));
 SET inverse_phase_mask = (max_phase_mask - phase_yes);
@@ -678,7 +677,7 @@ END IF;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_kill_ondeath` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_kill_ondeath`(IN npc_entry INT(10), trigger_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_kill_ondeath`(IN npc_entry INT(10), trigger_id INT(10))
 BEGIN
     CALL `sp_error_entry`('NPC',npc_entry);
     UPDATE `creature_template` SET `AIName`= 'EventAI' WHERE `entry`=npc_entry; 
@@ -690,7 +689,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_quest_credit_on_spellhit` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_quest_credit_on_spellhit`(IN npc_entry INT(10), spell_id MEDIUMINT(6), trigger_id INT(10), despawn_time INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_quest_credit_on_spellhit`(IN npc_entry INT(10), spell_id MEDIUMINT(6), trigger_id INT(10), despawn_time INT(10))
 BEGIN
     CALL `sp_error_entry`('NPC',npc_entry);
     CALL `sp_error_trigger` (trigger_id);
@@ -705,7 +704,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_select_id` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_select_id`(IN npc_entry INT(10), OUT event_id INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_select_id`(IN npc_entry INT(10), OUT event_id INT(10))
 BEGIN
 	CALL `sp_error_entry`('NPC',npc_entry);
 	SET event_id = (SELECT MAX(id)+1 FROM `creature_ai_scripts` WHERE `creature_id`=npc_entry);
@@ -714,7 +713,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_spawn_spellhit` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_spawn_spellhit`(IN npc_entry INT(10),IN spell_id MEDIUMINT(6),IN spawn_id INT(10),IN despawn_time INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_spawn_spellhit`(IN npc_entry INT(10),IN spell_id MEDIUMINT(6),IN spawn_id INT(10),IN despawn_time INT(10))
 BEGIN
     CALL `sp_error_entry`('NPC',npc_entry);
     CALL `sp_error_entry`('NPC',spawn_id);
@@ -728,7 +727,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_eai_table_phase_mask` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_eai_table_phase_mask`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_eai_table_phase_mask`()
 BEGIN
  
 CREATE TABLE `phase_mask`(
@@ -772,7 +771,7 @@ INSERT INTO phase_mask VALUES
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_error_entry` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_error_entry`(IN entry_type VARCHAR(10), IN e_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_error_entry`(IN entry_type VARCHAR(10), IN e_entry INT(10))
 BEGIN
 	DECLARE check_entry INT;
 	CASE UPPER(entry_type)
@@ -795,7 +794,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_error_guid` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_error_guid`(IN guid_type VARCHAR(10),IN npc_or_go_guid INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_error_guid`(IN guid_type VARCHAR(10),IN npc_or_go_guid INT(10))
 BEGIN
 	DECLARE check_guid INT;
 	CASE UPPER(guid_type)
@@ -814,7 +813,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_error_trigger` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_error_trigger`(IN trigger_entry INT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_error_trigger`(IN trigger_entry INT)
 BEGIN
     DECLARE Check_trigger INT;
     SET Check_trigger = (SELECT COUNT(ReqCreatureOrGOId1) FROM `quest_template` WHERE `ReqCreatureOrGOId1`= trigger_entry)
@@ -828,7 +827,7 @@ BEGIN
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_get_go_lootid` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_get_go_lootid`(IN gobjID MEDIUMINT(6),OUT gobjLootID INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_get_go_lootid`(IN gobjID MEDIUMINT(6),OUT gobjLootID INT(10))
 BEGIN
         CALL `sp_error_entry`('GO',gobjID);
         SELECT `data1` FROM `gameobject_template` WHERE `entry`=gobjID AND `type`=3 INTO gobjLootID;
@@ -836,7 +835,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_get_npc_diffentry` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_get_npc_diffentry`(IN normalEntry MEDIUMINT(5),IN difficulty TINYINT(1),OUT output MEDIUMINT(8))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_get_npc_diffentry`(IN normalEntry MEDIUMINT(5),IN difficulty TINYINT(1),OUT output MEDIUMINT(8))
 BEGIN
     CALL `sp_error_entry`('NPC',normalEntry);
     CASE difficulty
@@ -855,7 +854,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_get_ref_id` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_get_ref_id`(IN refType VARCHAR(10),OUT reference MEDIUMINT(5))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_get_ref_id`(IN refType VARCHAR(10),OUT reference MEDIUMINT(5))
 BEGIN
     CASE UCASE(refType)
         WHEN 'SKIN' THEN BEGIN
@@ -905,7 +904,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_PetExtraLevelStats` */;;
 /*!50003 SET SESSION SQL_MODE=""*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`SkyFire`@`%`*/ /*!50003 PROCEDURE `sp_PetExtraLevelStats`()
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_PetExtraLevelStats`()
 BEGIN
   
   DECLARE intMaxHP       INT   DEFAULT 6553500;
@@ -917,7 +916,7 @@ BEGIN
   DECLARE sngArmorInc    FLOAT DEFAULT 0.05;    
   DECLARE sngStatsInc    FLOAT DEFAULT 0.015;    
   DECLARE intStartLvl    INT   DEFAULT 80;      
-  DECLARE intFinishLvl   INT   DEFAULT 85;      
+  DECLARE intFinishLvl   INT   DEFAULT 90;
   
   DECLARE intRecordDone  INT   DEFAULT 0;
   DECLARE intCreature    INT   DEFAULT 0;
@@ -1009,7 +1008,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_entry_list` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_entry_list`(IN input LONGTEXT,IN appendExisting BIT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_entry_list`(IN input LONGTEXT,IN appendExisting BIT)
 BEGIN
     DECLARE cur_position INT DEFAULT 1;
     DECLARE remainder TEXT;
@@ -1035,7 +1034,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_item_money` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_item_money`(IN item_entry INT, IN min_money INT, IN max_money INT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_item_money`(IN item_entry INT, IN min_money INT, IN max_money INT)
 BEGIN
 CALL sp_error_entry('ITEM',item_entry);
 UPDATE item_template SET minMoneyLoot=min_money, maxMoneyLoot=max_money WHERE entry = item_entry;
@@ -1043,33 +1042,25 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_item_money_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_item_money_bylist`(IN item_entry TEXT, IN min_money INT, IN max_money INT)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_item_money_bylist`(IN item_entry TEXT, IN min_money INT, IN max_money INT)
 BEGIN
 DECLARE remaining INT;
 DECLARE min_entry INT;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(item_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
 CALL sp_error_entry('ITEM',min_entry);
+UPDATE item_template SET minMoneyLoot=min_money, maxMoneyLoot=max_money WHERE entry = min_entry;
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
-SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
-CALL sp_set_entry_list(npc_entry);
-SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
-WHILE remaining > 0 DO
-SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
-UPDATE item_template SET minMoneyLoot=min_money, maxMoneyLoot=max_money WHERE entry = item_entry;
-DELETE FROM tdb_entry_list WHERE `value`=min_entry;
-SET remaining = remaining -1;
-END WHILE;
+DROP TABLE `tdb_entry_list`;
 END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_aggro` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_aggro`(IN creature_entry INT(10),IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_aggro`(IN creature_entry INT(10),IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_error_entry`('NPC',creature_entry);
 	IF on_off = 1 THEN
@@ -1081,7 +1072,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_aggro_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_aggro_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_aggro_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_set_entry_list` (entry_list,null);
 	IF on_off = 1 THEN
@@ -1094,7 +1085,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_attackable` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_attackable`(IN npc_entry INT, IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_attackable`(IN npc_entry INT, IN on_off BOOLEAN)
 BEGIN
 CALL sp_error_entry('NPC',npc_entry);
 IF on_off = 1 THEN
@@ -1107,11 +1098,11 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_attackable_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_attackable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_attackable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
 BEGIN
 DECLARE remaining INT;
 DECLARE min_entry INT;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1119,7 +1110,7 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 IF on_off = 1 THEN
 WHILE remaining > 0 DO
@@ -1141,7 +1132,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_civilian` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_civilian`(IN npc_entry INT(10), IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_civilian`(IN npc_entry INT(10), IN on_off BOOLEAN)
 BEGIN
 CALL sp_error_entry('NPC',npc_entry);
 IF on_off = 1 THEN
@@ -1153,12 +1144,12 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_civilian_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_civilian_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_civilian_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
 BEGIN
   
 DECLARE remaining INT;
 DECLARE min_entry INT;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1166,9 +1157,9 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1176,7 +1167,7 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 IF on_off = 1 THEN
 WHILE remaining > 0 DO
@@ -1198,7 +1189,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_deadquest` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_deadquest`(IN npc_entry INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_deadquest`(IN npc_entry INT(10))
 BEGIN
 	DECLARE check_addon_exists INT;
 	CALL `sp_error_entry`('NPC',npc_entry);
@@ -1216,7 +1207,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_faction` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_faction`(IN npc_entry INT(10), factionA INT(10), factionH INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_faction`(IN npc_entry INT(10), factionA INT(10), factionH INT(10))
 BEGIN
 	CALL `sp_error_entry`('NPC',npc_entry);
 	UPDATE `creature_template` SET `faction_A`=IFNULL(factionA,`faction_A`),`faction_H`=IFNULL(factionH,`faction_A`) WHERE `entry`=npc_entry;
@@ -1224,7 +1215,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_faction_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_faction_bylist`(IN entry_list LONGTEXT, factionA INT(10), factionH INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_faction_bylist`(IN entry_list LONGTEXT, factionA INT(10), factionH INT(10))
 BEGIN
 	CALL `sp_set_entry_list` (entry_list,null);
 	UPDATE `creature_template` SET `faction_A`=IFNULL(factionA,`faction_A`),`faction_H`=IFNULL(factionH,`faction_A`) WHERE `entry` IN (SELECT * FROM `tdb_entry_list`);
@@ -1233,7 +1224,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_lootable` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_lootable`(IN npc_entry INT(10), IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_lootable`(IN npc_entry INT(10), IN on_off BOOLEAN)
 BEGIN
 CALL sp_error_entry('NPC',npc_entry);
 IF on_off = 1 THEN
@@ -1245,12 +1236,12 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_lootable_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_lootable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_lootable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
 BEGIN
   
 DECLARE remaining INT;
 DECLARE min_entry INT;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1258,9 +1249,9 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1268,7 +1259,7 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 IF on_off = 1 THEN
 WHILE remaining > 0 DO
@@ -1290,7 +1281,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_lootid` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_lootid`(IN npcEntry MEDIUMINT(5),IN lootID MEDIUMINT(5))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_lootid`(IN npcEntry MEDIUMINT(5),IN lootID MEDIUMINT(5))
 BEGIN    
     CALL `sp_error_entry`('NPC',npcEntry);
     UPDATE `creature_template` SET `lootid`=IFNULL(lootID,npcEntry) WHERE `entry`=npcEntry;
@@ -1298,7 +1289,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_lootid_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_lootid_bylist`(IN entryList LONGTEXT,IN lootID MEDIUMINT(5))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_lootid_bylist`(IN entryList LONGTEXT,IN lootID MEDIUMINT(5))
 BEGIN    
     CALL `sp_set_entry_list` (entryList,null);
     UPDATE `creature_template` SET `lootid`=IFNULL(lootID,`entry`) WHERE `entry` IN (SELECT DISTINCT * FROM `tdb_entry_list`);
@@ -1308,14 +1299,14 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_lootid_bytable` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_lootid_bytable`(IN lootID MEDIUMINT(5))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_lootid_bytable`(IN lootID MEDIUMINT(5))
 BEGIN    
     UPDATE `creature_template` SET `lootid`=IFNULL(lootID,`entry`) WHERE `entry` IN (SELECT DISTINCT * FROM `tdb_entry_list`);
 END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_path` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_path`(IN npc_guid INT(10),OUT path INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_path`(IN npc_guid INT(10),OUT path INT(10))
 BEGIN
 	CALL `sp_error_guid`('NPC',npc_guid);
 	
@@ -1332,7 +1323,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_selectable` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_selectable`(IN npc_entry INT(10),IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_selectable`(IN npc_entry INT(10),IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_error_entry`('NPC',npc_entry);
 	IF on_off=1 THEN
@@ -1344,7 +1335,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_selectable_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_selectable_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_selectable_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_set_entry_list` (entry_list,null);
 	IF on_off=1 THEN
@@ -1357,7 +1348,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_targetable` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_targetable`(IN npc_entry INT(10), IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_targetable`(IN npc_entry INT(10), IN on_off BOOLEAN)
 BEGIN
 CALL sp_error_entry('NPC',npc_entry);
 IF on_off = 1 THEN
@@ -1369,12 +1360,12 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_targetable_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_targetable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_targetable_bylist`(IN npc_entry TEXT, IN on_off BOOLEAN)
 BEGIN
   
 DECLARE remaining INT;
 DECLARE min_entry INT;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 WHILE remaining > 0 DO
 SET min_entry = (SELECT MIN(`value`) FROM tdb_entry_list);
@@ -1382,9 +1373,9 @@ CALL sp_error_entry('NPC',min_entry);
 DELETE FROM tdb_entry_list WHERE `value`=min_entry;
 SET remaining = remaining -1;
 END WHILE;
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
-CALL sp_set_entry_list(npc_entry);
+CALL sp_set_entry_list(npc_entry, NULL);
 SET remaining = (SELECT COUNT(`value`) FROM tdb_entry_list);
 IF on_off = 1 THEN
 WHILE remaining > 0 DO
@@ -1406,7 +1397,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_trigger` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_trigger`(IN npc_entry INT(10),IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_trigger`(IN npc_entry INT(10),IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_error_entry`('NPC',npc_entry);
 	IF on_off=1 THEN
@@ -1419,7 +1410,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_npc_trigger_bylist` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_npc_trigger_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_npc_trigger_bylist`(IN entry_list LONGTEXT,IN on_off BOOLEAN)
 BEGIN
 	CALL `sp_set_entry_list` (entry_list,null);
 	IF on_off=1 THEN
@@ -1433,7 +1424,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_quest_level` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_quest_level`(IN quest_entry INT(10), IN quest_level INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_quest_level`(IN quest_entry INT(10), IN quest_level INT(10))
 BEGIN
 CALL `sp_error_entry`('QUEST',quest_entry);
 UPDATE `quest_template` SET `MinLevel`= quest_level WHERE `entry`= quest_entry;
@@ -1441,7 +1432,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_quest_next` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_quest_next`(IN quest_entry INT(10), IN next_quest INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_quest_next`(IN quest_entry INT(10), IN next_quest INT(10))
 BEGIN
 CALL `sp_error_entry`('QUEST',quest_entry);
 UPDATE `quest_template` SET `NextQuestId`= next_quest WHERE `entry`= quest_entry;
@@ -1449,7 +1440,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_quest_previous` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_quest_previous`(IN quest_entry INT(10), IN prev_quest INT(10))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_quest_previous`(IN quest_entry INT(10), IN prev_quest INT(10))
 BEGIN
 CALL `sp_error_entry`('QUEST',quest_entry);
 UPDATE `quest_template` SET `PrevQuestId`= prev_quest WHERE `entry`= quest_entry;
@@ -1457,7 +1448,7 @@ END */;;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE*/;;
 /*!50003 DROP PROCEDURE IF EXISTS `sp_set_spell_target` */;;
 /*!50003 SET SESSION SQL_MODE="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `sp_set_spell_target`(IN target_type VARCHAR(10),IN target_entry INT(11),IN spell_id INT(11))
+/*!50003 CREATE*/ /*!50003 PROCEDURE `sp_set_spell_target`(IN target_type VARCHAR(10),IN target_entry INT(11),IN spell_id INT(11))
 BEGIN
     CASE UCASE(target_type)
         WHEN 'GO' THEN BEGIN

@@ -37,6 +37,20 @@ target_link_libraries(database_queue_tests Threads::Threads)
 
 add_test(NAME database_queue_tests COMMAND database_queue_tests)
 
+add_executable(database_setup_tests
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Database/DatabaseSetup/DatabaseSetup.cpp
+  DatabaseSetupTests.cpp
+)
+
+target_include_directories(database_setup_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Database
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Database/DatabaseSetup
+)
+
+add_test(NAME database_setup_tests COMMAND database_setup_tests)
+
 add_executable(realm_socket_tests
   ${CMAKE_SOURCE_DIR}/src/server/authserver/Server/RealmSocket.cpp
   RealmSocketLogStub.cpp
