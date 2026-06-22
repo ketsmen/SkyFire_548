@@ -1089,4 +1089,3 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 103832, 0.6, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 103935, 0.3, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 103960, 0.9, 1, 0, 1, 1);
-
