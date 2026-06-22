@@ -12,6 +12,8 @@ EndScriptData */
 
 #include "AccountMgr.h"
 #include "Chat.h"
+#include "DatabaseEnv.h"
+#include "GMNoteUtils.h"
 #include "Language.h"
 #include "ObjectMgr.h"
 #include "Opcodes.h"
@@ -32,6 +34,7 @@ public:
             { "fly",     rbac::RBAC_PERM_COMMAND_GM_FLY,     false, &HandleGMFlyCommand,        "", },
             { "ingame",  rbac::RBAC_PERM_COMMAND_GM_INGAME,   true, &HandleGMListIngameCommand, "", },
             { "list",    rbac::RBAC_PERM_COMMAND_GM_LIST,     true, &HandleGMListFullCommand,   "", },
+            { "note",    rbac::RBAC_PERM_COMMAND_GM_NOTE,    false, &HandleGMNoteCommand,       "", },
             { "visible", rbac::RBAC_PERM_COMMAND_GM_VISIBLE, false, &HandleGMVisibleCommand,    "", },
             { "",        rbac::RBAC_PERM_COMMAND_GM,         false, &HandleGMCommand,           "", },
         };
@@ -176,6 +179,60 @@ public:
         }
         else
             handler->PSendSysMessage(LANG_GMLIST_EMPTY);
+        return true;
+    }
+
+    static bool HandleGMNoteCommand(ChatHandler* handler, char const* args)
+    {
+        WorldSession* session = handler->GetSession();
+        if (!session || !session->GetPlayer())
+        {
+            handler->SendSysMessage("This command can only be used in game.");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        while (*args == ' ' || *args == '\t')
+            ++args;
+
+        std::string note(args);
+        while (!note.empty() && (note[note.size() - 1] == ' ' || note[note.size() - 1] == '\t'))
+            note.erase(note.size() - 1);
+
+        Skyfire::GMNoteValidation validation = Skyfire::ValidateGMNoteText(note);
+        if (!validation.IsValid)
+        {
+            handler->SendSysMessage(validation.Message);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* player = session->GetPlayer();
+        Skyfire::GMNoteLocation location;
+        location.MapId = player->GetMapId();
+        location.ZoneId = player->GetZoneId();
+        location.AreaId = player->GetAreaId();
+        location.X = player->GetPositionX();
+        location.Y = player->GetPositionY();
+        location.Z = player->GetPositionZ();
+        location.Orientation = player->GetOrientation();
+
+        PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_INS_GM_NOTE);
+        stmt->setInt32(0, int32(realmID));
+        stmt->setUInt32(1, session->GetAccountId());
+        stmt->setUInt32(2, player->GetGUIDLow());
+        stmt->setUInt32(3, location.MapId);
+        stmt->setUInt32(4, location.ZoneId);
+        stmt->setUInt32(5, location.AreaId);
+        stmt->setFloat(6, location.X);
+        stmt->setFloat(7, location.Y);
+        stmt->setFloat(8, location.Z);
+        stmt->setFloat(9, location.Orientation);
+        stmt->setString(10, Skyfire::FormatGMNoteLocation(location));
+        stmt->setString(11, note);
+        LoginDatabase.Execute(stmt);
+
+        handler->SendSysMessage("GM note saved.");
         return true;
     }
 

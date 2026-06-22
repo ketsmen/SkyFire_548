@@ -135,6 +135,19 @@ target_include_directories(memory_usage_tests PRIVATE
 
 add_test(NAME memory_usage_tests COMMAND memory_usage_tests)
 
+add_executable(gm_note_utils_tests
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities/GMNoteUtils.cpp
+  GMNoteUtilsTests.cpp
+)
+
+target_include_directories(gm_note_utils_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities
+)
+
+add_test(NAME gm_note_utils_tests COMMAND gm_note_utils_tests)
+
 add_executable(boost_asio_utils_tests
   BoostAsioUtilsTests.cpp
 )
