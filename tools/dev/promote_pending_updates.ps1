@@ -5,6 +5,8 @@ Promotes pending SQL updates into the normal update stream.
 .DESCRIPTION
 Moves SQL files from sql/pending_updates/<database> to sql/updates/<database>
 and renumbers them to the next available official update sequence.
+Promoted files use the compact official name format:
+YYYY-MM-DD_<database>_NN.sql.
 
 The script runs in dry-run mode by default. Use -Apply to move files.
 
@@ -175,7 +177,6 @@ function Get-PendingUpdateInfo {
         Source = $File
         Database = $databaseName
         Date = $match.Groups['date'].Value
-        Suffix = $match.Groups['suffix'].Value
     }
 }
 
@@ -231,7 +232,7 @@ function New-PromotionPlan {
         $updatesDir = Join-Path $RootPath "sql\updates\$($first.Database)"
 
         foreach ($info in ($group.Group | Sort-Object { $_.Source.Name })) {
-            $targetName = '{0}_{1}_{2:D2}{3}.sql' -f $info.Date, $info.Database, $nextSequence, $info.Suffix
+            $targetName = '{0}_{1}_{2:D2}.sql' -f $info.Date, $info.Database, $nextSequence
             $targetPath = Join-Path $updatesDir $targetName
 
             if (Test-Path -LiteralPath $targetPath) {
