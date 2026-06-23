@@ -282,17 +282,25 @@ if(ELUNA)
     if(MSVC)
       add_custom_command(TARGET game
         POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/lua_scripts/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/LuaEngine/scripts" "${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/lua_scripts/"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/lua_scripts/extensions/"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/LuaEngine/extensions" "${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/lua_scripts/extensions/"
       )
     elseif(MINGW OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
       add_custom_command(TARGET game
         POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/lua_scripts/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/LuaEngine/scripts" "${CMAKE_BINARY_DIR}/bin/lua_scripts/"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/lua_scripts/extensions/"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/LuaEngine/extensions" "${CMAKE_BINARY_DIR}/bin/lua_scripts/extensions/"
       )
     endif()
+
+    install(DIRECTORY LuaEngine/scripts/ DESTINATION lua_scripts)
+    install(DIRECTORY LuaEngine/extensions DESTINATION lua_scripts)
   elseif(UNIX)
+    install(DIRECTORY LuaEngine/scripts/ DESTINATION ${CONF_DIR}/lua_scripts)
     install(DIRECTORY LuaEngine/extensions DESTINATION ${CONF_DIR}/lua_scripts)
   endif()
 endif()
