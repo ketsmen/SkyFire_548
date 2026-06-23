@@ -77,13 +77,13 @@ namespace LuaCreature
     {
         float dist = luaL_checknumber(L, 1);
 
-        creature->SetWanderDistance(dist);
+        creature->SetRespawnRadius(dist);
         return 0;
     }
 
     int GetRespawnRadius(lua_State* L, Creature* creature)
     {
-        sEluna->Push(L, creature->GetWanderDistance());
+        sEluna->Push(L, creature->GetRespawnRadius());
         return 1;
     }
 
@@ -285,8 +285,8 @@ namespace LuaCreature
     {
         Player* player = sEluna->CHECK_PLAYER(L, 1);
 
-        if (!player)
-            sEluna->Push(L, creature->IsTappedBy(player));
+        if (player)
+            sEluna->Push(L, creature->isTappedBy(player));
         else
             sEluna->Push(L, false);
         return 1;
@@ -294,7 +294,7 @@ namespace LuaCreature
 
     int HasLootRecipient(lua_State* L, Creature* creature)
     {
-        sEluna->Push(L, creature->HasLootRecipient());
+        sEluna->Push(L, creature->hasLootRecipient());
         return 1;
     }
 
@@ -523,8 +523,8 @@ namespace LuaCreature
         //int32 aura = luaL_optint(L, 5, 0);
 
         //;
-        //std::list<HostileReference*>& threatlist = creature->GetThreatManager().getThreatList();
-        ////std::list<HostileReference*>&  threatlist = creature->GetThreatManager().getThreatList();
+        //std::list<HostileReference*>& threatlist = creature->getThreatManager().getThreatList();
+        ////std::list<HostileReference*>&  threatlist = creature->getThreatManager().getThreatList();
         //if (position >= threatlist.size())
         //{
         //    sEluna->Push(L);
@@ -596,7 +596,7 @@ namespace LuaCreature
         //int tbl = lua_gettop(L);
         //uint32 i = 0;
 
-        //std::list<HostileReference*>& threatList = creature->GetThreatManager().getThreatList();
+        //std::list<HostileReference*>& threatList = creature->getThreatManager().getThreatList();
         ////ThreatContainer::StorageType::const_iterator itr;
         ////for (itr = threatList.begin(); itr != threatList.end(); ++itr)
         //for (auto itr : threatList)
@@ -616,7 +616,7 @@ namespace LuaCreature
 
     int GetAITargetsCount(lua_State* L, Creature* creature)
     {
-        sEluna->Push(L, creature->GetThreatManager().getThreatList().size());
+        sEluna->Push(L, creature->getThreatManager().getThreatList().size());
         return 1;
     }
 

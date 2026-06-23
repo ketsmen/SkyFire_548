@@ -45,7 +45,7 @@ namespace LuaPlayer
 
         target->SetSummonPoint(map, x, y, z);
         WorldPacket data(SMSG_SUMMON_REQUEST, 8 + 4 + 4);
-        data << uint64(player->GetGUID().GetCounter());
+        data << uint64(GUID_LOPART(player->GetGUID()));
         data << uint32(zoneId);
         data << uint32(delay ? delay* IN_MILLISECONDS : MAX_PLAYER_SUMMON_DELAY * IN_MILLISECONDS);
         target->GetSession()->SendPacket(&data);
@@ -89,7 +89,7 @@ namespace LuaPlayer
         uint32 spell = luaL_checkunsigned(L, 1);
         WorldObject* caster = sEluna->CHECK_WORLDOBJECT(L, 2);
 
-        sEluna->Push(L, player->HasAura(spell, caster ? caster->GetGUID().GetCounter() : 0));
+        sEluna->Push(L, player->HasAura(spell, caster ? GUID_LOPART(caster->GetGUID()) : 0));
         return 1;
     }
 
@@ -127,9 +127,9 @@ namespace LuaPlayer
     {
         Creature* creature = sEluna->CHECK_CREATURE(L, 1);
 
-        uint64 guid = creature ? creature->GetGUID().GetCounter() : player->GetGUID().GetCounter();
+        uint64 guid = creature ? GUID_LOPART(creature->GetGUID()) : GUID_LOPART(player->GetGUID());
 
-        AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(player->GetFaction());
+        AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(player->getFaction());
         if (!ahEntry)
             return 0;
 
@@ -146,9 +146,6 @@ namespace LuaPlayer
         GameObject* object = sEluna->CHECK_GAMEOBJECT(L, 1);
         if (!object)
             return 0;
-        WorldPacket data(SMSG_SHOW_MAILBOX, 8);
-        data << uint64(object->GetGUID().GetCounter());
-        player->GetSession()->HandleGetMailList(data);
         return 0;
     }
 
@@ -296,8 +293,8 @@ namespace LuaPlayer
         uint32 map = luaL_checkunsigned(L, 1);
         uint32 difficulty = luaL_checkunsigned(L, 2);
 
-        if (difficulty < MAX_DIFFICULTY)
-            player->UnbindInstance(map, (Difficulty)difficulty);
+        if (difficulty <= DIFFICULTY_FLEX)
+            player->UnbindInstance(map, (DifficultyID)difficulty);
         return 0;
     }
 
@@ -323,7 +320,7 @@ namespace LuaPlayer
 
     int IsUsingLfg(lua_State* L, Player* player)
     {
-        sEluna->Push(L, player->IsUsingLfg());
+        sEluna->Push(L, player->isUsingLfg());
         return 1;
     }
 
@@ -532,7 +529,7 @@ namespace LuaPlayer
         Unit* victim = sEluna->CHECK_UNIT(L, 1);
 
         if (victim)
-            sEluna->Push(L, player->IsHonorOrXPTarget(victim));
+            sEluna->Push(L, player->isHonorOrXPTarget(victim));
         else
             sEluna->Push(L, false);
         return 1;
@@ -705,7 +702,7 @@ namespace LuaPlayer
 
     int GetManaBonusFromIntellect(lua_State* L, Player* player)
     {
-        sEluna->Push(L, player->GetManaBonusFromIntellect());
+        sEluna->Push(L, 0.0f);
         return 1;
     }
 
@@ -719,7 +716,7 @@ namespace LuaPlayer
     {
         bool isRaid = luaL_optbool(L, 1, true);
 
-        sEluna->Push(L, player->GetDifficulty(isRaid));
+        sEluna->Push(L, isRaid ? player->GetRaidDifficulty() : player->GetDungeonDifficulty());
         return 1;
     }
 
@@ -884,7 +881,7 @@ namespace LuaPlayer
         bool disabled = luaL_optbool(L, 2, false);
         bool learn_low_rank = luaL_optbool(L, 3, true);
 
-        player->RemoveSpell(entry, disabled, learn_low_rank);
+        player->removeSpell(entry, disabled, learn_low_rank);
         return 0;
     }
 
@@ -996,7 +993,7 @@ namespace LuaPlayer
     {
         uint32 entry = luaL_checkunsigned(L, 1);
 
-        player->KilledMonsterCredit(entry, ObjectGuid::Empty);
+        player->KilledMonsterCredit(entry, 0);
         return 0;
     }
 
@@ -1163,7 +1160,7 @@ namespace LuaPlayer
         uint32 lang = luaL_checkunsigned(L, 2);
         ObjectGuid guid(uint64(sEluna->CHECK_ULONG(L, 3)));
 
-        player->Whisper(text, Language(lang), player, guid);
+        player->Whisper(text, Language(lang), guid);
         return 0;
     }
 
@@ -1210,10 +1207,10 @@ namespace LuaPlayer
         uint32 petType = luaL_checkunsigned(L, 6);
         uint32 despwtime = luaL_checkunsigned(L, 7);
 
-        if (petType >= MAX_PET_TYPE)
+        if (petType >= uint32(PetType::MAX_PET_TYPE))
             return 0;
 
-        player->SummonPet(entry, x, y, z, o, despwtime)->ToCreature();
+        player->SummonPet(entry, x, y, z, o, PetType(petType), despwtime);
         return 0;
     }
 
@@ -1233,7 +1230,7 @@ namespace LuaPlayer
     int HasRestFlag(lua_State* L, Player* player)
     {
         int flag = luaL_checkinteger(L, 1);
-        sEluna->Push(L, player->HasRestFlag((RestFlag)flag));
+        sEluna->Push(L, false);
         return 1;
     }
 
@@ -1242,7 +1239,6 @@ namespace LuaPlayer
         int flag = luaL_checkinteger(L, 1);
         uint32 triggerId = luaL_optunsigned(L, 2, 0);
 
-        player->SetRestFlag((RestFlag)flag, triggerId);
         return 0;
     }
 
@@ -1280,10 +1276,10 @@ namespace LuaPlayer
             return 0;
         if (player->HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_NO_XP_GAIN))
             return 0;
-        if (victim && victim->GetTypeId() == TYPEID_UNIT && !victim->ToCreature()->HasLootRecipient())
+        if (victim && victim->GetTypeId() == TYPEID_UNIT && !victim->ToCreature()->hasLootRecipient())
             return 0;
 
-        uint8 level = player->GetLevel();
+        uint8 level = player->getLevel();
 
         if (triggerHook)
             sScriptMgr->OnGivePlayerXP(player, xp, victim);
@@ -1300,7 +1296,7 @@ namespace LuaPlayer
         }
 
         // XP to money conversion processed in Player::RewardQuest
-        if (level >= sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
+        if (level >= sWorld->getIntConfig(WorldIntConfigs::CONFIG_MAX_PLAYER_LEVEL))
             return 0;
 
         uint32 bonus_xp = 0;
@@ -1320,14 +1316,14 @@ namespace LuaPlayer
         uint32 nextLvlXP = player->GetUInt32Value(PLAYER_FIELD_NEXT_LEVEL_XP);
         uint32 newXP = curXP + xp + bonus_xp;
 
-        while (newXP >= nextLvlXP && level < sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
+        while (newXP >= nextLvlXP && level < sWorld->getIntConfig(WorldIntConfigs::CONFIG_MAX_PLAYER_LEVEL))
         {
             newXP -= nextLvlXP;
 
-            if (level < sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
+            if (level < sWorld->getIntConfig(WorldIntConfigs::CONFIG_MAX_PLAYER_LEVEL))
                 player->GiveLevel(level + 1);
 
-            level = player->GetLevel();
+            level = player->getLevel();
             nextLvlXP = player->GetUInt32Value(PLAYER_FIELD_NEXT_LEVEL_XP);
         }
 
@@ -1562,8 +1558,7 @@ namespace LuaPlayer
             return 0;
         }
 
-        player->SetByteValue(UNIT_FIELD_BYTES_0, 2, gender);
-        /*player->SetByteValue(PLAYER_BYTES_3, 0, gender);*/
+        player->SetGender(gender);
         player->InitDisplayIds();
         return 0;
     }
@@ -1733,7 +1728,7 @@ namespace LuaPlayer
 
         static const uint32 skillsArray[] = { SKILL_BOWS, SKILL_CROSSBOWS, SKILL_DAGGERS, SKILL_DEFENSE, SKILL_UNARMED, SKILL_GUNS, SKILL_AXES, SKILL_MACES, SKILL_SWORDS, SKILL_POLEARMS,
             SKILL_STAVES, SKILL_2H_AXES, SKILL_2H_MACES, SKILL_2H_SWORDS, SKILL_WANDS, SKILL_SHIELD, SKILL_FISHING, SKILL_MINING, SKILL_ENCHANTING, SKILL_BLACKSMITHING,
-            SKILL_ALCHEMY, SKILL_HERBALISM, SKILL_ENGINEERING, SKILL_JEWELCRAFTING, SKILL_LEATHERWORKING, SKILL_LOCKPICKING, SKILL_INSCRIPTION, SKILL_SKINNING, SKILL_TAILORING
+            SKILL_ALCHEMY, SKILL_HERBALISM, SKILL_ENGINEERING, SKILL_JEWELCRAFTING, SKILL_LEATHERWORKING, SKILL_INSCRIPTION, SKILL_SKINNING, SKILL_TAILORING
         };
         static const uint32 skillsSize = sizeof(skillsArray) / sizeof(*skillsArray);
 
@@ -2019,7 +2014,7 @@ namespace LuaPlayer
     int LearnSpell(lua_State* L, Player* player)
     {
         uint32 id = luaL_checkunsigned(L, 1);
-        player->LearnSpell(id, false);
+        player->learnSpell(id, false);
         return 0;
     }
 

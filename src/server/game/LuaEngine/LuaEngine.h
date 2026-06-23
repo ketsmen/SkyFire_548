@@ -18,6 +18,8 @@ extern "C"
 #include "ElunaCompatibility.h"
 #include "HookMgr.h"
 
+#include <type_traits>
+
 typedef std::set<std::string> LoadedScripts;
 
 template<typename T> const char* GetTName();
@@ -416,6 +418,11 @@ class Eluna
         void Push(lua_State*, double);
         void Push(lua_State*, const char*);
         void Push(lua_State*, std::string);
+        template<typename T, typename std::enable_if<std::is_enum<T>::value, int>::type = 0>
+        void Push(lua_State* L, T value)
+        {
+            Push(L, static_cast<uint32>(value));
+        }
         template<typename T> void Push(lua_State* L, T const* ptr)
         {
             ElunaTemplate<T>::push(L, ptr);

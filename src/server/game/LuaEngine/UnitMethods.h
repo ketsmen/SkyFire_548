@@ -23,7 +23,7 @@ namespace LuaUnit
 
     int ClearThreatList(lua_State* L, Unit* unit)
     {
-        unit->GetThreatManager().clearReferences();
+        unit->getThreatManager().clearReferences();
         return 0;
     }
 
@@ -135,7 +135,7 @@ namespace LuaUnit
 
     int GetMountDisplayId(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetMountDisplayId());
+        sEluna->Push(L, unit->GetMountID());
         return 1;
     }
 
@@ -237,9 +237,9 @@ namespace LuaUnit
         bool apply = luaL_optbool(L, 1, true);
 
         if (apply)
-            unit->SetByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+            unit->SetByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_FFA_PVP);
         else
-            unit->RemoveByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+            unit->RemoveByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_FFA_PVP);
 
         return 0;
     }
@@ -250,12 +250,12 @@ namespace LuaUnit
 
         if (apply)
         {
-            unit->SetByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_SANCTUARY);
+            unit->SetByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_SANCTUARY);
             unit->CombatStop();
             unit->CombatStopWithPets();
         }
         else
-            unit->RemoveByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_SANCTUARY);
+            unit->RemoveByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_SANCTUARY);
 
         return 0;
     }
@@ -441,8 +441,7 @@ namespace LuaUnit
         float z = luaL_checknumber(L, 4);
         float o = luaL_checknumber(L, 5);
         uint32 respawnDelay = luaL_optunsigned(L, 6, 30);
-        G3D::Quat r;
-        sEluna->Push(L, unit->SummonGameObject(entry, x, y, z, o, r, respawnDelay));
+        sEluna->Push(L, unit->SummonGameObject(entry, x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, respawnDelay));
         return 1;
     }
 
@@ -499,7 +498,7 @@ namespace LuaUnit
 
     int GetStandState(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetStandState());
+        sEluna->Push(L, unit->getStandState());
         return 0;
     }
 
@@ -668,7 +667,7 @@ namespace LuaUnit
 
     int GetLevel(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetLevel());
+        sEluna->Push(L, unit->getLevel());
         return 1;
     }
 
@@ -684,7 +683,7 @@ namespace LuaUnit
         if (type == -1)
         {
 
-            switch (unit->GetClass())
+            switch (unit->getClass())
             {
                 case 1:
                     type = POWER_RAGE;
@@ -724,7 +723,7 @@ namespace LuaUnit
         if (type == -1)
         {
 
-            switch (unit->GetClass())
+            switch (unit->getClass())
             {
                 case 1:
                     type = POWER_RAGE;
@@ -760,7 +759,7 @@ namespace LuaUnit
 
     int GetPowerType(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetPowerType());
+        sEluna->Push(L, unit->getPowerType());
         return 1;
     }
 
@@ -778,26 +777,26 @@ namespace LuaUnit
 
     int GetPowerPct(lua_State* L, Unit* unit)
     {
-        float percent = (unit->GetPower(unit->GetPowerType()) / unit->GetMaxPower(unit->GetPowerType())) * 100;
+        float percent = (unit->GetPower(unit->getPowerType()) / unit->GetMaxPower(unit->getPowerType())) * 100;
         sEluna->Push(L, percent);
         return 1;
     }
 
     int GetGender(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetGender());
+        sEluna->Push(L, unit->getGender());
         return 1;
     }
 
     int GetRace(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetRace());
+        sEluna->Push(L, unit->getRace());
         return 1;
     }
 
     int GetClass(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetClass());
+        sEluna->Push(L, unit->getClass());
         return 1;
     }
 
@@ -810,7 +809,7 @@ namespace LuaUnit
     int GetClassAsString(lua_State* L, Unit* unit)
     {
         const char* str = NULL;
-        switch (unit->GetClass())
+        switch (unit->getClass())
         {
             case 1:
                 str = "Warrior";
@@ -853,14 +852,14 @@ namespace LuaUnit
 
     int GetFaction(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetFaction());
+        sEluna->Push(L, unit->getFaction());
         return 1;
     }
 
     int SetFaction(lua_State* L, Unit* unit)
     {
         uint32 factionId = luaL_checkunsigned(L, 1);
-        unit->SetFaction(factionId);
+        unit->setFaction(factionId);
         return 0;
     }
 
@@ -1089,42 +1088,9 @@ namespace LuaUnit
         ObjectGuid receiver(uint64(luaL_checknumber(L, 3)));
         bool bossWhisper = luaL_optbool(L, 4, false);
 
-        WorldObject* target = nullptr;
-        if (receiver)
-        {
-            switch (receiver.GetHigh())
-            {
-            case HighGuid::Unit:
-            case HighGuid::Vehicle:
-                target = unit->GetMap()->GetCreature(receiver);;
-                break;
-            case HighGuid::Pet:
-                target = unit->GetMap()->GetPet(receiver);
-                break;
-            case HighGuid::Player:                       // empty GUID case also
-                target = unit->GetMap()->GetPlayer(receiver);
-                break;
-            case HighGuid::Transport:
-            case HighGuid::GameObject:
-                target = unit->GetMap()->GetGameObject(receiver);
-                break;
-            case HighGuid::Corpse:
-                target = unit->GetMap()->GetCorpse(receiver);
-                break;
-                //case HighGuid::Mo_Transport:
-                //{
-                //    GameObject* go = HashMapHolder<GameObject>::Find(receiver);
-                //    target = go ? go->ToTransport() : NULL;
-                //    break;
-                //}
-            default:
-                //TC_LOG_ERROR("scripts", "%s target with unsupported high guid (GUID: " UI64FMTD ", high guid: %u).",
-                //    step.script->GetDebugInfo().c_str(), step.targetGUID, GUID_HIPART(step.targetGUID));
-                break;
-            }
-        }
-        if (receiver && std::string(msg).length() > 0)
-            unit->Whisper(msg, Language(lang), target->ToPlayer(), bossWhisper);
+        WorldObject* target = receiver ? ElunaGetWorldObject(*unit, receiver) : NULL;
+        if (target && target->ToPlayer() && unit->ToPlayer() && std::string(msg).length() > 0)
+            unit->ToPlayer()->Whisper(msg, Language(lang), target->ToPlayer()->GetGUID());
         return 0;
     }
 
@@ -1136,43 +1102,10 @@ namespace LuaUnit
         bool bossEmote = luaL_optbool(L, 3, false);
 
 
-        WorldObject* target = nullptr;
-        if (receiver)
-        {
-            switch (receiver.GetHigh())
-            {
-            case HighGuid::Unit:
-            case HighGuid::Vehicle:
-                target = unit->GetMap()->GetCreature(receiver);
-                break;
-            case HighGuid::Pet:
-                target = unit->GetMap()->GetPet(receiver);
-                break;
-            case HighGuid::Player:                       // empty GUID case also
-                target = unit->GetMap()->GetPlayer(receiver);
-                break;
-            case HighGuid::Transport:
-            case HighGuid::GameObject:
-                target = unit->GetMap()->GetGameObject(receiver);
-                break;
-            case HighGuid::Corpse:
-                target = unit->GetMap()->GetCorpse(receiver);
-                break;
-            //case HighGuid::Mo_Transport:
-            //{
-            //    GameObject* go = HashMapHolder<GameObject>::Find(receiver);
-            //    target = go ? go->ToTransport() : NULL;
-            //    break;
-            //}
-            default:
-                //TC_LOG_ERROR("scripts", "%s target with unsupported high guid (GUID: " UI64FMTD ", high guid: %u).",
-                //    step.script->GetDebugInfo().c_str(), step.targetGUID, GUID_HIPART(step.targetGUID));
-                break;
-            }
-        }
+        WorldObject* target = receiver ? ElunaGetWorldObject(*unit, receiver) : NULL;
 
-        if (std::string(msg).length() > 0)
-            unit->TextEmote(msg, target, bossEmote);
+        if (unit->ToPlayer() && std::string(msg).length() > 0)
+            unit->ToPlayer()->TextEmote(msg);
         return 0;
     }
 
@@ -1183,43 +1116,10 @@ namespace LuaUnit
         uint32 language = luaL_checknumber(L, 2);
         ObjectGuid guid(uint64(luaL_checknumber(L, 3)));
 
-        WorldObject* target = nullptr;
-        if (guid)
-        {
-            switch (guid.GetHigh())
-            {
-            case HighGuid::Unit:
-            case HighGuid::Vehicle:
-                target = unit->GetMap()->GetCreature(guid);
-                break;
-            case HighGuid::Pet:
-                target = unit->GetMap()->GetPet(guid);
-                break;
-            case HighGuid::Player:                       // empty GUID case also
-                target = unit->GetMap()->GetPlayer(guid);
-                break;
-            case HighGuid::Transport:
-            case HighGuid::GameObject:
-                target = unit->GetMap()->GetGameObject(guid);
-                break;
-            case HighGuid::Corpse:
-                target = unit->GetMap()->GetCorpse(guid);
-                break;
-            //case HighGuid::Mo_Transport:
-            //{
-            //    GameObject* go = HashMapHolder<GameObject>::Find(guid);
-            //    target = go ? go->ToTransport() : NULL;
-            //    break;
-            //}
-            default:
-                //TC_LOG_ERROR("scripts", "%s target with unsupported high guid (GUID: " UI64FMTD ", high guid: %u).",
-                //    step.script->GetDebugInfo().c_str(), step.targetGUID, GUID_HIPART(step.targetGUID));
-                break;
-            }
-        }
+        WorldObject* target = guid ? ElunaGetWorldObject(*unit, guid) : NULL;
 
-        if (std::string(msg).length() > 0)
-            unit->Say(msg, Language(language), target);
+        if (unit->ToPlayer() && std::string(msg).length() > 0)
+            unit->ToPlayer()->Say(msg, Language(language));
         return 0;
     }
 
@@ -1230,44 +1130,10 @@ namespace LuaUnit
         uint32 language = luaL_checknumber(L, 2);
         ObjectGuid guid(uint64(luaL_checknumber(L, 3)));
 
-        WorldObject* target = nullptr;
-        if (guid)
-        {
-            switch (guid.GetHigh())
-            {
-            case HighGuid::Unit:
-            case HighGuid::Vehicle:
-                target = unit->GetMap()->GetCreature(guid);
-                break;
-            case HighGuid::Pet:
-                target = unit->GetMap()->GetPet(guid);
-                break;
-            case HighGuid::Player:                       // empty GUID case also
-                target = unit->GetMap()->GetPlayer(guid);
-                break;
-            case HighGuid::Transport:
-            case HighGuid::GameObject:
-                target = unit->GetMap()->GetGameObject(guid);
-                break;
-            case HighGuid::Corpse:
-                target = unit->GetMap()->GetCorpse(guid);
-                break;
-                //case HighGuid::Mo_Transport:
-                //{
-                //    GameObject* go = HashMapHolder<GameObject>::Find(guid);
-                //    target = go ? go->ToTransport() : NULL;
-                //    break;
-                //}
-            default:
-                //TC_LOG_ERROR("scripts", "%s target with unsupported high guid (GUID: " UI64FMTD ", high guid: %u).",
-                //    step.script->GetDebugInfo().c_str(), step.targetGUID, GUID_HIPART(step.targetGUID));
-                break;
-            }
-        }
+        WorldObject* target = guid ? ElunaGetWorldObject(*unit, guid) : NULL;
 
-
-        if (std::string(msg).length() > 0)
-            unit->Yell(msg, Language(language), target);
+        if (unit->ToPlayer() && std::string(msg).length() > 0)
+            unit->ToPlayer()->Yell(msg, Language(language));
         return 0;
     }
 
@@ -1326,7 +1192,7 @@ namespace LuaUnit
 
     int GetCombatTime(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->GetPvECombatTimer());
+        sEluna->Push(L, unit->GetCombatTimer());
         return 1;
     }
 
@@ -1414,8 +1280,6 @@ namespace LuaUnit
 
         if (player)
             unit->PlayDistanceSound(soundId, player);
-        else
-            unit->PlayDistanceSound(soundId);
         return 0;
     }
 
@@ -1649,9 +1513,9 @@ namespace LuaUnit
         if (!summon)
             return 0;
         if (summon->HasUnitTypeMask(UNIT_MASK_GUARDIAN))
-            ((Guardian*)summon)->InitStatsForLevel(unit->GetLevel());
+            ((Guardian*)summon)->InitStatsForLevel(unit->getLevel());
         if (properties && properties->Category == SUMMON_CATEGORY_ALLY)
-            summon->SetFaction(unit->GetFaction());
+            summon->setFaction(unit->getFaction());
         if (summon->GetEntry() == 27893)
         {
             if (uint32 weapon = unit->GetUInt32Value(PLAYER_FIELD_VISIBLE_ITEMS + 16))

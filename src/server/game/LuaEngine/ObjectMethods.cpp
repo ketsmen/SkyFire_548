@@ -167,7 +167,7 @@ namespace LuaObject
     }
     int GetGUIDLow(lua_State* L, Object* obj)
     {
-        sEluna->Push(L, obj->GetGUID().GetCounter());
+        sEluna->Push(L, GUID_LOPART(obj->GetGUID()));
         return 1;
     }
     int IsInWorld(lua_State* L, Object* obj)

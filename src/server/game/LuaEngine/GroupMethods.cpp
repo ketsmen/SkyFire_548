@@ -194,7 +194,7 @@ namespace LuaGroup
 
     int ConvertToLFG(lua_State* L, Group* group)
     {
-        group->ConvertToLFG(true);
+        group->ConvertToLFG();
         return 0;
     }
 

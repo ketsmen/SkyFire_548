@@ -54,7 +54,7 @@ namespace LuaVehicle
         bool minion = luaL_checkbool(L, 3);
         uint8 typeId = luaL_checkunsigned(L, 4);
         uint32 summonTime = luaL_checkunsigned(L, 5);
-        vehicle->InstallAccessory(entry, seatId, minion, typeId, summonTime);
+        vehicle->InstallAccessory(entry, seatId, minion, static_cast<TempSummonType>(typeId), summonTime);
         return 0;
     }
 

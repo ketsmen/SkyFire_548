@@ -1083,7 +1083,7 @@ bool HookMgr::OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* pTrigger, b
         sEluna->BeginCall((*itr));
         sEluna->Push(sEluna->L, TRIGGER_EVENT_ON_TRIGGER);
         sEluna->Push(sEluna->L, pPlayer);
-        sEluna->Push(sEluna->L, pTrigger->ID);
+        sEluna->Push(sEluna->L, pTrigger->id);
         sEluna->Push(sEluna->L, entered);
         sEluna->ExecuteCall(4, 0);
     }
@@ -1297,9 +1297,9 @@ struct HookMgr::ElunaCreatureAI : ScriptedAI
 
     //Called for reaction at enter to combat if not in combat yet (enemy can be NULL)
     //Called at creature aggro either by MoveInLOS or Attack Start
-    void JustEngagedWith(Unit* target) override
+    void EnterCombat(Unit* target) override
     {
-        ScriptedAI::JustEngagedWith(target);
+        ScriptedAI::EnterCombat(target);
         int bind = sEluna->CreatureEventBindings->GetBind(me->GetEntry(), CREATURE_EVENT_ON_ENTER_COMBAT);
         if (!bind)
             return;
@@ -1539,9 +1539,9 @@ struct HookMgr::ElunaCreatureAI : ScriptedAI
     }
 
     // Called when creature is spawned or respawned (for reseting variables)
-    void JustAppeared() override
+    void JustRespawned() override
     {
-        ScriptedAI::JustAppeared();
+        ScriptedAI::JustRespawned();
         int bind = sEluna->CreatureEventBindings->GetBind(me->GetEntry(), CREATURE_EVENT_ON_SPAWN);
         if (!bind)
             return;
@@ -1704,12 +1704,12 @@ struct HookMgr::ElunaGameObjectAI : public GameObjectAI
 
     void UpdateAI(uint32 diff) override
     {
-        int bind = sEluna->GameObjectEventBindings->GetBind(me->GetEntry(), GAMEOBJECT_EVENT_ON_AIUPDATE);
+        int bind = sEluna->GameObjectEventBindings->GetBind(go->GetEntry(), GAMEOBJECT_EVENT_ON_AIUPDATE);
         if (!bind)
             return;
         sEluna->BeginCall(bind);
         sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_AIUPDATE);
-        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, go);
         sEluna->Push(sEluna->L, diff);
         sEluna->ExecuteCall(3, 0);
     }
@@ -1721,15 +1721,15 @@ struct HookMgr::ElunaGameObjectAI : public GameObjectAI
         sEluna->Push(sEluna->L, funcRef);
         sEluna->Push(sEluna->L, delay);
         sEluna->Push(sEluna->L, calls);
-        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, go);
         sEluna->ExecuteCall(4, 0);
     }
 
     void Reset() override
     {
-        sEluna->BeginCall(sEluna->GameObjectEventBindings->GetBind(me->GetEntry(), GAMEOBJECT_EVENT_ON_RESET));
+        sEluna->BeginCall(sEluna->GameObjectEventBindings->GetBind(go->GetEntry(), GAMEOBJECT_EVENT_ON_RESET));
         sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_RESET);
-        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, go);
         sEluna->ExecuteCall(2, 0);
     }
 };

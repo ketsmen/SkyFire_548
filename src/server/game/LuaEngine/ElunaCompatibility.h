@@ -35,4 +35,14 @@ static constexpr GOState GO_STATE_ACTIVE = GOState::GO_STATE_ACTIVE;
 static constexpr GOState GO_STATE_READY = GOState::GO_STATE_READY;
 static constexpr GOState GO_STATE_ACTIVE_ALTERNATIVE = GOState::GO_STATE_ACTIVE_ALTERNATIVE;
 
+static constexpr LootState GO_NOT_READY = LootState::GO_NOT_READY;
+static constexpr LootState GO_READY = LootState::GO_READY;
+static constexpr LootState GO_ACTIVATED = LootState::GO_ACTIVATED;
+static constexpr LootState GO_JUST_DEACTIVATED = LootState::GO_JUST_DEACTIVATED;
+
+inline WorldObject* ElunaGetWorldObject(WorldObject const& context, uint64 guid)
+{
+    return ObjectAccessor::GetWorldObject(context, guid);
+}
+
 #endif

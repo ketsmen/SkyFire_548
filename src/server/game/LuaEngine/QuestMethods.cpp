@@ -59,7 +59,7 @@ namespace LuaQuest
 
     int GetQuestInfoID(lua_State* L, Quest* quest)
     {
-        sEluna->Push(L, quest->GetQuestInfoID());
+        sEluna->Push(L, quest->GetType());
         return 1;
     }
 

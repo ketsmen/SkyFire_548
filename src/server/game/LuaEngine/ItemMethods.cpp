@@ -32,7 +32,7 @@ namespace LuaItem
 
         std::string name = temp->Name1;
         if (ItemLocale const* il = sObjectMgr->GetItemLocale(temp->ItemId))
-            ObjectMgr::GetLocaleStringOld(il->Name, loc_idx, name);
+            ObjectMgr::GetLocaleString(il->Name, loc_idx, name);
 
         if (int32 itemRandPropId = item->GetItemRandomPropertyId())
         {
@@ -69,7 +69,7 @@ namespace LuaItem
             item->GetEnchantmentId(SOCK_ENCHANTMENT_SLOT_3) << ":" <<
             item->GetEnchantmentId(BONUS_ENCHANTMENT_SLOT) << ":" <<
             item->GetItemRandomPropertyId() << ":" << item->GetItemSuffixFactor() << ":" <<
-            (uint32)item->GetOwner()->GetLevel() << "|h[" << name << "]|h|r";
+            (uint32)item->GetOwner()->getLevel() << "|h[" << name << "]|h|r";
 
         sEluna->Push(L, oss.str());
         return 1;
@@ -77,13 +77,13 @@ namespace LuaItem
 
     int GetGUID(lua_State* L, Item* item)
     {
-        sEluna->Push(L, item->GetGUID().GetRawValue());
+        sEluna->Push(L, uint64(item->GetGUID()));
         return 1;
     }
 
     int GetOwnerGUID(lua_State* L, Item* item)
     {
-        sEluna->Push(L, item->GetOwnerGUID().GetRawValue());
+        sEluna->Push(L, uint64(item->GetOwnerGUID()));
         return 1;
     }
 
@@ -325,7 +325,7 @@ namespace LuaItem
 
     int GetGUIDLow(lua_State* L, Item* item)
     {
-        sEluna->Push(L, item->GetGUID().GetCounter());
+        sEluna->Push(L, GUID_LOPART(item->GetGUID()));
         return 1;
     }
 
@@ -481,7 +481,7 @@ namespace LuaItem
 
     int SaveToDB(lua_State* L, Item* item)
     {
-        CharacterDatabaseTransaction trans = CharacterDatabaseTransaction(nullptr);
+        SQLTransaction trans = SQLTransaction(nullptr);
         item->SaveToDB(trans);
         return 0;
     }

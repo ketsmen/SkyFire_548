@@ -7,13 +7,13 @@
 #ifndef LUA_QUERYMETHODS_H
 #define LUA_QUERYMETHODS_H
 
+#include "QueryResult.h"
+
 struct lua_State;
 class ResultSet;
 
 namespace LuaQuery
 {
-    using QueryResult = std::shared_ptr<ResultSet>;
-
     int NextRow(lua_State* L, QueryResult* result);
     int GetColumnCount(lua_State* L, QueryResult* result);
     int GetRowCount(lua_State* L, QueryResult* result);

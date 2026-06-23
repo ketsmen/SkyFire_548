@@ -485,7 +485,7 @@ namespace LuaGlobalFunctions
     static int GetPlayerGUID(lua_State* L)
     {
         uint32 lowguid = luaL_checkunsigned(L, 1);
-        sEluna->Push(L, ObjectGuid(HighGuid::Player, lowguid).GetRawValue());
+        sEluna->Push(L, MAKE_NEW_GUID(lowguid, 0, HIGHGUID_PLAYER));
         return 1;
     }
 
@@ -493,7 +493,7 @@ namespace LuaGlobalFunctions
     static int GetItemGUID(lua_State* L)
     {
         uint32 lowguid = luaL_checkunsigned(L, 1);
-        sEluna->Push(L, ObjectGuid(HighGuid::Item, lowguid).GetRawValue());
+        sEluna->Push(L, MAKE_NEW_GUID(lowguid, 0, HIGHGUID_ITEM));
         return 1;
     }
 
@@ -502,7 +502,7 @@ namespace LuaGlobalFunctions
     {
         uint32 lowguid = luaL_checkunsigned(L, 1);
         uint32 entry = luaL_checkunsigned(L, 2);
-        sEluna->Push(L, ObjectGuid(HighGuid::GameObject, lowguid).GetRawValue());
+        sEluna->Push(L, MAKE_NEW_GUID(lowguid, entry, HIGHGUID_GAMEOBJECT));
         return 1;
     }
 
@@ -511,7 +511,7 @@ namespace LuaGlobalFunctions
     {
         uint32 lowguid = luaL_checkunsigned(L, 1);
         uint32 entry = luaL_checkunsigned(L, 2);
-        sEluna->Push(L, ObjectGuid(HighGuid::Unit, lowguid).GetRawValue());
+        sEluna->Push(L, MAKE_NEW_GUID(lowguid, entry, HIGHGUID_UNIT));
         return 1;
     }
 
@@ -579,13 +579,14 @@ namespace LuaGlobalFunctions
             if (save)
             {
                 Creature* creature = new Creature();
-                if (!creature->Create(map->GenerateLowGuid<HighGuid::Unit>(), map, phase, entry, 0, 0, x, y, z, o))
+                if (!creature->Create(sObjectMgr->GenerateLowGuid(HIGHGUID_UNIT), map, entry, 0, 0, x, y, z, o))
                 {
                     delete creature;
                     return 0;
                 }
 
-                creature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), phase);
+                creature->SetPhaseMask(phase, false);
+                creature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()));
 
                 uint32 db_lowguid = creature->GetDBTableGUIDLow();
                 if (!creature->LoadCreatureFromDB(db_lowguid, map))
@@ -624,13 +625,14 @@ namespace LuaGlobalFunctions
                 return 0;
 
             GameObject* object = new GameObject;
-            uint32 lowguid = map->GenerateLowGuid<HighGuid::GameObject>();
-            G3D::Quat r;
-            if (!object->Create(lowguid, objectInfo->entry, map, phase, x, y, z, o, r, 0.0f, GO_STATE_READY))
+            uint32 lowguid = sObjectMgr->GenerateLowGuid(HIGHGUID_GAMEOBJECT);
+            if (!object->Create(lowguid, objectInfo->entry, map, x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, 100, GOState::GO_STATE_READY))
             {
                 delete object;
                 return 0;
             }
+
+            object->SetPhaseMask(phase, false);
 
             if (durorresptime)
                 object->SetRespawnTime(durorresptime);
@@ -638,7 +640,7 @@ namespace LuaGlobalFunctions
             if (save)
             {
                 // fill the gameobject data and save to the db
-                object->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), phase);
+                object->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()));
 
                 // this will generate a new lowguid if the object is in an instance
                 if (!object->LoadGameObjectFromDB(lowguid, map))
@@ -668,7 +670,7 @@ namespace LuaGlobalFunctions
             luaL_error(L, "Invalid opcode type (%d)", opcode);
         else
         {
-            WorldPacket* _packet = new WorldPacket(opcode, size);
+            WorldPacket* _packet = new WorldPacket(static_cast<Opcodes>(opcode), size);
             sEluna->Push(L, _packet);
             return 1;
         }
@@ -797,7 +799,7 @@ namespace LuaGlobalFunctions
     {
         uint64 guid = sEluna->CHECK_ULONG(L, 1);
 
-        sEluna->Push(L, ObjectGuid(guid).GetCounter());
+        sEluna->Push(L, GUID_LOPART(guid));
         return 1;
     }
 
@@ -813,10 +815,10 @@ namespace LuaGlobalFunctions
         uint32 delay = luaL_optunsigned(L, ++i, 0);
         int32 argAmount = lua_gettop(L);
 
-        MailSender sender(MAIL_NORMAL, senderPlayer ? senderPlayer->GetGUID().GetCounter() : 0, (MailStationery)stationary);
+        MailSender sender(MAIL_NORMAL, senderPlayer ? GUID_LOPART(senderPlayer->GetGUID()) : 0, (MailStationery)stationary);
         MailDraft draft(subject, text);
 
-        CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+        SQLTransaction trans = CharacterDatabase.BeginTransaction();
         uint8 addedItems = 0;
         while (addedItems <= MAX_MAIL_ITEMS && i+2 <= argAmount)
         {
@@ -903,14 +905,14 @@ namespace LuaGlobalFunctions
     int GetGUIDType(lua_State* L)
     {
         uint64 guid = sEluna->CHECK_ULONG(L, 1);
-        sEluna->Push(L, uint32(ObjectGuid(guid).GetHigh()));
+        sEluna->Push(L, uint32(GUID_HIPART(guid)));
         return 1;
     }
 
     int GetGUIDEntry(lua_State* L)
     {
         uint64 guid = sEluna->CHECK_ULONG(L, 1);
-        sEluna->Push(L, ObjectGuid(guid).GetEntry());
+        sEluna->Push(L, GUID_ENPART(guid));
         return 1;
     }
 
@@ -954,15 +956,15 @@ namespace LuaGlobalFunctions
             }
             TaxiPathNodeEntry* entry = new TaxiPathNodeEntry();
             // mandatory
-            entry->MapId = luaL_checkunsigned(L, start);
-            entry->LocX = luaL_checknumber(L, start + 1);
-            entry->LocY = luaL_checknumber(L, start + 2);
-            entry->LocZ = luaL_checknumber(L, start + 3);
+            entry->mapid = luaL_checkunsigned(L, start);
+            entry->x = luaL_checknumber(L, start + 1);
+            entry->y = luaL_checknumber(L, start + 2);
+            entry->z = luaL_checknumber(L, start + 3);
             // optional
-            entry->Flags = luaL_checkunsigned(L, start + 4);
-            entry->Delay = luaL_checkunsigned(L, start + 5);
-            entry->ArrivalEventID = luaL_checkunsigned(L, start + 6);
-            entry->DepartureEventID = luaL_checkunsigned(L, start + 7);
+            entry->actionFlag = luaL_checkunsigned(L, start + 4);
+            entry->delay = luaL_checkunsigned(L, start + 5);
+            entry->arrivalEventID = luaL_checkunsigned(L, start + 6);
+            entry->departureEventID = luaL_checkunsigned(L, start + 7);
 
             nodes.push_back(*entry);
 
@@ -1006,7 +1008,7 @@ namespace LuaGlobalFunctions
 
         std::string name = temp->Name1;
         if (ItemLocale const* il = sObjectMgr->GetItemLocale(entry))
-            ObjectMgr::GetLocaleStringOld(il->Name, loc_idx, name);
+            ObjectMgr::GetLocaleString(il->Name, loc_idx, name);
 
         std::ostringstream oss;
         oss << "|c" << std::hex << ItemQualityColors[temp->Quality] << std::dec <<

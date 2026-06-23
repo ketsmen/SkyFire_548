@@ -209,17 +209,7 @@ namespace LuaWorldObject
     {
         ObjectGuid guid(uint64(sEluna->CHECK_ULONG(L, 1)));
 
-        switch (guid.GetHigh())
-        {
-        case HighGuid::Player:        sEluna->Push(L, ObjectAccessor::GetPlayer(*obj, guid)); break;
-        case HighGuid::Transport:
-        case HighGuid::Mo_Transport:
-        case HighGuid::GameObject:    sEluna->Push(L, ObjectAccessor::GetGameObject(*obj, guid)); break;
-        case HighGuid::Vehicle:
-        case HighGuid::Unit:          sEluna->Push(L, ObjectAccessor::GetCreature(*obj, guid)); break;
-        case HighGuid::Pet:           sEluna->Push(L, ObjectAccessor::GetPet(*obj, guid)); break;
-        default:                     return 0;
-        }
+        sEluna->Push(L, ElunaGetWorldObject(*obj, guid));
         return 1;
     }
 

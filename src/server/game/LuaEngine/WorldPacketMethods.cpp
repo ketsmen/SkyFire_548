@@ -30,7 +30,7 @@ namespace LuaPacket
         if (opcode >= NUM_OPCODE_HANDLERS)
             luaL_error(L, "Invalid opcode type (%d)", opcode);
         else
-            packet->SetOpcode(opcode);
+            packet->SetOpcode(static_cast<Opcodes>(opcode));
         return 0;
     }
 

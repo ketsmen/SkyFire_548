@@ -9,6 +9,9 @@
 #include "Config.h"
 #include "HookMgr.h"
 
+#define TC_LOG_INFO SF_LOG_INFO
+#define TC_LOG_ERROR SF_LOG_ERROR
+
 #if PLATFORM == PLATFORM_UNIX
 #include <dirent.h>
 #include <sys/stat.h>
@@ -124,34 +127,11 @@ void StartEluna(bool restart)
             int err = lua_pcall(sEluna->L, 0, 0, 0);
             if (err != 0 && err == LUA_ERRRUN)
             {
-                TC_LOG_INFO("server.loading", "server.loading", "[Eluna]: Error loading file `%s`.", itr->c_str());
+                TC_LOG_INFO("server.loading", "[Eluna]: Error loading file `%s`.", itr->c_str());
                 sEluna->report(sEluna->L);
             }
         }
         ++count;
-    }
-
-
-    if (restart)
-    {
-        //! Iterate over every supported source type (creature and gameobject)
-        //! Not entirely sure how this will affect units in non-loaded grids.
-        sMapMgr->DoForAllMaps([](Map* map)
-        {
-            for (auto itr : map->GetCreatureBySpawnIdStore())
-            {
-                if (itr.second->IsInWorld())
-                    if(sEluna->CreatureEventBindings->GetBindMap(itr.second->GetEntry())) // update all AI or just Eluna?
-                        itr.second->AIM_Initialize();
-            }
-
-            for (auto itr : map->GetGameObjectBySpawnIdStore())
-            {
-                if (itr.second->IsInWorld())
-                    if(sEluna->GameObjectEventBindings->GetBindMap(itr.second->GetEntry())) // update all AI or just Eluna?
-                        itr.second->AIM_Initialize();
-            }
-        });
     }
 
 
@@ -266,7 +246,7 @@ void Eluna::Initialize()
 #ifdef ELUNA
         StartEluna(false);
 #else
-        TC_LOG_ERROR("server.loading", "[Eluna]: LuaEngine is Disabled. (If you want to use it please enable in cmake)", _path);
+        TC_LOG_ERROR("server.loading", "[Eluna]: LuaEngine is Disabled. (If you want to use it please enable in cmake)");
 #endif
 }
 
@@ -683,8 +663,8 @@ void LuaTaxiMgr::StartTaxi(Player* player, uint32 pathid)
 
     std::vector<uint32> nodes;
     nodes.resize(2);
-    nodes[0] = path[0].NodeIndex;
-    nodes[1] = path[path.size() - 1].NodeIndex;
+    nodes[0] = path[0].index;
+    nodes[1] = path[path.size() - 1].index;
 
     player->ActivateTaxiPathTo(nodes);
 }
