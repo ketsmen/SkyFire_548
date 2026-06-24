@@ -1,11 +1,11 @@
-﻿-- Pending world game_graveyard_zone test update.
+-- Approved world game_graveyard_zone update.
 --
 -- Scope:
 -- - Add graveyard-zone mappings missing from the experimental world database.
 -- - This does not delete rows that exist only in the experimental database.
 -- - This does not update shared rows with different faction values; review those separately.
 --
--- Apply manually to a staging world database before promotion to sql/updates/world.
+-- Promoted from pending_updates after staging review.
 
 INSERT IGNORE INTO `game_graveyard_zone` (`id`, `ghost_zone`, `faction`) VALUES
 (1, 717, 0),
