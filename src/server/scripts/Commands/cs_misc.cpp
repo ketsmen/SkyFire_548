@@ -1342,14 +1342,9 @@ public:
 
         std::string tNameLink = handler->GetNameLink(target);
 
-        if (!target->GetSkillValue(skill))
-        {
-            handler->PSendSysMessage(LANG_SET_SKILL_ERROR, tNameLink.c_str(), skill, skillLine->name);
-            handler->SetSentErrorMessage(true);
-            return false;
-        }
-
         uint16 max = maxPureSkill ? atol(maxPureSkill) : target->GetPureMaxSkillValue(skill);
+        if (!max)
+            max = target->GetMaxSkillValueForLevel();
 
         if (level <= 0 || level > max || max <= 0)
             return false;
