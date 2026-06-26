@@ -388,7 +388,7 @@ target_include_directories(player_dump_schema_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src/server/game/Tools
 )
 
-target_compile_definitions(player_dump_schema_tests PRIVATE SKYFIRE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(player_dump_schema_tests PRIVATE SKYFIRE_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")
 
 add_test(NAME player_dump_schema_tests COMMAND player_dump_schema_tests)
 
