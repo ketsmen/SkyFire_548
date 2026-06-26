@@ -457,6 +457,7 @@ namespace Database
             << ", discovered updates=" << discoveredUpdateCount
             << ", pending updates=" << plan.PendingUpdates.size()
             << ", baseline updates=" << plan.BaselineUpdates.size()
+            << ", hash mismatch bypasses=" << plan.HashMismatchedUpdates.size()
             << ", install base=" << (plan.ShouldInstallBase ? "yes" : "no")
             << ", required SQL=" << (appliesRequiredSql ? "yes" : "no")
             << ".";
@@ -539,6 +540,12 @@ namespace Database
             if (appliedHash != state.AppliedUpdateHashes.end() && !appliedHash->second.empty() &&
                 !update.Hash.empty() && appliedHash->second != update.Hash)
             {
+                if (options.AllowUpdateHashMismatch)
+                {
+                    plan.HashMismatchedUpdates.push_back(update);
+                    continue;
+                }
+
                 plan.Error = options.Domain + " database update `" + update.Name + "` was already applied with a different hash.";
                 plan.PendingUpdates.clear();
                 return plan;

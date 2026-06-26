@@ -2,7 +2,7 @@
 #   SkyFire World Server configuration file    #
 ################################################
 [worldserver]
-ConfVersion=2026230601
+ConfVersion=2026260600
 
 ###################################################################################################
 # SECTION INDEX
@@ -126,6 +126,17 @@ WorldDatabase.AutoCreate = 0
 WorldDatabase.AutoBaseline = 0
 
 #
+#    WorldDatabase.AllowUpdateHashMismatch
+#        Description: Allows world startup update checks to continue when an already-applied
+#                     update file has the same filename but a different content hash.
+#        Important:   Useful for development databases reused across branch merges. Set to 0
+#                     for strict immutable update-file validation.
+#        Default:     1 - (Warn and continue)
+#                     0 - (Strict validation)
+
+WorldDatabase.AllowUpdateHashMismatch = 1
+
+#
 #    WorldDatabase.SqlPath
 #        Description: Root SQL directory used by world database setup, stored procedures, and
 #                     world update checks.
@@ -181,6 +192,17 @@ CharacterDatabase.AutoCreate = 0
 #                     1 - (Enabled)
 
 CharacterDatabase.AutoBaseline = 0
+
+#
+#    CharacterDatabase.AllowUpdateHashMismatch
+#        Description: Allows character startup update checks to continue when an already-applied
+#                     update file has the same filename but a different content hash.
+#        Important:   Useful for development databases reused across branch merges. Set to 0
+#                     for strict immutable update-file validation.
+#        Default:     1 - (Warn and continue)
+#                     0 - (Strict validation)
+
+CharacterDatabase.AllowUpdateHashMismatch = 1
 
 #
 #    CharacterDatabase.SqlPath

@@ -22,6 +22,7 @@ namespace Database
         bool AutoSetup = false;
         bool AutoCreate = false;
         bool AutoBaseline = false;
+        bool AllowUpdateHashMismatch = false;
         std::string Domain;
         std::string SqlPath;
         std::string BaseFileName;
@@ -53,6 +54,7 @@ namespace Database
         bool ShouldBaselineUpdates = false;
         std::vector<SqlUpdateFile> PendingUpdates;
         std::vector<SqlUpdateFile> BaselineUpdates;
+        std::vector<SqlUpdateFile> HashMismatchedUpdates;
         std::string Error;
 
         bool IsValid() const;

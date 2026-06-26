@@ -56,21 +56,31 @@ namespace
 {
     Skyfire::Database::SetupOptions LoadCharacterDatabaseSetupOptions()
     {
-        return Skyfire::Database::MakeCharacterDatabaseSetupOptions(
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeCharacterDatabaseSetupOptions(
             sConfigMgr->GetBoolDefault("CharacterDatabase.AutoSetup", false),
             sConfigMgr->GetBoolDefault("CharacterDatabase.AutoCreate", false),
             sConfigMgr->GetBoolDefault("CharacterDatabase.AutoBaseline", false),
             sConfigMgr->GetStringDefault("CharacterDatabase.SqlPath", ""));
+
+        options.AllowUpdateHashMismatch =
+            sConfigMgr->GetBoolDefault("CharacterDatabase.AllowUpdateHashMismatch", true);
+
+        return options;
     }
 
     Skyfire::Database::SetupOptions LoadWorldDatabaseSetupOptions()
     {
-        return Skyfire::Database::MakeWorldDatabaseSetupOptions(
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeWorldDatabaseSetupOptions(
             sConfigMgr->GetBoolDefault("WorldDatabase.AutoSetup", false),
             sConfigMgr->GetBoolDefault("WorldDatabase.AutoCreate", false),
             sConfigMgr->GetBoolDefault("WorldDatabase.AutoBaseline", false),
             sConfigMgr->GetStringDefault("WorldDatabase.SqlPath", ""),
             sConfigMgr->GetStringDefault("WorldDatabase.BaseSqlFile", ""));
+
+        options.AllowUpdateHashMismatch =
+            sConfigMgr->GetBoolDefault("WorldDatabase.AllowUpdateHashMismatch", true);
+
+        return options;
     }
 
     Skyfire::Database::SetupRuntimeContext GetCharacterSetupRuntimeContext()

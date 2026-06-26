@@ -286,6 +286,13 @@ namespace Database
         std::string summary = BuildSetupPlanSummary(context.DatabaseNameTitle, plan, discoveredUpdateCount,
             appliesRequiredSql);
         SF_LOG_INFO(context.LogFilter, "%s", summary.c_str());
+
+        for (SqlUpdateFile const& update : plan.HashMismatchedUpdates)
+        {
+            SF_LOG_WARN(context.LogFilter,
+                "%s database update %s was already applied with a different hash; %s.AllowUpdateHashMismatch is enabled, skipping reapply.",
+                context.DatabaseNameTitle, update.Name.c_str(), context.ConfigPrefix);
+        }
     }
 
     bool EnsureSetupTrackingTables(MYSQL* setupConnection, SetupRuntimeContext const& context)

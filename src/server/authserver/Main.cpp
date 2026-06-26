@@ -76,11 +76,16 @@ namespace
 {
     Skyfire::Database::SetupOptions LoadAuthDatabaseSetupOptions()
     {
-        return Skyfire::Database::MakeAuthDatabaseSetupOptions(
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(
             sConfigMgr->GetBoolDefault("LoginDatabase.AutoSetup", false),
             sConfigMgr->GetBoolDefault("LoginDatabase.AutoCreate", false),
             sConfigMgr->GetBoolDefault("LoginDatabase.AutoBaseline", false),
             sConfigMgr->GetStringDefault("LoginDatabase.SqlPath", ""));
+
+        options.AllowUpdateHashMismatch =
+            sConfigMgr->GetBoolDefault("LoginDatabase.AllowUpdateHashMismatch", true);
+
+        return options;
     }
 
     Skyfire::Database::SetupRuntimeContext GetAuthSetupRuntimeContext()

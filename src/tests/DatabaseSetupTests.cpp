@@ -41,6 +41,7 @@ namespace
         passed &= Expect(!options.AutoSetup, "Auth auto setup should default off");
         passed &= Expect(!options.AutoCreate, "Auth auto create should default off");
         passed &= Expect(!options.AutoBaseline, "Auth auto baseline should default off");
+        passed &= Expect(!options.AllowUpdateHashMismatch, "Auth update hash mismatch bypass should default off");
         passed &= Expect(options.SqlPath.empty(), "Auth setup SQL path should default empty");
         passed &= Expect(options.BaseFileName == "auth_database.sql", "Auth setup should use the auth base SQL file");
         passed &= Expect(options.UpdatesDirectory == "updates/auth", "Auth setup should use the auth updates directory");
@@ -57,6 +58,7 @@ namespace
         passed &= Expect(!options.AutoSetup, "Character auto setup should default off");
         passed &= Expect(!options.AutoCreate, "Character auto create should default off");
         passed &= Expect(!options.AutoBaseline, "Character auto baseline should default off");
+        passed &= Expect(!options.AllowUpdateHashMismatch, "Character update hash mismatch bypass should default off");
         passed &= Expect(options.SqlPath.empty(), "Character setup SQL path should default empty");
         passed &= Expect(options.BaseFileName == "characters_database.sql", "Character setup should use the characters base SQL file");
         passed &= Expect(options.UpdatesDirectory == "updates/characters", "Character setup should use the characters updates directory");
@@ -73,6 +75,7 @@ namespace
         passed &= Expect(!options.AutoSetup, "World auto setup should default off");
         passed &= Expect(!options.AutoCreate, "World auto create should default off");
         passed &= Expect(!options.AutoBaseline, "World auto baseline should default off");
+        passed &= Expect(!options.AllowUpdateHashMismatch, "World update hash mismatch bypass should default off");
         passed &= Expect(options.SqlPath.empty(), "World setup SQL path should default empty");
         passed &= Expect(options.BaseFileName.empty(), "World setup should not assume an in-tree base SQL file");
         passed &= Expect(options.ExternalBaseFile.empty(), "World external base SQL file should default empty");
@@ -454,6 +457,36 @@ namespace
         return passed;
     }
 
+    bool TestExistingAuthDatabaseCanBypassChangedAppliedUpdate()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, "sql");
+        options.AllowUpdateHashMismatch = true;
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = true;
+        state.AppliedUpdates.insert("2026-01-23_auth_00.sql");
+        state.AppliedUpdateHashes["2026-01-23_auth_00.sql"] = "old-hash";
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "new-hash" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Changed applied auth update should be bypassed when explicitly allowed");
+        passed &= Expect(plan.PendingUpdates.empty(), "Bypassed changed applied update should not be queued again");
+        passed &= Expect(plan.HashMismatchedUpdates.size() == 1, "Bypassed changed applied update should be reported");
+        passed &= Expect(plan.HashMismatchedUpdates[0].Name == "2026-01-23_auth_00.sql",
+            "Bypassed changed applied update should retain the update name");
+
+        return passed;
+    }
+
     bool TestExistingAuthDatabaseWithoutTrackingFailsSafe()
     {
         Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(true, false, "sql");
@@ -713,15 +746,15 @@ namespace
         bool passed = true;
         passed &= ExpectEqual(
             Skyfire::Database::BuildSetupPlanSummary("Auth", updatePlan, 2, false),
-            "Auth database setup plan: mode=apply-updates, discovered updates=2, pending updates=1, baseline updates=0, install base=no, required SQL=no.",
+            "Auth database setup plan: mode=apply-updates, discovered updates=2, pending updates=1, baseline updates=0, hash mismatch bypasses=0, install base=no, required SQL=no.",
             "Setup plan summary should describe pending update mode");
         passed &= ExpectEqual(
             Skyfire::Database::BuildSetupPlanSummary("World", worldInstallPlan, 3, true),
-            "World database setup plan: mode=install-base, discovered updates=3, pending updates=1, baseline updates=0, install base=yes, required SQL=yes.",
+            "World database setup plan: mode=install-base, discovered updates=3, pending updates=1, baseline updates=0, hash mismatch bypasses=0, install base=yes, required SQL=yes.",
             "Setup plan summary should describe base install mode and required SQL");
         passed &= ExpectEqual(
             Skyfire::Database::BuildSetupPlanSummary("Character", baselinePlan, 1, false),
-            "Character database setup plan: mode=baseline, discovered updates=1, pending updates=0, baseline updates=1, install base=no, required SQL=no.",
+            "Character database setup plan: mode=baseline, discovered updates=1, pending updates=0, baseline updates=1, hash mismatch bypasses=0, install base=no, required SQL=no.",
             "Setup plan summary should describe baseline mode");
 
         return passed;
@@ -748,6 +781,7 @@ int main()
     passed &= TestExistingWorldDatabaseRequiresStoredProcedures();
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
     passed &= TestExistingAuthDatabaseRejectsChangedAppliedUpdate();
+    passed &= TestExistingAuthDatabaseCanBypassChangedAppliedUpdate();
     passed &= TestExistingAuthDatabaseWithoutTrackingFailsSafe();
     passed &= TestExistingAuthDatabaseCanBaselineUpdates();
     passed &= TestExistingAuthDatabaseBaselineRequiresHashes();

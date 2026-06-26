@@ -2,7 +2,7 @@
 #   SkyFire Auth Server configuration file    #
 ###############################################
 [authserver]
-ConfVersion=2026310600
+ConfVersion=2026310601
 
 ###################################################################################################
 # SECTION INDEX
@@ -171,6 +171,17 @@ LoginDatabase.AutoCreate = 0
 #                     1 - (Enabled)
 
 LoginDatabase.AutoBaseline = 0
+
+#
+#    LoginDatabase.AllowUpdateHashMismatch
+#        Description: Allows auth startup update checks to continue when an already-applied
+#                     update file has the same filename but a different content hash.
+#        Important:   Useful for development databases reused across branch merges. Set to 0
+#                     for strict immutable update-file validation.
+#        Default:     1 - (Warn and continue)
+#                     0 - (Strict validation)
+
+LoginDatabase.AllowUpdateHashMismatch = 1
 
 #
 #    LoginDatabase.SqlPath
