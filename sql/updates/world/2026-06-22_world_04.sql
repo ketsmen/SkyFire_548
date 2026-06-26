@@ -1,12 +1,4 @@
--- Pending world areatrigger_tavern test update.
---
--- Scope:
--- - Add tavern area triggers that are missing from the experimental world
---   database.
--- - Keep this in pending_updates while testing; the database updater does not
---   apply files from this directory.
---
--- Apply manually to a staging world database before promotion to sql/updates/world.
+-- areatrigger_tavern: add missing tavern area triggers
 
 INSERT IGNORE INTO `areatrigger_tavern` (`id`, `name`) VALUES
 (262, 'Razorfen Kraul'),

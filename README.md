@@ -30,9 +30,6 @@ For further information on the SkyFire project, please visit our project website
 ## Supported Client Version
 **MoP 5.4.8 Build 18414**
 
-## Client Patch
-[SkyFire-Community-Tools](https://github.com/ProjectSkyfire/SkyFire_548/Community-Tools).
-
 ## Requirements
 + Platform/Architecture:
   + Ubuntu 24.04 LTS: x86_64
@@ -48,18 +45,18 @@ For further information on the SkyFire project, please visit our project website
   + 3.27.7 or newer on Linux.
   + 4.1.2 or newer on Windows.
 + Boost 1.91.0. Set `BOOST_ROOT` when Boost is installed outside the system prefix.
-+ OpenSSL 4.0.0 with the legacy provider module available.
++ OpenSSL 4.0.1 with the legacy provider module available.
 + MySQL client development libraries.
-  + MySQL 9.7 is the tested Windows install.
+  + MySQL 9.6 is the tested Windows install.
   + On Ubuntu, install the distro client development package such as `default-libmysqlclient-dev`.
 + Ninja is recommended for Linux builds.
 
 ## Install
 Detailed installation guides are available in the wiki for
 
-[Windows](https://wiki.projectskyfire.org/index.php?title=Installation_Windows),
-[Fedora 39](https://wiki.projectskyfire.org/index.php/Installation_(Fedora_39)),
-[Ubuntu 24.04](https://wiki.projectskyfire.org/index.php/Installation_(Ubuntu_24.04_LTS)) and
+[Windows](https://wiki.projectskyfire.org/index.php?title=Installation_(Windows_5xx)),
+[Fedora 39](https://wiki.projectskyfire.org/index.php?title=Installation_(Fedora_39)),
+[Ubuntu 24.04](https://wiki.projectskyfire.org/index.php?title=Installation_(Ubuntu_24.04_LTS)) and
 [Mac OSX](https://wiki.projectskyfire.org/index.php?title=Installation_Mac_OS_X).
 
 

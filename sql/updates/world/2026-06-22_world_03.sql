@@ -1,11 +1,5 @@
--- Pending world loot repair from the 2026-06-22 DBErrors.log audit.
---
--- Source: Wowhead MoP Classic NPC drop tables, parsed from https://www.wowhead.com/mop-classic/npc=<entry>.
--- Scope: creature loot IDs that are referenced by creature_template.lootid but missing from creature_loot_template.
--- This first batch only includes drops with explicit positive Wowhead percentages and item IDs present in item_template.
--- Deferred IDs need boss/encounter loot modeling or another data source before SQL is generated:
--- 61421 (Zian of the Endless Shadow), 61423 (Qiang the Merciless), 61427 (Subetai the Swift), 61429 (Meng the Demented), 71466 (Iron Juggernaut), 71475 (Rook Stonetoe), 71504 (Siegecrafter Blackfuse), 71529 (Thok the Bloodthirsty), 71859 (Earthbreaker Haromm), 71865 (Garrosh Hellscream), 72150 (Kor'kron Shadowmage), 72249 (Galakras), 72350 (Dragonmaw Elite Grunt), 72351 (Dragonmaw Flagbearer), 72365 (Dragonmaw Cannoneer), 72367 (Dragonmaw Tidal Shaman), 72433 (Mokvar the Treasurer), 72451 (Kor'kron Dark Shaman), 72661 (Zeal), 72662 (Vanity), 72728 (Kor'kron Blood Axe), 72784 (Kor'kron Gunner), 72954 (Kor'thik Honor Guard), 73191 (Aqueous Defender), 73414 (Kor'kron Reaper)
-
+-- creature_loot_template: repair missing loot rows (Wowhead MoP batch 1)
+-- Deferred boss IDs: 61421, 61423, 61427, 61429, 71466, 71475, 71504, 71529, 71859, 71865, 72150, 72249, 72350, 72351, 72365, 72367, 72433, 72451, 72661, 72662, 72728, 72784, 72954, 73191, 73414
 DELETE FROM `creature_loot_template`
 WHERE entry IN (71454, 71515, 71543, 71770, 71771, 71772, 71773, 72131, 72354, 72421, 72655, 72658, 72791, 72929, 73342, 73349, 73452);
 
@@ -119,7 +113,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71543, 105177, 6.7, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71543, 105179, 0.9, 1, 0, 1, 1);
 
--- 71770 - Kor'kron Ironblade
+-- 71770 - Kor-kron Ironblade
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71770, 72988, 60, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71770, 74841, 4, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71770, 81413, 15.4, 1, 0, 1, 1);
@@ -181,7 +175,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71770, 104228, 3.5, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71770, 104239, 1.8, 1, 0, 1, 1);
 
--- 71771 - Kor'kron Arcweaver
+-- 71771 - Kor-kron Arcweaver
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71771, 72988, 43.4, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71771, 81413, 21.1, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71771, 81414, 6, 1, 0, 1, 1);
@@ -254,7 +248,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71771, 104240, 0.6, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71771, 104242, 0.6, 1, 0, 1, 1);
 
--- 71772 - Kor'kron Assassin
+-- 71772 - Kor-kron Assassin
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71772, 72988, 42.7, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71772, 74844, 3.3, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71772, 81413, 17.2, 1, 0, 1, 1);
@@ -318,7 +312,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71772, 105830, 0.6, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71772, 105837, 0.6, 1, 0, 1, 1);
 
--- 71773 - Kor'kron Warshaman
+-- 71773 - Kor-kron Warshaman
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71773, 72988, 41.9, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71773, 74841, 3.8, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (71773, 74844, 2.6, 1, 0, 1, 1);
@@ -531,7 +525,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72354, 105836, 1, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72354, 105839, 0.6, 1, 0, 1, 1);
 
--- 72421 - Kor'kron Overseer
+-- 72421 - Kor-kron Overseer
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72421, 72988, 58.9, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72421, 81413, 15, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72421, 81414, 8.3, 1, 0, 1, 1);
@@ -792,7 +786,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72791, 104218, 0.6, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72791, 104240, 0.6, 1, 0, 1, 1);
 
--- 72929 - Sra'thik Amber-Master
+-- 72929 - Sra-thik Amber-Master
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72929, 72988, 56.2, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72929, 81200, 85, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (72929, 81220, 0.8, 1, 0, 1, 1);
@@ -1006,7 +1000,7 @@ INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, 
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73349, 105834, 0.5, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73349, 105836, 0.5, 1, 0, 1, 1);
 
--- 73452 - Harbinger of Y'Shaarj
+-- 73452 - Harbinger of Y-Shaarj
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 72988, 43.4, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 81413, 14.9, 1, 0, 1, 1);
 INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, lootmode, groupid, mincountOrRef, maxcount) VALUES (73452, 81414, 7.5, 1, 0, 1, 1);
