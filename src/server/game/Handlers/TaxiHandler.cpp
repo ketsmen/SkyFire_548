@@ -162,14 +162,7 @@ bool WorldSession::SendLearnNewTaxiNode(Creature* unit)
         WorldPacket msg(SMSG_NEW_TAXI_PATH, 0);
         SendPacket(&msg);
 
-        WorldPacket update(SMSG_TAXI_NODE_STATUS, 9);
-        update.WriteBit(1);
-        ObjectGuid guid = unit->GetGUID();
-
-        update.WriteGuidMask(guid, 1, 7, 6, 5, 4, 0, 2, 3);
-        update.WriteGuidBytes(guid, 4, 2, 3, 6, 7, 0, 1, 5);
-
-        SendPacket(&update);
+        SendTaxiStatus(unit->GetGUID());
 
         return true;
     }

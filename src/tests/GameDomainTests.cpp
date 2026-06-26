@@ -23,6 +23,7 @@
 #include "ThreatCalcHelper.h"
 #include "WorldShutdownLifecycle.h"
 #include "WorldPacket.h"
+#include "WorldStateBuilder.h"
 
 #include <cmath>
 #include <iostream>
@@ -101,6 +102,38 @@ namespace
         passed &= Expect(bitPacket.ReadBit() == true, "WorldPacket should read first written bit");
         passed &= Expect(bitPacket.ReadBit() == false, "WorldPacket should read second written bit");
         passed &= Expect(bitPacket.ReadBit() == true, "WorldPacket should read third written bit");
+
+        return passed;
+    }
+
+    bool TestWorldStateBuilderPacketLayout()
+    {
+        bool passed = true;
+
+        WorldStateBuilder builder(870, 4384, 607);
+        builder.AppendState(123, 456);
+        WorldPacket packet = builder.BuildPacket();
+
+        uint32 mapId = 0;
+        uint32 areaId = 0;
+        uint32 zoneId = 0;
+        packet.rpos(0);
+        packet >> mapId >> areaId >> zoneId;
+
+        passed &= Expect(packet.GetOpcode() == SMSG_INIT_WORLD_STATES,
+            "WorldStateBuilder should create SMSG_INIT_WORLD_STATES packets");
+        passed &= Expect(mapId == 870, "WorldStateBuilder should write map id first");
+        passed &= Expect(areaId == 4384, "WorldStateBuilder should write area id before zone id");
+        passed &= Expect(zoneId == 607, "WorldStateBuilder should write zone id after area id");
+
+        uint32 stateCount = packet.ReadBits(21);
+        passed &= Expect(stateCount == 1, "WorldStateBuilder should write a 21-bit state count");
+
+        uint32 value = 0;
+        uint32 state = 0;
+        packet >> value >> state;
+        passed &= Expect(value == 456, "WorldStateBuilder should write world-state value before id");
+        passed &= Expect(state == 123, "WorldStateBuilder should write world-state id after value");
 
         return passed;
     }
@@ -1554,6 +1587,7 @@ int main()
 
     passed &= TestCurrencyFormulaBoundaries();
     passed &= TestWorldPacketContainerBehavior();
+    passed &= TestWorldStateBuilderPacketLayout();
     passed &= TestThreatSpellModifierRules();
     passed &= TestSpellValidationMasks();
     passed &= TestSpellTargetingRules();
