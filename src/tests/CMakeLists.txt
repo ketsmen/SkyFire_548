@@ -377,6 +377,21 @@ target_include_directories(world_socket_session_state_tests PRIVATE
 
 add_test(NAME world_socket_session_state_tests COMMAND world_socket_session_state_tests)
 
+add_executable(player_dump_schema_tests
+  PlayerDumpSchemaTests.cpp
+)
+
+target_include_directories(player_dump_schema_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/game/Tools
+)
+
+target_compile_definitions(player_dump_schema_tests PRIVATE SKYFIRE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+add_test(NAME player_dump_schema_tests COMMAND player_dump_schema_tests)
+
 add_executable(game_domain_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/Auras/SpellAuraMetadata.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellCalculations.cpp

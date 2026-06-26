@@ -12,6 +12,11 @@
 #include "World.h"
 
 #define DUMP_TABLE_COUNT 29
+
+namespace CharacterDumpFields = Skyfire::PlayerDump::CharacterFields;
+namespace PetDumpFields = Skyfire::PlayerDump::PetFields;
+namespace PetDeclinedNameDumpFields = Skyfire::PlayerDump::PetDeclinedNameFields;
+
 struct DumpTable
 {
     char const* name;
@@ -35,7 +40,7 @@ static DumpTable dumpTables[DUMP_TABLE_COUNT] =
     { "character_homebind",               DTT_CHAR_TABLE },
     { "character_inventory",              DTT_INVENTORY  },
     { "character_pet",                    DTT_PET        },
-    { "character_pet_declinedname",       DTT_PET        },
+    { "character_pet_declinedname",       DTT_PET_DECLINEDNAME },
     { "character_queststatus",            DTT_CHAR_TABLE },
     { "character_queststatus_rewarded",   DTT_CHAR_TABLE },
     { "character_reputation",             DTT_CHAR_TABLE },
@@ -262,6 +267,8 @@ bool PlayerDumpWriter::DumpTable(std::string& dump, uint32 guid, char const* tab
         case DTT_ITEM:      fieldname = "guid";      guids = &items; break;
         case DTT_ITEM_GIFT: fieldname = "item_guid"; guids = &items; break;
         case DTT_PET:       fieldname = "owner";                     break;
+        case DTT_PET_DECLINEDNAME:
+                            fieldname = "owner";                     break;
         case DTT_PET_TABLE: fieldname = "guid";      guids = &pets;  break;
         case DTT_MAIL:      fieldname = "receiver";                  break;
         case DTT_MAIL_ITEM: fieldname = "mail_id";   guids = &mails; break;
@@ -309,13 +316,14 @@ bool PlayerDumpWriter::DumpTable(std::string& dump, uint32 guid, char const* tab
                     break;
                 case DTT_CHARACTER:
                 {
-                    if (result->GetFieldCount() <= 64)          // avoid crashes on next check
+                    uint32 const deleteInfosAccountIndex = CharacterDumpFields::DeleteInfosAccount - 1;
+                    if (result->GetFieldCount() <= deleteInfosAccountIndex) // avoid crashes on next check
                     {
                         SF_LOG_FATAL("misc", "PlayerDumpWriter::DumpTable - Trying to access non-existing or wrong positioned field (`deleteInfos_Account`) in `characters` table.");
                         return false;
                     }
 
-                    if (result->Fetch()[64].GetUInt32())        // characters.deleteInfos_Account - if filled error
+                    if (result->Fetch()[deleteInfosAccountIndex].GetUInt32()) // characters.deleteInfos_Account - if filled error
                         return false;
                     break;
                 }
@@ -513,38 +521,38 @@ DumpReturn PlayerDumpReader::LoadDump(std::string const& file, uint32 account, s
         {
             case DTT_CHARACTER:
             {
-                if (!changenth(line, 1, newguid))           // characters.guid update
+                if (!changenth(line, CharacterDumpFields::Guid, newguid)) // characters.guid update
                     ROLLBACK(DUMP_FILE_BROKEN);
 
-                if (!changenth(line, 2, chraccount))        // characters.account update
+                if (!changenth(line, CharacterDumpFields::Account, chraccount)) // characters.account update
                     ROLLBACK(DUMP_FILE_BROKEN);
 
-                race = uint8(atol(getnth(line, 4).c_str()));
-                playerClass = uint8(atol(getnth(line, 5).c_str()));
-                gender = uint8(atol(getnth(line, 6).c_str()));
-                level = uint8(atol(getnth(line, 7).c_str()));
+                race = uint8(atol(getnth(line, CharacterDumpFields::Race).c_str()));
+                playerClass = uint8(atol(getnth(line, CharacterDumpFields::Class).c_str()));
+                gender = uint8(atol(getnth(line, CharacterDumpFields::Gender).c_str()));
+                level = uint8(atol(getnth(line, CharacterDumpFields::Level).c_str()));
                 if (name == "")
                 {
                     // check if the original name already exists
-                    name = getnth(line, 3);
+                    name = getnth(line, CharacterDumpFields::Name);
 
                     PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHECK_NAME);
                     stmt->setString(0, name);
                     PreparedQueryResult result = CharacterDatabase.Query(stmt);
 
                     if (result)
-                        if (!changenth(line, 38, "1"))       // characters.at_login set to "rename on login"
+                        if (!changenth(line, CharacterDumpFields::AtLogin, "1")) // characters.at_login set to "rename on login"
                             ROLLBACK(DUMP_FILE_BROKEN);
                 }
-                else if (!changenth(line, 3, name.c_str())) // characters.name
+                else if (!changenth(line, CharacterDumpFields::Name, name.c_str())) // characters.name
                     ROLLBACK(DUMP_FILE_BROKEN);
 
                 const char null[5] = "NULL";
-                if (!changenth(line, 63, null))             // characters.deleteInfos_Account
+                if (!changenth(line, CharacterDumpFields::DeleteInfosAccount, null)) // characters.deleteInfos_Account
                     ROLLBACK(DUMP_FILE_BROKEN);
-                if (!changenth(line, 64, null))             // characters.deleteInfos_Name
+                if (!changenth(line, CharacterDumpFields::DeleteInfosName, null)) // characters.deleteInfos_Name
                     ROLLBACK(DUMP_FILE_BROKEN);
-                if (!changenth(line, 65, null))             // characters.deleteDate
+                if (!changenth(line, CharacterDumpFields::DeleteDate, null)) // characters.deleteDate
                     ROLLBACK(DUMP_FILE_BROKEN);
                 break;
             }
@@ -614,7 +622,7 @@ DumpReturn PlayerDumpReader::LoadDump(std::string const& file, uint32 account, s
             case DTT_PET:
             {
                 //store a map of old pet id to new inserted pet id for use by type 5 tables
-                snprintf(currpetid, 20, "%s", getnth(line, 1).c_str());
+                snprintf(currpetid, 20, "%s", getnth(line, PetDumpFields::Id).c_str());
                 if (*lastpetid == '\0')
                     snprintf(lastpetid, 20, "%s", currpetid);
                 if (strcmp(lastpetid, currpetid) != 0)
@@ -630,9 +638,26 @@ DumpReturn PlayerDumpReader::LoadDump(std::string const& file, uint32 account, s
                     petids.insert(PetIdsPair(atoi(currpetid), atoi(newpetid)));
                 }
 
-                if (!changenth(line, 1, newpetid))          // character_pet.id update
+                if (!changenth(line, PetDumpFields::Id, newpetid)) // character_pet.id update
                     ROLLBACK(DUMP_FILE_BROKEN);
-                if (!changenth(line, 3, newguid))           // character_pet.owner update
+                if (!changenth(line, PetDumpFields::Owner, newguid)) // character_pet.owner update
+                    ROLLBACK(DUMP_FILE_BROKEN);
+
+                break;
+            }
+            case DTT_PET_DECLINEDNAME:
+            {
+                snprintf(currpetid, 20, "%s", getnth(line, PetDeclinedNameDumpFields::Id).c_str());
+
+                std::map<uint32, uint32> ::const_iterator petids_iter = petids.find(atoi(currpetid));
+                if (petids_iter == petids.end())
+                    ROLLBACK(DUMP_FILE_BROKEN);
+
+                snprintf(newpetid, 20, "%d", petids_iter->second);
+
+                if (!changenth(line, PetDeclinedNameDumpFields::Id, newpetid)) // character_pet_declinedname.id
+                    ROLLBACK(DUMP_FILE_BROKEN);
+                if (!changenth(line, PetDeclinedNameDumpFields::Owner, newguid)) // character_pet_declinedname.owner
                     ROLLBACK(DUMP_FILE_BROKEN);
 
                 break;

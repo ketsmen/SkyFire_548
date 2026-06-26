@@ -12,6 +12,8 @@ EndScriptData */
 
 #include "AccountMgr.h"
 #include "Chat.h"
+#include "DatabaseEnv.h"
+#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "PlayerDump.h"
@@ -972,6 +974,9 @@ public:
             handler->SetSentErrorMessage(true);
             return false;
         }
+
+        sObjectAccessor->SaveAllPlayers();
+        CharacterDatabase.Wait();
 
         switch (PlayerDumpWriter().WriteDump(fileStr, uint32(guid)))
         {
