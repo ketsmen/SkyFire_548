@@ -138,6 +138,11 @@ void WorldSession::SendTaxiMenu(Creature* unit)
     data.WriteGuidBytes(Guid, 5, 2, 6, 1, 7, 4);
 
     GetPlayer()->m_taxi.AppendTaximaskTo(data, GetPlayer()->isTaxiCheater());
+
+    TraceNextOutgoingPackets(4, "taxi show nodes");
+    SF_LOG_INFO("network", "Taxi trace: show nodes currentNode=%u maskSize=%u guidLow=%u",
+        curloc, uint32(TaxiMaskSize), uint32(unit->GetGUIDLow()));
+
     SendPacket(&data);
 
     SF_LOG_DEBUG("network", "WORLD: Sent SMSG_SHOW_TAXI_NODES");
@@ -155,7 +160,12 @@ void WorldSession::SendDoFlight(uint32 mountDisplayId, uint32 path, uint32 pathN
         GetPlayer()->GetMotionMaster()->MovementExpired(false);
 
     if (mountDisplayId)
+    {
+        TraceNextOutgoingPackets(8, "taxi flight start");
+        SF_LOG_INFO("network", "Taxi trace: start flight mountDisplayId=%u path=%u pathNode=%u",
+            mountDisplayId, path, pathNode);
         GetPlayer()->Mount(mountDisplayId);
+    }
 
     GetPlayer()->GetMotionMaster()->MoveTaxiFlight(path, pathNode);
 }
@@ -336,6 +346,8 @@ void WorldSession::HandleActivateTaxiOpcode(WorldPacket& recvData)
 
 void WorldSession::SendActivateTaxiReply(ActivateTaxiReply reply)
 {
+    SF_LOG_INFO("network", "Taxi trace: activate reply=%u", uint32(reply));
+
     WorldPacket data(SMSG_ACTIVATE_TAXI_REPLY, 4);
     data.WriteBits(reply, 4);
     data.FlushBits();
