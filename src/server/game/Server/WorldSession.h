@@ -1147,7 +1147,6 @@ private:
     // logging helper
     void LogUnexpectedOpcode(WorldPacket* packet, const char* status, const char* reason) const;
     void LogUnprocessedTail(WorldPacket* packet) const;
-    void TraceNextOutgoingPackets(uint8 count, char const* reason);
 
     // EnumData helpers
     bool IsLegitCharacterForAccount(uint32 lowGUID)
@@ -1194,8 +1193,6 @@ private:
     uint32 recruiterId;
     bool isRecruiter;
     bool m_hasBoost;
-    uint8 _outgoingPacketTraceCount;
-    std::string _outgoingPacketTraceReason;
     Skyfire::LockedQueue<WorldPacket*, Skyfire::Mutex> _recvQueue;
     time_t timeLastWhoCommand;
     z_stream_s* _compressionStream;
