@@ -102,18 +102,23 @@ namespace
     bool RunCharacterDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
         Skyfire::Database::SetupOptions const& options)
     {
-        if (!options.AutoSetup)
-            return true;
-
         if (options.SqlPath.empty())
         {
-            SF_LOG_ERROR("server.worldserver", "CharacterDatabase.AutoSetup requires CharacterDatabase.SqlPath.");
-            return false;
+            if (options.AutoSetup)
+            {
+                SF_LOG_ERROR("server.worldserver", "CharacterDatabase.AutoSetup requires CharacterDatabase.SqlPath.");
+                return false;
+            }
+
+            SF_LOG_INFO("server.worldserver",
+                "CharacterDatabase.SqlPath is not configured; character database update check skipped.");
+            return true;
         }
 
         if (connectionInfo._database.empty())
         {
-            SF_LOG_ERROR("server.worldserver", "CharacterDatabase.AutoSetup requires a character database name.");
+            SF_LOG_ERROR("server.worldserver",
+                "CharacterDatabase setup and update checks require a character database name.");
             return false;
         }
 
@@ -164,7 +169,7 @@ namespace
             return false;
 
         SF_LOG_INFO("server.worldserver",
-            "Character database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            "Character database setup/update complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
             plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
             uint32(plan.BaselineUpdates.size()));
         return true;
@@ -173,18 +178,22 @@ namespace
     bool RunWorldDatabaseSetup(MySQLConnectionInfo const& connectionInfo,
         Skyfire::Database::SetupOptions const& options)
     {
-        if (!options.AutoSetup)
-            return true;
-
         if (options.SqlPath.empty())
         {
-            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires WorldDatabase.SqlPath.");
-            return false;
+            if (options.AutoSetup)
+            {
+                SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires WorldDatabase.SqlPath.");
+                return false;
+            }
+
+            SF_LOG_INFO("server.worldserver",
+                "WorldDatabase.SqlPath is not configured; world database update check skipped.");
+            return true;
         }
 
         if (connectionInfo._database.empty())
         {
-            SF_LOG_ERROR("server.worldserver", "WorldDatabase.AutoSetup requires a world database name.");
+            SF_LOG_ERROR("server.worldserver", "WorldDatabase setup and update checks require a world database name.");
             return false;
         }
 
@@ -225,7 +234,8 @@ namespace
             SF_LOG_ERROR("server.worldserver", "%s", plan.Error.c_str());
             return false;
         }
-        Skyfire::Database::LogSetupPlan(plan, updates.size(), !requiredBaseSqlPaths.empty(), context);
+        bool applyRequiredSql = options.AutoSetup && !requiredBaseSqlPaths.empty();
+        Skyfire::Database::LogSetupPlan(plan, updates.size(), applyRequiredSql, context);
 
         if (plan.ShouldInstallBase)
         {
@@ -236,14 +246,17 @@ namespace
                 return false;
         }
 
-        for (std::filesystem::path const& requiredBaseSqlPath : requiredBaseSqlPaths)
+        if (options.AutoSetup)
         {
-            std::string requiredBaseSql;
-            SF_LOG_INFO("server.worldserver", "Applying world database required SQL from %s.",
-                requiredBaseSqlPath.string().c_str());
-            if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), requiredBaseSqlPath, requiredBaseSql,
-                context))
-                return false;
+            for (std::filesystem::path const& requiredBaseSqlPath : requiredBaseSqlPaths)
+            {
+                std::string requiredBaseSql;
+                SF_LOG_INFO("server.worldserver", "Applying world database required SQL from %s.",
+                    requiredBaseSqlPath.string().c_str());
+                if (!Skyfire::Database::ExecuteSqlFile(setupConnection.get(), requiredBaseSqlPath, requiredBaseSql,
+                    context))
+                    return false;
+            }
         }
 
         if (!Skyfire::Database::EnsureSetupTrackingTables(setupConnection.get(), context))
@@ -256,7 +269,7 @@ namespace
             return false;
 
         SF_LOG_INFO("server.worldserver",
-            "World database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            "World database setup/update complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
             plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
             uint32(plan.BaselineUpdates.size()));
         return true;

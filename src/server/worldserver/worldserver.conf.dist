@@ -94,9 +94,10 @@ CharacterDatabaseInfo = "127.0.0.1;3306;skyfire;skyfire;characters"
 
 #
 #    WorldDatabase.AutoSetup
-#        Description: Enables world database setup and update checks during worldserver startup.
-#        Important:   Disabled by default. When enabled, setup failures stop startup before the
-#                     world listener is opened.
+#        Description: Enables world database base setup during worldserver startup.
+#        Important:   Disabled by default. Update checks still run when WorldDatabase.SqlPath
+#                     is configured. When enabled, setup failures stop startup before the world
+#                     listener is opened.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled)
 
@@ -117,9 +118,8 @@ WorldDatabase.AutoCreate = 0
 #    WorldDatabase.AutoBaseline
 #        Description: Records discovered world update files as already applied when the world
 #                     database is non-empty and the update tracking table does not exist.
-#        Important:   Used only when WorldDatabase.AutoSetup is enabled. This is a one-time
-#                     bootstrap mode for existing databases. Disable it after the first
-#                     successful startup.
+#        Important:   Used by the startup update checker. This is a one-time bootstrap mode for
+#                     existing databases. Disable it after the first successful startup.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled)
 
@@ -127,10 +127,11 @@ WorldDatabase.AutoBaseline = 0
 
 #
 #    WorldDatabase.SqlPath
-#        Description: Root SQL directory used by world database setup for stored procedures and
-#                     world updates.
+#        Description: Root SQL directory used by world database setup, stored procedures, and
+#                     world update checks.
 #        Example:     "D:/SkyFire/sql" or "/opt/skyfire/sql"
-#        Important:   The directory must contain base/stored_procs.sql and updates/world.
+#        Important:   The directory must contain updates/world for startup update checks.
+#                     WorldDatabase.AutoSetup also requires base/stored_procs.sql.
 #        Default:     "" - (No SQL directory configured)
 
 WorldDatabase.SqlPath = ""
@@ -149,10 +150,10 @@ WorldDatabase.BaseSqlFile = ""
 
 #
 #    CharacterDatabase.AutoSetup
-#        Description: Enables character database setup and update checks during worldserver
-#                     startup.
-#        Important:   Disabled by default. When enabled, setup failures stop startup before the
-#                     world listener is opened.
+#        Description: Enables character database base setup during worldserver startup.
+#        Important:   Disabled by default. Update checks still run when CharacterDatabase.SqlPath
+#                     is configured. When enabled, setup failures stop startup before the world
+#                     listener is opened.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled)
 
@@ -174,9 +175,8 @@ CharacterDatabase.AutoCreate = 0
 #        Description: Records discovered character update files as already applied when the
 #                     character database is non-empty and the update tracking table does not
 #                     exist.
-#        Important:   Used only when CharacterDatabase.AutoSetup is enabled. This is a one-time
-#                     bootstrap mode for existing databases. Disable it after the first
-#                     successful startup.
+#        Important:   Used by the startup update checker. This is a one-time bootstrap mode for
+#                     existing databases. Disable it after the first successful startup.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled)
 
@@ -184,10 +184,10 @@ CharacterDatabase.AutoBaseline = 0
 
 #
 #    CharacterDatabase.SqlPath
-#        Description: Root SQL directory used by character database setup.
+#        Description: Root SQL directory used by character database setup and update checks.
 #        Example:     "D:/SkyFire/sql" or "/opt/skyfire/sql"
-#        Important:   The directory must contain base/characters_database.sql and
-#                     updates/characters.
+#        Important:   The directory must contain updates/characters for startup update checks.
+#                     CharacterDatabase.AutoSetup also requires base/characters_database.sql.
 #        Default:     "" - (No SQL directory configured)
 
 CharacterDatabase.SqlPath = ""

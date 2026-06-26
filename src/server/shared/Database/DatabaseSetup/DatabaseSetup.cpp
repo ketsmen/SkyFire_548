@@ -439,11 +439,14 @@ namespace Database
     {
         SetupPlan plan;
 
-        if (!options.AutoSetup)
-            return plan;
-
         if (!state.DatabaseExists)
         {
+            if (!options.AutoSetup)
+            {
+                plan.Error = options.Domain + " database does not exist and auto setup is disabled.";
+                return plan;
+            }
+
             if (!options.AutoCreate)
             {
                 plan.Error = options.Domain + " database does not exist and auto create is disabled.";
@@ -453,8 +456,16 @@ namespace Database
             plan.ShouldCreateDatabase = true;
             plan.ShouldInstallBase = true;
         }
-        else
-            plan.ShouldInstallBase = state.SchemaTableCount == 0;
+        else if (state.SchemaTableCount == 0)
+        {
+            if (!options.AutoSetup)
+            {
+                plan.Error = options.Domain + " database is empty and auto setup is disabled.";
+                return plan;
+            }
+
+            plan.ShouldInstallBase = true;
+        }
 
         if (plan.ShouldInstallBase && !baseSqlExists)
         {
@@ -532,7 +543,7 @@ namespace Database
             return plan;
         }
 
-        if (!requiredBaseSqlExists)
+        if (options.AutoSetup && !requiredBaseSqlExists)
         {
             plan.Error = "world database required base SQL file was not found.";
             return plan;

@@ -98,18 +98,22 @@ namespace
 
     bool RunAuthDatabaseSetup(MySQLConnectionInfo const& connectionInfo, Skyfire::Database::SetupOptions const& options)
     {
-        if (!options.AutoSetup)
-            return true;
-
         if (options.SqlPath.empty())
         {
-            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires LoginDatabase.SqlPath.");
-            return false;
+            if (options.AutoSetup)
+            {
+                SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires LoginDatabase.SqlPath.");
+                return false;
+            }
+
+            SF_LOG_INFO("server.authserver",
+                "LoginDatabase.SqlPath is not configured; auth database update check skipped.");
+            return true;
         }
 
         if (connectionInfo._database.empty())
         {
-            SF_LOG_ERROR("server.authserver", "LoginDatabase.AutoSetup requires an auth database name.");
+            SF_LOG_ERROR("server.authserver", "LoginDatabase setup and update checks require an auth database name.");
             return false;
         }
 
@@ -160,7 +164,7 @@ namespace
             return false;
 
         SF_LOG_INFO("server.authserver",
-            "Auth database setup complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
+            "Auth database setup/update complete. Base installed: %s, updates applied: %u, updates baselined: %u.",
             plan.ShouldInstallBase ? "yes" : "no", uint32(plan.PendingUpdates.size()),
             uint32(plan.BaselineUpdates.size()));
         return true;

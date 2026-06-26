@@ -185,6 +185,83 @@ namespace
         return passed;
     }
 
+    bool TestExistingAuthDatabaseChecksUpdatesWhenAutoSetupIsDisabled()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(false, false, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = true;
+        state.AppliedUpdates.insert("2026-01-23_auth_00.sql");
+        state.AppliedUpdateHashes["2026-01-23_auth_00.sql"] = "hash-a";
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "hash-a" },
+            { "2026-06-26_auth_00.sql", "sql/updates/auth/2026-06-26_auth_00.sql", "hash-b" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Auth update check should run even when AutoSetup is disabled");
+        passed &= Expect(!plan.ShouldCreateDatabase, "Auth update check should not create databases when AutoSetup is disabled");
+        passed &= Expect(!plan.ShouldInstallBase, "Auth update check should not install base SQL when AutoSetup is disabled");
+        passed &= Expect(plan.PendingUpdates.size() == 1, "Auth update check should queue unapplied updates when AutoSetup is disabled");
+        passed &= Expect(plan.PendingUpdates[0].Name == "2026-06-26_auth_00.sql",
+            "Auth update check should keep the unapplied update when AutoSetup is disabled");
+
+        return passed;
+    }
+
+    bool TestEmptyAuthDatabaseRequiresAutoSetupForBaseInstall()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(false, false, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 0;
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, {});
+
+        bool passed = true;
+        passed &= Expect(!plan.IsValid(), "Empty auth database should not be installed when AutoSetup is disabled");
+        passed &= Expect(!plan.Error.empty(), "Empty auth database should explain that AutoSetup is required");
+        passed &= Expect(!plan.ShouldInstallBase, "Disabled AutoSetup should not install auth base SQL");
+
+        return passed;
+    }
+
+    bool TestExistingAuthDatabaseCanBaselineUpdatesWhenAutoSetupIsDisabled()
+    {
+        Skyfire::Database::SetupOptions options = Skyfire::Database::MakeAuthDatabaseSetupOptions(false, false, true, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 12;
+        state.UpdateTrackingExists = false;
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-01-23_auth_00.sql", "sql/updates/auth/2026-01-23_auth_00.sql", "hash-a" },
+            { "2026-06-26_auth_00.sql", "sql/updates/auth/2026-06-26_auth_00.sql", "hash-b" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildAuthDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Auth baseline should be available when AutoSetup is disabled");
+        passed &= Expect(!plan.ShouldInstallBase, "Auth baseline should not install base SQL when AutoSetup is disabled");
+        passed &= Expect(plan.ShouldBaselineUpdates, "Auth baseline should record discovered updates when AutoSetup is disabled");
+        passed &= Expect(plan.BaselineUpdates.size() == 2, "Auth baseline should include all discovered updates when AutoSetup is disabled");
+
+        return passed;
+    }
+
     bool TestEmptyCharacterDatabaseInstallsBase()
     {
         Skyfire::Database::SetupOptions options = Skyfire::Database::MakeCharacterDatabaseSetupOptions(true, false, "sql");
@@ -226,6 +303,58 @@ namespace
         passed &= Expect(!missingPlan.Error.empty(), "Missing world base dump should explain why setup stopped");
         passed &= Expect(validPlan.IsValid(), "Empty world database should be valid when base and stored procedures exist");
         passed &= Expect(validPlan.ShouldInstallBase, "Empty world database should install base SQL");
+
+        return passed;
+    }
+
+    bool TestExistingCharacterDatabaseChecksUpdatesWhenAutoSetupIsDisabled()
+    {
+        Skyfire::Database::SetupOptions options =
+            Skyfire::Database::MakeCharacterDatabaseSetupOptions(false, false, "sql");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 42;
+        state.UpdateTrackingExists = true;
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-06-26_characters_00.sql", "sql/updates/characters/2026-06-26_characters_00.sql", "hash-a" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildCharacterDatabaseSetupPlan(options, state, true, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "Character update check should run even when AutoSetup is disabled");
+        passed &= Expect(!plan.ShouldInstallBase, "Character update check should not install base SQL when AutoSetup is disabled");
+        passed &= Expect(plan.PendingUpdates.size() == 1, "Character update check should queue unapplied updates when AutoSetup is disabled");
+
+        return passed;
+    }
+
+    bool TestExistingWorldDatabaseChecksUpdatesWhenAutoSetupIsDisabled()
+    {
+        Skyfire::Database::SetupOptions options =
+            Skyfire::Database::MakeWorldDatabaseSetupOptions(false, false, "sql", "");
+
+        Skyfire::Database::SetupState state;
+        state.DatabaseExists = true;
+        state.SchemaTableCount = 1200;
+        state.UpdateTrackingExists = true;
+
+        std::vector<Skyfire::Database::SqlUpdateFile> updates =
+        {
+            { "2026-06-22_world_00.sql", "sql/updates/world/2026-06-22_world_00.sql", "hash-a" }
+        };
+
+        Skyfire::Database::SetupPlan plan =
+            Skyfire::Database::BuildWorldDatabaseSetupPlan(options, state, false, false, updates);
+
+        bool passed = true;
+        passed &= Expect(plan.IsValid(), "World update check should run even when AutoSetup is disabled");
+        passed &= Expect(!plan.ShouldInstallBase, "World update check should not install base SQL when AutoSetup is disabled");
+        passed &= Expect(plan.PendingUpdates.size() == 1, "World update check should queue unapplied updates when AutoSetup is disabled");
 
         return passed;
     }
@@ -587,8 +716,13 @@ int main()
     passed &= TestWorldDefaultsAreConservative();
     passed &= TestSqlUpdatesAreFilteredAndSorted();
     passed &= TestEmptyAuthDatabaseInstallsBaseAndPendingUpdates();
+    passed &= TestExistingAuthDatabaseChecksUpdatesWhenAutoSetupIsDisabled();
+    passed &= TestEmptyAuthDatabaseRequiresAutoSetupForBaseInstall();
+    passed &= TestExistingAuthDatabaseCanBaselineUpdatesWhenAutoSetupIsDisabled();
     passed &= TestEmptyCharacterDatabaseInstallsBase();
+    passed &= TestExistingCharacterDatabaseChecksUpdatesWhenAutoSetupIsDisabled();
     passed &= TestEmptyWorldDatabaseRequiresExternalBase();
+    passed &= TestExistingWorldDatabaseChecksUpdatesWhenAutoSetupIsDisabled();
     passed &= TestEmptyWorldDatabaseRequiresStoredProcedures();
     passed &= TestExistingWorldDatabaseRequiresStoredProcedures();
     passed &= TestExistingAuthDatabaseSkipsAppliedUpdates();
