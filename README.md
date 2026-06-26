@@ -1,4 +1,6 @@
-# ![logo](https://www.projectskyfire.org/uploads/monthly_2015_05/14_skyfire_logo.png.9efa54d2770daf92757f7e29109cf89e.png)
+<p align="center">
+  <img src="contrib/skyfire_transp.png" alt="Project SkyFire logo" width="520">
+</p>
 
 ## Build Status
 [![windows-build](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/windows.yml/badge.svg)](https://github.com/ProjectSkyfire/SkyFire_548/actions/workflows/windows.yml)
