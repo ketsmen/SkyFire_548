@@ -112,6 +112,7 @@ WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8
     recruiterId(recruiter),
     isRecruiter(isARecruiter),
     m_hasBoost(hasBoost),
+    _outgoingPacketTraceCount(0),
     timeLastWhoCommand(0),
     _RBACData(NULL)
 {
@@ -192,6 +193,14 @@ uint32 WorldSession::GetGuidLow() const
     return GetPlayer() ? GetPlayer()->GetGUIDLow() : 0;
 }
 
+void WorldSession::TraceNextOutgoingPackets(uint8 count, char const* reason)
+{
+    if (count > _outgoingPacketTraceCount)
+        _outgoingPacketTraceCount = count;
+
+    _outgoingPacketTraceReason = reason ? reason : "";
+}
+
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/)
 {
@@ -259,6 +268,15 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/
         sendLastPacketBytes = packet->wpos();               // wpos is real written size
     }
 #endif                                                      // !SKYFIRE_DEBUG
+
+    if (_outgoingPacketTraceCount)
+    {
+        std::string const opcodeName = GetOpcodeNameForLogging(packet->GetOpcode(), true);
+        SF_LOG_INFO("network", "Packet trace (%s) S->C: %s size %u",
+            _outgoingPacketTraceReason.empty() ? "session" : _outgoingPacketTraceReason.c_str(),
+            opcodeName.c_str(), uint32(packet->size()));
+        --_outgoingPacketTraceCount;
+    }
 
     if (m_Socket->SendPacket(*packet) == -1)
         m_Socket->CloseSocket();
