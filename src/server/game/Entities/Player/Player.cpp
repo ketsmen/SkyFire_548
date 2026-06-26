@@ -16579,6 +16579,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     }
     else
     {
+        GetSession()->SendActivateTaxiReply(ActivateTaxiReply::ERR_TAXI_OK);
         GetSession()->SendDoFlight(mount_display_id, sourcepath);
     }
     return true;

@@ -4149,6 +4149,12 @@ enum ActivateTaxiReply
     ERR_TAXI_NOT_STANDING = 12,
 };
 
+enum TaxiNodeStatus
+{
+    TAXI_NODE_STATUS_KNOWN = 1,
+    TAXI_NODE_STATUS_UNKNOWN = 3
+};
+
 enum ProfessionUI
 {
     MAX_PRIMARY_PROFESSIONS = 2,

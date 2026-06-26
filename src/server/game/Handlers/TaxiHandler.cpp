@@ -55,9 +55,12 @@ void WorldSession::SendTaxiStatus(uint64 guid)
     data.WriteBit(Guid[5]);
     data.WriteBit(Guid[4]);
     data.WriteBit(Guid[1]);
-    data.WriteBits(!GetPlayer()->m_taxi.IsTaximaskNodeKnown(curloc), 2);
+    uint8 status = GetPlayer()->m_taxi.IsTaximaskNodeKnown(curloc) ? TAXI_NODE_STATUS_KNOWN : TAXI_NODE_STATUS_UNKNOWN;
+    data.WriteBits(status, 2);
     data.WriteBit(Guid[3]);
     data.WriteBit(Guid[0]);
+
+    data.FlushBits();
 
     data.WriteByteSeq(Guid[0]);
     data.WriteByteSeq(Guid[5]);

@@ -148,6 +148,8 @@ namespace
         passed &= Expect(ERR_TAXI_PLAYER_ALREADY_MOUNTED == 8, "Taxi mounted reply should use the 5.4.8 mounted code");
         passed &= Expect(ERR_TAXI_SAME_NODE == 11, "Taxi same-node reply should use the 5.4.8 same-node code");
         passed &= Expect(ERR_TAXI_NOT_STANDING == 12, "Taxi not-standing reply should use the 5.4.8 not-standing code");
+        passed &= Expect(TAXI_NODE_STATUS_KNOWN == 1, "Known taxi nodes should use the 5.4.8 known-node status");
+        passed &= Expect(TAXI_NODE_STATUS_UNKNOWN == 3, "Unknown taxi nodes should use the 5.4.8 unknown-node status");
 
         return passed;
     }
