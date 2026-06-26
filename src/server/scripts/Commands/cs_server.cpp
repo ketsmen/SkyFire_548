@@ -19,6 +19,7 @@ EndScriptData */
 #include "Player.h"
 #include "RuntimeMetrics.h"
 #include "ScriptMgr.h"
+#include "ServerRestartSchedule.h"
 #include "SystemConfig.h"
 
 class server_commandscript : public CommandScript
@@ -43,6 +44,7 @@ public:
         static std::vector<ChatCommand> serverRestartCommandTable =
         {
             { "cancel", rbac::RBAC_PERM_COMMAND_SERVER_RESTART_CANCEL, true, &HandleServerShutDownCancelCommand, "", },
+            { "time",   rbac::RBAC_PERM_COMMAND_SERVER_RESTART,        true, &HandleServerRestartTimeCommand,    "", },
             { ""   ,    rbac::RBAC_PERM_COMMAND_SERVER_RESTART,        true, &HandleServerRestartCommand,        "", },
         };
 
@@ -303,6 +305,40 @@ public:
         }
         else
             sWorld->ShutdownServ(time, SHUTDOWN_MASK_RESTART, RESTART_EXIT_CODE);
+
+        return true;
+    }
+
+    static bool HandleServerRestartTimeCommand(ChatHandler* /*handler*/, char const* args)
+    {
+        if (!*args)
+            return false;
+
+        char* timeStr = strtok((char*)args, " ");
+        char* exitCodeStr = strtok(NULL, "");
+
+        uint32 delaySeconds = 0;
+        if (!Skyfire::ServerRestartSchedule::CalculateRestartDelay(timeStr, delaySeconds))
+            return false;
+
+        if (exitCodeStr)
+        {
+            int32 exitCode = atoi(exitCodeStr);
+
+            // Handle atoi() errors
+            if (exitCode == 0 && (exitCodeStr[0] != '0' || exitCodeStr[1] != '\0'))
+                return false;
+
+            // Exit code should be in range of 0-125, 126-255 is used
+            // in many shells for their own return codes and code > 255
+            // is not supported in many others
+            if (exitCode < 0 || exitCode > 125)
+                return false;
+
+            sWorld->ShutdownServ(delaySeconds, SHUTDOWN_MASK_RESTART, exitCode);
+        }
+        else
+            sWorld->ShutdownServ(delaySeconds, SHUTDOWN_MASK_RESTART, RESTART_EXIT_CODE);
 
         return true;
     }
