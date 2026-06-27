@@ -57,6 +57,7 @@
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
 #include "SpellMgr.h"
+#include "PlayerRestState.h"
 #include "Transport.h"
 #include "UpdateData.h"
 #include "UpdateFieldFlags.h"
@@ -624,6 +625,11 @@ Player::Player(WorldSession* session) : Unit(true)
     inn_pos_x = 0;
     inn_pos_y = 0;
     inn_pos_z = 0;
+    inn_area_radius = 0;
+    inn_area_box_x = 0;
+    inn_area_box_y = 0;
+    inn_area_box_z = 0;
+    inn_area_box_orientation = 0;
     m_rest_bonus = 0;
     rest_type = REST_TYPE_NO;
     ////////////////////Rest System/////////////////////
@@ -1591,6 +1597,8 @@ void Player::Update(uint32 p_time)
                 if (m_areaUpdateId != newarea)
                     UpdateArea(newarea);
 
+                UpdateRestAreaState();
+
                 m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;
             }
         }
@@ -1758,13 +1766,46 @@ void Player::setDeathState(DeathState s)
         SetUInt32Value(PLAYER_FIELD_SELF_RES_SPELL, 0);
 }
 
-void Player::InnEnter(time_t time, uint32 mapid, float x, float y, float z)
+void Player::InnEnter(time_t time, uint32 mapid, float x, float y, float z, float radius, float boxX, float boxY, float boxZ, float boxOrientation)
 {
     inn_pos_mapid = mapid;
     inn_pos_x = x;
     inn_pos_y = y;
     inn_pos_z = z;
+    inn_area_radius = radius;
+    inn_area_box_x = boxX;
+    inn_area_box_y = boxY;
+    inn_area_box_z = boxZ;
+    inn_area_box_orientation = boxOrientation;
     time_inn_enter = time;
+}
+
+bool Player::IsInCurrentInnArea(float padding) const
+{
+    Skyfire::Rest::InnAreaBounds bounds;
+    bounds.MapId = inn_pos_mapid;
+    bounds.X = inn_pos_x;
+    bounds.Y = inn_pos_y;
+    bounds.Z = inn_pos_z;
+    bounds.Radius = inn_area_radius;
+    bounds.BoxX = inn_area_box_x;
+    bounds.BoxY = inn_area_box_y;
+    bounds.BoxZ = inn_area_box_z;
+    bounds.BoxOrientation = inn_area_box_orientation;
+
+    return Skyfire::Rest::IsInsideInnArea(bounds, GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), padding);
+}
+
+void Player::UpdateRestAreaState()
+{
+    if (!HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || GetRestType() != REST_TYPE_IN_TAVERN)
+        return;
+
+    if (IsInCurrentInnArea())
+        return;
+
+    RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+    SetRestType(REST_TYPE_NO);
 }
 
 bool Player::BuildEnumData(PreparedQueryResult result, ByteBuffer* dataBuffer, ByteBuffer* bitBuffer, bool boosted)
@@ -8043,11 +8084,7 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
             if (GetRestType() == REST_TYPE_IN_TAVERN)        // Still inside a tavern or has recently left
             {
                 // Remove rest state if we have recently left a tavern.
-                if (GetMapId() != GetInnPosMapId() || GetExactDist(GetInnPosX(), GetInnPosY(), GetInnPosZ()) > 1.0f)
-                {
-                    RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-                    SetRestType(REST_TYPE_NO);
-                }
+                UpdateRestAreaState();
             }
             else                                             // Recently left a capital city
             {

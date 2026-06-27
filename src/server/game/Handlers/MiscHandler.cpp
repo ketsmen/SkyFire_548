@@ -1569,7 +1569,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
     {
         // set resting flag we are in the inn
         player->SetFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-        player->InnEnter(time(NULL), atEntry->mapid, atEntry->x, atEntry->y, atEntry->z);
+        player->InnEnter(time(NULL), atEntry->mapid, atEntry->x, atEntry->y, atEntry->z, atEntry->radius, atEntry->box_x, atEntry->box_y, atEntry->box_z, atEntry->box_orientation);
         player->SetRestType(REST_TYPE_IN_TAVERN);
 
         if (sWorld->IsFFAPvPRealm())
