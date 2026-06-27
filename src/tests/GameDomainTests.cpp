@@ -1613,6 +1613,20 @@ namespace
         passed &= Expect(!Skyfire::Rest::IsInsideInnArea(boxBounds, 0, 126.0f, 100.0f, 20.0f, 5.0f),
             "Inn box bounds should reject players outside box plus padding");
 
+        Skyfire::Rest::InnAreaBounds goldshireBounds;
+        goldshireBounds.MapId = 0;
+        goldshireBounds.X = -9465.25f;
+        goldshireBounds.Y = 61.8403f;
+        goldshireBounds.Z = 55.9146f;
+        goldshireBounds.BoxX = 68.52f;
+        goldshireBounds.BoxY = 22.56f;
+        goldshireBounds.BoxZ = 17.65f;
+
+        passed &= Expect(Skyfire::Rest::IsInsideInnArea(goldshireBounds, 0, -9458.70f, 54.82137f, 56.15725f, 0.0f),
+            "Goldshire tavern bounds should include the captured entry position");
+        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(goldshireBounds, 0, -9462.162f, 50.40414f, 56.49729f, 0.0f),
+            "Goldshire tavern bounds should reject the captured exit position without validation padding");
+
         return passed;
     }
 }

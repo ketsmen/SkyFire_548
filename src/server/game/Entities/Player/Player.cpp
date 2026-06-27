@@ -1596,11 +1596,10 @@ void Player::Update(uint32 p_time)
                 // needed for free far all arenas for example
                 if (m_areaUpdateId != newarea)
                     UpdateArea(newarea);
-
-                UpdateRestAreaState();
-
-                m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;
             }
+
+            UpdateRestAreaState();
+            m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;
         }
         else
             m_zoneUpdateTimer -= p_time;
@@ -1798,14 +1797,30 @@ bool Player::IsInCurrentInnArea(float padding) const
 
 void Player::UpdateRestAreaState()
 {
-    if (!HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || GetRestType() != REST_TYPE_IN_TAVERN)
+    if (HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING) && GetRestType() == REST_TYPE_IN_TAVERN)
+    {
+        if (IsInCurrentInnArea(0.0f))
+            return;
+
+        RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+        SetRestType(REST_TYPE_NO);
+        return;
+    }
+
+    if (HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING))
         return;
 
-    if (IsInCurrentInnArea())
+    AreaTriggerEntry const* tavernTrigger = sObjectMgr->GetTavernAreaTriggerAtPosition(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), 0.0f);
+    if (!tavernTrigger)
         return;
 
-    RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-    SetRestType(REST_TYPE_NO);
+    SetFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+    InnEnter(time(NULL), tavernTrigger->mapid, tavernTrigger->x, tavernTrigger->y, tavernTrigger->z,
+        tavernTrigger->radius, tavernTrigger->box_x, tavernTrigger->box_y, tavernTrigger->box_z, tavernTrigger->box_orientation);
+    SetRestType(REST_TYPE_IN_TAVERN);
+
+    if (sWorld->IsFFAPvPRealm())
+        RemoveByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_FFA_PVP);
 }
 
 bool Player::BuildEnumData(PreparedQueryResult result, ByteBuffer* dataBuffer, ByteBuffer* bitBuffer, bool boosted)

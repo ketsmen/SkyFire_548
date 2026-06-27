@@ -26,6 +26,7 @@
 #include "ObjectMgr.h"
 #include "Platform/TimeUtils.h"
 #include "Pet.h"
+#include "PlayerRestState.h"
 #include "PoolMgr.h"
 #include "ReputationMgr.h"
 #include "ScriptMgr.h"
@@ -5350,6 +5351,32 @@ void ObjectMgr::LoadTavernAreaTriggers()
     } while (result->NextRow());
 
     SF_LOG_INFO("server.loading", ">> Loaded %u tavern triggers in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
+}
+
+AreaTriggerEntry const* ObjectMgr::GetTavernAreaTriggerAtPosition(uint32 mapId, float x, float y, float z, float padding) const
+{
+    for (uint32 triggerId : _tavernAreaTriggerStore)
+    {
+        AreaTriggerEntry const* atEntry = sAreaTriggerStore.LookupEntry(triggerId);
+        if (!atEntry)
+            continue;
+
+        Skyfire::Rest::InnAreaBounds bounds;
+        bounds.MapId = atEntry->mapid;
+        bounds.X = atEntry->x;
+        bounds.Y = atEntry->y;
+        bounds.Z = atEntry->z;
+        bounds.Radius = atEntry->radius;
+        bounds.BoxX = atEntry->box_x;
+        bounds.BoxY = atEntry->box_y;
+        bounds.BoxZ = atEntry->box_z;
+        bounds.BoxOrientation = atEntry->box_orientation;
+
+        if (Skyfire::Rest::IsInsideInnArea(bounds, mapId, x, y, z, padding))
+            return atEntry;
+    }
+
+    return NULL;
 }
 
 void ObjectMgr::LoadAreaTriggerScripts()
