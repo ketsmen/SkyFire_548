@@ -795,7 +795,6 @@ public:
     {
         return _tavernAreaTriggerStore.find(Trigger_ID) != _tavernAreaTriggerStore.end();
     }
-    AreaTriggerEntry const* GetTavernAreaTriggerAtPosition(uint32 mapId, float x, float y, float z, float padding = 0.0f) const;
 
     bool IsGameObjectForQuests(uint32 entry) const
     {

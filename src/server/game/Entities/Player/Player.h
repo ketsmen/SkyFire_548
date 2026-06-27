@@ -1425,7 +1425,6 @@ public:
 
     void InnEnter(time_t time, uint32 mapid, float x, float y, float z,
         float radius = 0.0f, float boxX = 0.0f, float boxY = 0.0f, float boxZ = 0.0f, float boxOrientation = 0.0f);
-    bool IsInCurrentInnArea(float padding = 5.0f) const;
     void UpdateRestAreaState();
 
     float GetRestBonus() const

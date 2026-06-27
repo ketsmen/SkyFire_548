@@ -9,7 +9,6 @@
 #include "GridDefines.h"
 #include "MapLifecycle.h"
 #include "ObjectAccessorLifecycle.h"
-#include "PlayerRestState.h"
 #include "RuntimeMetrics.h"
 #include "SpellCalculations.h"
 #include "SpellAuraMetadata.h"
@@ -1581,54 +1580,6 @@ namespace
         return passed;
     }
 
-    bool TestInnRestAreaBounds()
-    {
-        bool passed = true;
-
-        Skyfire::Rest::InnAreaBounds radiusBounds;
-        radiusBounds.MapId = 0;
-        radiusBounds.X = 10.0f;
-        radiusBounds.Y = 20.0f;
-        radiusBounds.Z = 30.0f;
-        radiusBounds.Radius = 15.0f;
-
-        passed &= Expect(Skyfire::Rest::IsInsideInnArea(radiusBounds, 0, 23.0f, 20.0f, 30.0f),
-            "Inn radius bounds should include players inside the trigger radius");
-        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(radiusBounds, 1, 23.0f, 20.0f, 30.0f),
-            "Inn radius bounds should reject players on a different map");
-        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(radiusBounds, 0, 40.1f, 20.0f, 30.0f),
-            "Inn radius bounds should reject players outside radius plus padding");
-
-        Skyfire::Rest::InnAreaBounds boxBounds;
-        boxBounds.MapId = 0;
-        boxBounds.X = 100.0f;
-        boxBounds.Y = 100.0f;
-        boxBounds.Z = 20.0f;
-        boxBounds.BoxX = 40.0f;
-        boxBounds.BoxY = 20.0f;
-        boxBounds.BoxZ = 10.0f;
-
-        passed &= Expect(Skyfire::Rest::IsInsideInnArea(boxBounds, 0, 120.0f, 100.0f, 20.0f),
-            "Inn box bounds should include players inside the trigger box even beyond one yard from center");
-        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(boxBounds, 0, 126.0f, 100.0f, 20.0f, 5.0f),
-            "Inn box bounds should reject players outside box plus padding");
-
-        Skyfire::Rest::InnAreaBounds goldshireBounds;
-        goldshireBounds.MapId = 0;
-        goldshireBounds.X = -9465.25f;
-        goldshireBounds.Y = 61.8403f;
-        goldshireBounds.Z = 55.9146f;
-        goldshireBounds.BoxX = 68.52f;
-        goldshireBounds.BoxY = 22.56f;
-        goldshireBounds.BoxZ = 17.65f;
-
-        passed &= Expect(Skyfire::Rest::IsInsideInnArea(goldshireBounds, 0, -9458.70f, 54.82137f, 56.15725f, 0.0f),
-            "Goldshire tavern bounds should include the captured entry position");
-        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(goldshireBounds, 0, -9462.162f, 50.40414f, 56.49729f, 0.0f),
-            "Goldshire tavern bounds should reject the captured exit position without validation padding");
-
-        return passed;
-    }
 }
 
 int main()
@@ -1654,7 +1605,6 @@ int main()
     passed &= TestObjectAccessorLifecycleRules();
     passed &= TestWorldShutdownLifecycleRules();
     passed &= TestRuntimeMetricsRules();
-    passed &= TestInnRestAreaBounds();
 
     return passed ? 0 : 1;
 }

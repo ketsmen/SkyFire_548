@@ -57,7 +57,6 @@
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
 #include "SpellMgr.h"
-#include "PlayerRestState.h"
 #include "Transport.h"
 #include "UpdateData.h"
 #include "UpdateFieldFlags.h"
@@ -1779,48 +1778,18 @@ void Player::InnEnter(time_t time, uint32 mapid, float x, float y, float z, floa
     time_inn_enter = time;
 }
 
-bool Player::IsInCurrentInnArea(float padding) const
-{
-    Skyfire::Rest::InnAreaBounds bounds;
-    bounds.MapId = inn_pos_mapid;
-    bounds.X = inn_pos_x;
-    bounds.Y = inn_pos_y;
-    bounds.Z = inn_pos_z;
-    bounds.Radius = inn_area_radius;
-    bounds.BoxX = inn_area_box_x;
-    bounds.BoxY = inn_area_box_y;
-    bounds.BoxZ = inn_area_box_z;
-    bounds.BoxOrientation = inn_area_box_orientation;
-
-    return Skyfire::Rest::IsInsideInnArea(bounds, GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), padding);
-}
-
 void Player::UpdateRestAreaState()
 {
-    if (HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING) && GetRestType() == REST_TYPE_IN_TAVERN)
-    {
-        if (IsInCurrentInnArea(0.0f))
-            return;
-
-        RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-        SetRestType(REST_TYPE_NO);
-        return;
-    }
-
-    if (HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING))
+    if (!HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || GetRestType() != REST_TYPE_IN_TAVERN)
         return;
 
-    AreaTriggerEntry const* tavernTrigger = sObjectMgr->GetTavernAreaTriggerAtPosition(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), 0.0f);
-    if (!tavernTrigger)
+    // Tavern triggers are boundary transitions, not reliable full inn
+    // footprints. Leave handling comes from the area trigger packet itself.
+    if (GetMapId() == inn_pos_mapid)
         return;
 
-    SetFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-    InnEnter(time(NULL), tavernTrigger->mapid, tavernTrigger->x, tavernTrigger->y, tavernTrigger->z,
-        tavernTrigger->radius, tavernTrigger->box_x, tavernTrigger->box_y, tavernTrigger->box_z, tavernTrigger->box_orientation);
-    SetRestType(REST_TYPE_IN_TAVERN);
-
-    if (sWorld->IsFFAPvPRealm())
-        RemoveByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+    RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+    SetRestType(REST_TYPE_NO);
 }
 
 bool Player::BuildEnumData(PreparedQueryResult result, ByteBuffer* dataBuffer, ByteBuffer* bitBuffer, bool boosted)

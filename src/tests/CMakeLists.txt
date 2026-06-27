@@ -407,7 +407,6 @@ add_executable(game_domain_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Maps/MapLifecycle.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Globals/ObjectAccessorLifecycle.cpp
   ${CMAKE_SOURCE_DIR}/src/server/worldserver/WorldThread/WorldShutdownLifecycle.cpp
-  ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player/PlayerRestState.cpp
   GameDomainTestSupport.cpp
   GameDomainTests.cpp
 )
