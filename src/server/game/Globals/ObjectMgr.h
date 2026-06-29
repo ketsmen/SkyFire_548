@@ -134,6 +134,20 @@ struct GameTele
 
 typedef UNORDERED_MAP<uint32, GameTele > GameTeleContainer;
 
+struct TavernRestArea
+{
+    uint32 TriggerId = 0;
+    uint32 MapId = 0;
+    float X = 0.0f;
+    float Y = 0.0f;
+    float Z = 0.0f;
+    float Radius = 0.0f;
+    float BoxX = 0.0f;
+    float BoxY = 0.0f;
+    float BoxZ = 0.0f;
+    float BoxOrientation = 0.0f;
+};
+
 enum class ScriptsType
 {
     SCRIPTS_SPELL = 1,
@@ -795,6 +809,9 @@ public:
     {
         return _tavernAreaTriggerStore.find(Trigger_ID) != _tavernAreaTriggerStore.end();
     }
+    TavernRestArea const* GetTavernRestArea(uint32 triggerId) const;
+    TavernRestArea const* GetTavernRestAreaAtPosition(uint32 mapId, float x, float y, float z) const;
+    bool IsInTavernRestArea(TavernRestArea const& restArea, uint32 mapId, float x, float y, float z, float padding = 0.0f) const;
 
     bool IsGameObjectForQuests(uint32 entry) const
     {
@@ -1454,10 +1471,12 @@ private:
     typedef UNORDERED_MAP<uint32, GossipText> GossipTextContainer;
     typedef UNORDERED_MAP<uint32, uint32> QuestAreaTriggerContainer;
     typedef std::set<uint32> TavernAreaTriggerContainer;
+    typedef UNORDERED_MAP<uint32, TavernRestArea> TavernRestAreaContainer;
     typedef std::set<uint32> GameObjectForQuestContainer;
 
     QuestAreaTriggerContainer _questAreaTriggerStore;
     TavernAreaTriggerContainer _tavernAreaTriggerStore;
+    TavernRestAreaContainer _tavernRestAreaStore;
     GameObjectForQuestContainer _gameObjectForQuestStore;
     GossipTextContainer _gossipTextStore;
     AreaTriggerContainer _areaTriggerStore;
