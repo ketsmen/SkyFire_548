@@ -6,6 +6,8 @@
 #include "PlayerRestState.h"
 
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 
 namespace Skyfire
 {
@@ -52,6 +54,17 @@ namespace Rest
         return std::fabs(rotatedX - bounds.X) <= bounds.BoxX / 2.0f + padding &&
             std::fabs(rotatedY - bounds.Y) <= bounds.BoxY / 2.0f + padding &&
             std::fabs(z - bounds.Z) <= bounds.BoxZ / 2.0f + padding;
+    }
+
+    std::string FormatInnAreaBounds(InnAreaBounds const& bounds)
+    {
+        std::ostringstream output;
+        output << std::fixed << std::setprecision(2);
+        output << "map=" << bounds.MapId
+            << " center=(" << bounds.X << ',' << bounds.Y << ',' << bounds.Z << ')'
+            << " radius=" << bounds.Radius
+            << " box=(" << bounds.BoxX << ',' << bounds.BoxY << ',' << bounds.BoxZ << ',' << bounds.BoxOrientation << ')';
+        return output.str();
     }
 }
 }

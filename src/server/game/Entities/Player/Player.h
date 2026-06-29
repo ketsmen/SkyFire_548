@@ -1459,6 +1459,26 @@ public:
     {
         return inn_pos_z;
     }
+    float GetInnAreaRadius() const
+    {
+        return inn_area_radius;
+    }
+    float GetInnAreaBoxX() const
+    {
+        return inn_area_box_x;
+    }
+    float GetInnAreaBoxY() const
+    {
+        return inn_area_box_y;
+    }
+    float GetInnAreaBoxZ() const
+    {
+        return inn_area_box_z;
+    }
+    float GetInnAreaBoxOrientation() const
+    {
+        return inn_area_box_orientation;
+    }
 
     time_t GetTimeInnEnter() const
     {

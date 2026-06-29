@@ -1621,6 +1621,12 @@ namespace
         passed &= Expect(!Skyfire::Rest::IsInsideInnArea(empty, 0, 0.0f, 0.0f, 0.0f),
             "Empty inn bounds should not contain positions");
 
+        std::string formattedBounds = Skyfire::Rest::FormatInnAreaBounds(lionsPride);
+        passed &= Expect(formattedBounds.find("map=0") != std::string::npos,
+            "Formatted inn bounds should include map id");
+        passed &= Expect(formattedBounds.find("box=(60.00,48.00,20.00,0.00)") != std::string::npos,
+            "Formatted inn bounds should include box dimensions");
+
         return passed;
     }
 

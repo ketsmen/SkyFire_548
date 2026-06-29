@@ -19,6 +19,8 @@ EndScriptData */
 #include "GridNotifiersImpl.h"
 #include "Language.h"
 #include "ObjectMgr.h"
+#include "Player.h"
+#include "PlayerRestState.h"
 #include "ScriptMgr.h"
 #include "Transport.h"
 
@@ -75,6 +77,7 @@ public:
             { "areatriggers",  rbac::RBAC_PERM_COMMAND_DEBUG_AREATRIGGERS,  false, &HandleDebugAreaTriggersCommand,     "", },
             { "los",           rbac::RBAC_PERM_COMMAND_DEBUG_LOS,           false, &HandleDebugLoSCommand,              "", },
             { "moveflags",     rbac::RBAC_PERM_COMMAND_DEBUG_MOVEFLAGS,     false, &HandleDebugMoveflagsCommand,        "", },
+            { "rest",          rbac::RBAC_PERM_COMMAND_DEBUG_REST,          false, &HandleDebugRestCommand,             "", },
             { "transport",     rbac::RBAC_PERM_COMMAND_DEBUG_TRANSPORT,     false, &HandleDebugTransportCommand,        "", },
         };
         static std::vector<ChatCommand> commandTable =
@@ -1160,6 +1163,86 @@ public:
             handler->PSendSysMessage(LANG_MOVEFLAGS_SET, target->GetUnitMovementFlags(), target->GetExtraUnitMovementFlags());
         }
 
+        return true;
+    }
+
+    static char const* GetRestTypeName(RestType restType)
+    {
+        switch (restType)
+        {
+            case REST_TYPE_NO:
+                return "none";
+            case REST_TYPE_IN_TAVERN:
+                return "tavern";
+            case REST_TYPE_IN_CITY:
+                return "city";
+            default:
+                return "unknown";
+        }
+    }
+
+    static Skyfire::Rest::InnAreaBounds BuildInnAreaBounds(Player const* player)
+    {
+        Skyfire::Rest::InnAreaBounds bounds;
+        bounds.MapId = player->GetInnPosMapId();
+        bounds.X = player->GetInnPosX();
+        bounds.Y = player->GetInnPosY();
+        bounds.Z = player->GetInnPosZ();
+        bounds.Radius = player->GetInnAreaRadius();
+        bounds.BoxX = player->GetInnAreaBoxX();
+        bounds.BoxY = player->GetInnAreaBoxY();
+        bounds.BoxZ = player->GetInnAreaBoxZ();
+        bounds.BoxOrientation = player->GetInnAreaBoxOrientation();
+        return bounds;
+    }
+
+    static Skyfire::Rest::InnAreaBounds BuildInnAreaBounds(TavernRestArea const& restArea)
+    {
+        Skyfire::Rest::InnAreaBounds bounds;
+        bounds.MapId = restArea.MapId;
+        bounds.X = restArea.X;
+        bounds.Y = restArea.Y;
+        bounds.Z = restArea.Z;
+        bounds.Radius = restArea.Radius;
+        bounds.BoxX = restArea.BoxX;
+        bounds.BoxY = restArea.BoxY;
+        bounds.BoxZ = restArea.BoxZ;
+        bounds.BoxOrientation = restArea.BoxOrientation;
+        return bounds;
+    }
+
+    static bool HandleDebugRestCommand(ChatHandler* handler, char const* /*args*/)
+    {
+        Player* player = handler->GetSession()->GetPlayer();
+
+        bool resting = player->HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+        RestType restType = player->GetRestType();
+        Skyfire::Rest::InnAreaBounds storedBounds = BuildInnAreaBounds(player);
+        bool hasStoredBounds = Skyfire::Rest::HasInnAreaBounds(storedBounds);
+
+        handler->PSendSysMessage("Rest state: flag=%s type=%u (%s) bonus=%.2f",
+            resting ? "yes" : "no", uint32(restType), GetRestTypeName(restType), player->GetRestBonus());
+        handler->PSendSysMessage("Position: map=%u zone=%u area=%u x=%.2f y=%.2f z=%.2f o=%.2f",
+            player->GetMapId(), player->GetZoneId(), player->GetAreaId(),
+            player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation());
+
+        std::string storedText = Skyfire::Rest::FormatInnAreaBounds(storedBounds);
+        handler->PSendSysMessage("Stored inn: %s", storedText.c_str());
+        handler->PSendSysMessage("Stored inn bounds: %s inside=%s",
+            hasStoredBounds ? "yes" : "no",
+            hasStoredBounds && player->IsInCurrentInnArea(1.0f) ? "yes" : "no");
+
+        TavernRestArea const* restArea = sObjectMgr->GetTavernRestAreaAtPosition(
+            player->GetMapId(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ());
+
+        if (!restArea)
+        {
+            handler->PSendSysMessage("Tavern override at position: none");
+            return true;
+        }
+
+        std::string overrideText = Skyfire::Rest::FormatInnAreaBounds(BuildInnAreaBounds(*restArea));
+        handler->PSendSysMessage("Tavern override at position: trigger=%u %s", restArea->TriggerId, overrideText.c_str());
         return true;
     }
 

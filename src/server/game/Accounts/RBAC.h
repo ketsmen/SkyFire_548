@@ -693,6 +693,7 @@ namespace rbac
         RBAC_PERM_COMMAND_ACCOUNT_BOOST_ADD = 806,
         RBAC_PERM_COMMAND_ACCOUNT_BOOST_DEL = 807,
         RBAC_PERM_COMMAND_GM_NOTE = 808,
+        RBAC_PERM_COMMAND_DEBUG_REST = 809,
 
         // custom permissions 1000+
         RBAC_PERM_MAX

@@ -8,6 +8,8 @@
 
 #include "Define.h"
 
+#include <string>
+
 namespace Skyfire
 {
 namespace Rest
@@ -27,6 +29,7 @@ namespace Rest
 
     bool HasInnAreaBounds(InnAreaBounds const& bounds);
     bool IsInsideInnArea(InnAreaBounds const& bounds, uint32 mapId, float x, float y, float z, float padding = 0.0f);
+    std::string FormatInnAreaBounds(InnAreaBounds const& bounds);
 }
 }
 
