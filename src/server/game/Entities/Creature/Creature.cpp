@@ -2536,14 +2536,32 @@ void Creature::UpdateMovementFlags()
     if (m_movedPlayer)
         return;
 
+    uint32 inhabitType = GetCreatureTemplate()->InhabitType;
+
+    // Air-exclusive inhabitants should not toggle gravity from ground proximity (causes hop/bob).
+    if ((inhabitType & INHABIT_AIR) && !(inhabitType & INHABIT_GROUND))
+    {
+        if (!IsLevitating())
+            SetDisableGravity(true);
+        SetCanFly(false);
+        SetFall(false);
+        SetSwim(false);
+        return;
+    }
+
+    // Idle ground creatures do not need per-tick flag churn; uneven vmap height causes bobbing.
+    if (!(inhabitType & INHABIT_AIR) && !HasUnitMovementFlag(MOVEMENTFLAG_HOVER)
+        && !IsInCombat() && GetMotionMaster()->GetCurrentMovementGeneratorType() == IDLE_MOTION_TYPE)
+        return;
+
     // Set the movement flags if the creature is in that mode. (Only fly if actually in air, only swim if in water, etc)
     float ground = GetMap()->GetHeight(GetPositionX(), GetPositionY(), GetPositionZMinusOffset());
 
     bool isInAir = (G3D::fuzzyGt(GetPositionZMinusOffset(), ground + 0.05f) || G3D::fuzzyLt(GetPositionZMinusOffset(), ground - 0.05f)); // Can be underground too, prevent the falling
 
-    if (GetCreatureTemplate()->InhabitType & INHABIT_AIR && isInAir && !IsFalling())
+    if ((inhabitType & INHABIT_AIR) && isInAir && !IsFalling())
     {
-        if (GetCreatureTemplate()->InhabitType & INHABIT_GROUND)
+        if (inhabitType & INHABIT_GROUND)
             SetCanFly(true);
         else
             SetDisableGravity(true);
@@ -2557,7 +2575,7 @@ void Creature::UpdateMovementFlags()
     if (!isInAir)
         SetFall(false);
 
-    SetSwim(GetCreatureTemplate()->InhabitType & INHABIT_WATER && IsInWater());
+    SetSwim((inhabitType & INHABIT_WATER) && IsInWater());
 }
 
 void Creature::SetObjectScale(float scale)
