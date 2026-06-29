@@ -1,0 +1,36 @@
+# Copy this file to skyfire-build.config.ps1 and edit paths for your machine.
+# skyfire-build.config.ps1 is optional; SkyFire-Build.ps1 uses sensible defaults if missing.
+#
+# Windows install guide:
+# https://wiki.projectskyfire.org/index.php?title=Installation_(Windows_5xx)
+
+@{
+    # Dependency paths (also exported as BOOST_ROOT, OPENSSL_*, MYSQL_ROOT for CMake)
+    BoostRoot         = 'C:\local\boost_1_91_0'
+    OpenSslRootDir    = 'C:\Program Files\OpenSSL-Win64'
+    OpenSslModules    = 'C:\Program Files\OpenSSL-Win64\bin'
+    MySqlRoot         = 'C:\tools\mysql\current'
+
+    # Source, build, and install locations
+    # Leave SourceDir empty ('') to use the folder where SkyFire-Build.ps1 lives.
+    SourceDir         = ''
+    BuildDir          = ''
+    InstallPrefix     = 'C:\SkyFire_Files\Server'
+    CMakeGenerator    = 'Visual Studio 17 2022'
+    CMakeArch         = 'x64'
+    BuildConfig       = 'Release'
+
+    # Extra -D options passed to cmake configure (ON/OFF or other CMake values)
+    CMakeOptions      = @{
+        TOOLS                 = 'ON'
+        ELUNA                 = 'OFF'
+        USE_COREPCH           = 'ON'
+        USE_SCRIPTPCH         = 'ON'
+        SKYFIRE_BUILD_TESTS   = 'OFF'
+        AUTH_SERVER           = 'ON'
+        SCRIPTS               = 'ON'
+    }
+
+    # Parallel jobs for cmake --build (0 = use --parallel with no limit)
+    BuildParallelJobs = 0
+}
