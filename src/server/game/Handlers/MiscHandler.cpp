@@ -1573,6 +1573,19 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
         // enter/leave state for the trigger.
         if (!request.unk2)
         {
+            if (restArea && sObjectMgr->IsInTavernRestArea(*restArea, player->GetMapId(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), 1.0f))
+            {
+                player->SetFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+                player->InnEnter(time(NULL), restArea->MapId, restArea->X, restArea->Y, restArea->Z,
+                    restArea->Radius, restArea->BoxX, restArea->BoxY, restArea->BoxZ, restArea->BoxOrientation);
+                player->SetRestType(REST_TYPE_IN_TAVERN);
+
+                if (sWorld->IsFFAPvPRealm())
+                    player->RemoveByteFlag(UNIT_FIELD_SHAPESHIFT_FORM, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+
+                return;
+            }
+
             if (player->GetRestType() == REST_TYPE_IN_TAVERN)
             {
                 player->RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
