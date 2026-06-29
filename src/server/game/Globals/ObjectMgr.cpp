@@ -1824,7 +1824,7 @@ uint32 ObjectMgr::AddCreData(uint32 entry, uint32 /*team*/, uint32 mapId, float 
     if (!cInfo)
         return 0;
 
-    uint32 level = cInfo->minlevel == cInfo->maxlevel ? cInfo->minlevel : std::rand() % cInfo->maxlevel + cInfo->minlevel; // Only used for extracting creature base stats
+    uint32 level = cInfo->minlevel == cInfo->maxlevel ? cInfo->minlevel : uint32(std::rand() % (cInfo->maxlevel - cInfo->minlevel + 1) + cInfo->minlevel); // Only used for extracting creature base stats
     CreatureBaseStats const* stats = GetCreatureBaseStats(level, cInfo->unit_class);
 
     uint32 guid = GenerateLowGuid(HIGHGUID_UNIT);

@@ -1046,7 +1046,7 @@ void Creature::SelectLevel(const CreatureTemplate* cinfo)
     // level
     uint8 minlevel = std::min(cinfo->maxlevel, cinfo->minlevel);
     uint8 maxlevel = std::max(cinfo->maxlevel, cinfo->minlevel);
-    uint8 level = minlevel == maxlevel ? minlevel : std::rand() % maxlevel + minlevel;
+    uint8 level = minlevel == maxlevel ? minlevel : uint8(std::rand() % (maxlevel - minlevel + 1) + minlevel);
     SetLevel(level);
 
     CreatureBaseStats const* stats = sObjectMgr->GetCreatureBaseStats(level, cinfo->unit_class);
