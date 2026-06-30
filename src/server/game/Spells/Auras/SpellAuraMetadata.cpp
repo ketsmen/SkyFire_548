@@ -735,6 +735,15 @@ namespace Spells
         return 0;
     }
 
+    bool ShouldBindStackingAuraToCaster(bool canStackWithDifferentCasters, bool casterIsCreature,
+        bool casterIsSummon, bool ownerIsSummon)
+    {
+        if (!canStackWithDifferentCasters)
+            return true;
+
+        return !casterIsCreature || casterIsSummon || ownerIsSummon;
+    }
+
     uint32 GetNetOMaticRootSelfSpellId()
     {
         return SPELL_NET_O_MATIC_SELF_ROOT;

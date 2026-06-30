@@ -77,6 +77,8 @@ namespace Spells
     uint32 GetLeaderOfThePackTriggeredSpellId();
     bool IsNonAttackablePacifyAura(uint32 auraSpellId);
     uint32 GetRaidProcChargeTriggerSpellId(uint32 auraSpellId);
+    bool ShouldBindStackingAuraToCaster(bool canStackWithDifferentCasters, bool casterIsCreature,
+        bool casterIsSummon, bool ownerIsSummon);
     uint32 GetNetOMaticRootSelfSpellId();
     uint32 GetKillCommandOwnerAuraSpellId();
     uint32 GetKillCommandPetAuraSpellId();

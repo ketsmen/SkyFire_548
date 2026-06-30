@@ -34,6 +34,7 @@
 #include "ReputationMgr.h"
 #include "Spell.h"
 #include "SpellAuraEffects.h"
+#include "SpellAuraMetadata.h"
 #include "SpellAuras.h"
 #include "SpellInfo.h"
 #include "SpellMgr.h"
@@ -63,8 +64,15 @@ Aura* Unit::_TryStackingOrRefreshingExistingAura(SpellInfo const* newAura, uint3
 {
     ASSERT(casterGUID || caster);
 
-    // Check if these can stack anyway
-    if (!casterGUID && !newAura->IsStackableOnOneSlotWithDifferentCasters())
+    // Player-controlled stacked auras must remain caster-bound. Otherwise raid members
+    // can repeatedly refresh the same owned aura and inflate its stack count.
+    bool bindStackToCaster = Skyfire::Spells::ShouldBindStackingAuraToCaster(
+        newAura->IsStackableOnOneSlotWithDifferentCasters(),
+        caster->GetTypeId() == TypeID::TYPEID_UNIT,
+        caster->IsSummon(),
+        IsSummon());
+
+    if (!casterGUID && bindStackToCaster)
         casterGUID = caster->GetGUID();
 
     // passive and Incanter's Absorption and auras with different type can stack with themselves any number of times

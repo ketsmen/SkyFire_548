@@ -585,6 +585,16 @@ namespace
             "Cold Stare raid proc aura should resolve its trigger spell");
         passed &= Expect(Skyfire::Spells::GetRaidProcChargeTriggerSpellId(999999) == 0,
             "Unknown raid proc charge aura should not resolve a trigger spell");
+        passed &= Expect(Skyfire::Spells::ShouldBindStackingAuraToCaster(false, true, false, false),
+            "Non-shared stack auras should stay caster-bound");
+        passed &= Expect(Skyfire::Spells::ShouldBindStackingAuraToCaster(true, false, false, false),
+            "Player-cast stack auras should stay caster-bound");
+        passed &= Expect(Skyfire::Spells::ShouldBindStackingAuraToCaster(true, true, true, false),
+            "Summon-cast stack auras should stay caster-bound");
+        passed &= Expect(Skyfire::Spells::ShouldBindStackingAuraToCaster(true, true, false, true),
+            "Stack auras owned by summons should stay caster-bound");
+        passed &= Expect(!Skyfire::Spells::ShouldBindStackingAuraToCaster(true, true, false, false),
+            "Creature encounter stack auras should still be allowed to share a target stack");
 
         passed &= Expect(Skyfire::Spells::GetNetOMaticRootSelfSpellId() == 13138,
             "Net-o-matic should name its self-root spell");
