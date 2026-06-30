@@ -26,6 +26,7 @@
 #include "ObjectMgr.h"
 #include "Platform/TimeUtils.h"
 #include "Pet.h"
+#include "PlayerRestState.h"
 #include "PoolMgr.h"
 #include "ReputationMgr.h"
 #include "ScriptMgr.h"
@@ -43,6 +44,24 @@
 ScriptMapMap sSpellScripts;
 ScriptMapMap sEventScripts;
 ScriptMapMap sWaypointScripts;
+
+namespace
+{
+    Skyfire::Rest::InnAreaBounds ToInnAreaBounds(TavernRestArea const& restArea)
+    {
+        Skyfire::Rest::InnAreaBounds bounds;
+        bounds.MapId = restArea.MapId;
+        bounds.X = restArea.X;
+        bounds.Y = restArea.Y;
+        bounds.Z = restArea.Z;
+        bounds.Radius = restArea.Radius;
+        bounds.BoxX = restArea.BoxX;
+        bounds.BoxY = restArea.BoxY;
+        bounds.BoxZ = restArea.BoxZ;
+        bounds.BoxOrientation = restArea.BoxOrientation;
+        return bounds;
+    }
+}
 
 std::string GetScriptsTableNameByType(ScriptsType type)
 {
@@ -5320,6 +5339,7 @@ void ObjectMgr::LoadTavernAreaTriggers()
     uint32 oldMSTime = getMSTime();
 
     _tavernAreaTriggerStore.clear();                          // need for reload case
+    _tavernRestAreaStore.clear();
 
     QueryResult result = WorldDatabase.Query("SELECT id FROM areatrigger_tavern");
 
@@ -5350,6 +5370,77 @@ void ObjectMgr::LoadTavernAreaTriggers()
     } while (result->NextRow());
 
     SF_LOG_INFO("server.loading", ">> Loaded %u tavern triggers in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
+
+    oldMSTime = getMSTime();
+
+    QueryResult restAreaResult = WorldDatabase.Query(
+        "SELECT id, map, position_x, position_y, position_z, radius, box_x, box_y, box_z, box_orientation "
+        "FROM areatrigger_tavern_rest_area");
+
+    if (!restAreaResult)
+    {
+        SF_LOG_INFO("server.loading", ">> Loaded 0 tavern rest area overrides.");
+        return;
+    }
+
+    uint32 restAreaCount = 0;
+
+    do
+    {
+        Field* fields = restAreaResult->Fetch();
+
+        TavernRestArea restArea;
+        restArea.TriggerId = fields[0].GetUInt32();
+        restArea.MapId = fields[1].GetUInt32();
+        restArea.X = fields[2].GetFloat();
+        restArea.Y = fields[3].GetFloat();
+        restArea.Z = fields[4].GetFloat();
+        restArea.Radius = fields[5].GetFloat();
+        restArea.BoxX = fields[6].GetFloat();
+        restArea.BoxY = fields[7].GetFloat();
+        restArea.BoxZ = fields[8].GetFloat();
+        restArea.BoxOrientation = fields[9].GetFloat();
+
+        if (!IsTavernAreaTrigger(restArea.TriggerId))
+        {
+            SF_LOG_ERROR("sql.sql", "Table `areatrigger_tavern_rest_area` has override for non-tavern area trigger %u.", restArea.TriggerId);
+            continue;
+        }
+
+        if (!Skyfire::Rest::HasInnAreaBounds(ToInnAreaBounds(restArea)))
+        {
+            SF_LOG_ERROR("sql.sql", "Table `areatrigger_tavern_rest_area` has empty bounds for area trigger %u.", restArea.TriggerId);
+            continue;
+        }
+
+        _tavernRestAreaStore[restArea.TriggerId] = restArea;
+        ++restAreaCount;
+    } while (restAreaResult->NextRow());
+
+    SF_LOG_INFO("server.loading", ">> Loaded %u tavern rest area overrides in %u ms", restAreaCount, GetMSTimeDiffToNow(oldMSTime));
+}
+
+TavernRestArea const* ObjectMgr::GetTavernRestArea(uint32 triggerId) const
+{
+    TavernRestAreaContainer::const_iterator itr = _tavernRestAreaStore.find(triggerId);
+    if (itr == _tavernRestAreaStore.end())
+        return NULL;
+
+    return &itr->second;
+}
+
+bool ObjectMgr::IsInTavernRestArea(TavernRestArea const& restArea, uint32 mapId, float x, float y, float z, float padding) const
+{
+    return Skyfire::Rest::IsInsideInnArea(ToInnAreaBounds(restArea), mapId, x, y, z, padding);
+}
+
+TavernRestArea const* ObjectMgr::GetTavernRestAreaAtPosition(uint32 mapId, float x, float y, float z) const
+{
+    for (TavernRestAreaContainer::const_iterator itr = _tavernRestAreaStore.begin(); itr != _tavernRestAreaStore.end(); ++itr)
+        if (IsInTavernRestArea(itr->second, mapId, x, y, z))
+            return &itr->second;
+
+    return NULL;
 }
 
 void ObjectMgr::LoadAreaTriggerScripts()

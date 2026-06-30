@@ -9,6 +9,7 @@
 #include "GridDefines.h"
 #include "MapLifecycle.h"
 #include "ObjectAccessorLifecycle.h"
+#include "PlayerRestState.h"
 #include "RuntimeMetrics.h"
 #include "SpellCalculations.h"
 #include "SpellAuraMetadata.h"
@@ -1579,6 +1580,56 @@ namespace
 
         return passed;
     }
+
+    bool TestInnAreaBoundsRules()
+    {
+        bool passed = true;
+
+        Skyfire::Rest::InnAreaBounds lionsPride;
+        lionsPride.MapId = 0;
+        lionsPride.X = -9467.07f;
+        lionsPride.Y = 23.8406f;
+        lionsPride.Z = 56.34f;
+        lionsPride.BoxX = 60.0f;
+        lionsPride.BoxY = 48.0f;
+        lionsPride.BoxZ = 20.0f;
+
+        passed &= Expect(Skyfire::Rest::HasInnAreaBounds(lionsPride),
+            "Lion's Pride override should be recognized as bounded");
+        passed &= Expect(Skyfire::Rest::IsInsideInnArea(lionsPride, 0, -9467.07f, 23.8406f, 56.34f),
+            "Lion's Pride center note should be inside the corrected inn footprint");
+        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(lionsPride, 0, -9458.70f, 54.82137f, 56.15725f),
+            "Lion's Pride threshold trigger point should not be treated as inside the inn");
+        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(lionsPride, 0, -9462.162f, 50.40414f, 56.49729f),
+            "Lion's Pride outside trigger point should not be treated as inside the inn");
+
+        Skyfire::Rest::InnAreaBounds lakeshire;
+        lakeshire.MapId = 0;
+        lakeshire.X = -9219.37f;
+        lakeshire.Y = -2149.94f;
+        lakeshire.Z = 70.606f;
+        lakeshire.Radius = 30.0f;
+
+        passed &= Expect(Skyfire::Rest::IsInsideInnArea(lakeshire, 0, -9219.37f, -2149.94f, 70.606f),
+            "Radius based tavern footprints should include their center point");
+        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(lakeshire, 1, -9219.37f, -2149.94f, 70.606f),
+            "Inn footprints should reject positions on a different map");
+
+        Skyfire::Rest::InnAreaBounds empty;
+        passed &= Expect(!Skyfire::Rest::HasInnAreaBounds(empty),
+            "Empty inn bounds should not be considered a footprint");
+        passed &= Expect(!Skyfire::Rest::IsInsideInnArea(empty, 0, 0.0f, 0.0f, 0.0f),
+            "Empty inn bounds should not contain positions");
+
+        std::string formattedBounds = Skyfire::Rest::FormatInnAreaBounds(lionsPride);
+        passed &= Expect(formattedBounds.find("map=0") != std::string::npos,
+            "Formatted inn bounds should include map id");
+        passed &= Expect(formattedBounds.find("box=(60.00,48.00,20.00,0.00)") != std::string::npos,
+            "Formatted inn bounds should include box dimensions");
+
+        return passed;
+    }
+
 }
 
 int main()
@@ -1604,6 +1655,7 @@ int main()
     passed &= TestObjectAccessorLifecycleRules();
     passed &= TestWorldShutdownLifecycleRules();
     passed &= TestRuntimeMetricsRules();
+    passed &= TestInnAreaBoundsRules();
 
     return passed ? 0 : 1;
 }

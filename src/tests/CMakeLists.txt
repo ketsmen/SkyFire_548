@@ -395,6 +395,7 @@ target_compile_definitions(player_dump_schema_tests PRIVATE SKYFIRE_SOURCE_DIR=\
 add_test(NAME player_dump_schema_tests COMMAND player_dump_schema_tests)
 
 add_executable(game_domain_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player/PlayerRestState.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/Auras/SpellAuraMetadata.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellCalculations.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellCombatMetadata.cpp

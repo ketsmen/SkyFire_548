@@ -1423,7 +1423,10 @@ public:
 
     void setDeathState(DeathState s) override;                   // overwrite Unit::setDeathState
 
-    void InnEnter(time_t time, uint32 mapid, float x, float y, float z);
+    void InnEnter(time_t time, uint32 mapid, float x, float y, float z,
+        float radius = 0.0f, float boxX = 0.0f, float boxY = 0.0f, float boxZ = 0.0f, float boxOrientation = 0.0f);
+    bool IsInCurrentInnArea(float padding = 0.0f) const;
+    void UpdateRestAreaState();
 
     float GetRestBonus() const
     {
@@ -1455,6 +1458,26 @@ public:
     float GetInnPosZ() const
     {
         return inn_pos_z;
+    }
+    float GetInnAreaRadius() const
+    {
+        return inn_area_radius;
+    }
+    float GetInnAreaBoxX() const
+    {
+        return inn_area_box_x;
+    }
+    float GetInnAreaBoxY() const
+    {
+        return inn_area_box_y;
+    }
+    float GetInnAreaBoxZ() const
+    {
+        return inn_area_box_z;
+    }
+    float GetInnAreaBoxOrientation() const
+    {
+        return inn_area_box_orientation;
     }
 
     time_t GetTimeInnEnter() const
@@ -3419,6 +3442,11 @@ protected:
     float  inn_pos_x;
     float  inn_pos_y;
     float  inn_pos_z;
+    float  inn_area_radius;
+    float  inn_area_box_x;
+    float  inn_area_box_y;
+    float  inn_area_box_z;
+    float  inn_area_box_orientation;
     float m_rest_bonus;
     RestType rest_type;
     ////////////////////Rest System/////////////////////

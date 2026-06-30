@@ -1567,9 +1567,33 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
 
     if (sObjectMgr->IsTavernAreaTrigger(request.triggerId))
     {
+        TavernRestArea const* restArea = sObjectMgr->GetTavernRestArea(request.triggerId);
+
+        // The first bit is set in known 5.4.8 captures; the second bit carries the
+        // enter/leave state for the trigger.
+        if (!request.unk2)
+        {
+            if (player->GetRestType() == REST_TYPE_IN_TAVERN)
+            {
+                player->RemoveFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
+                player->SetRestType(REST_TYPE_NO);
+            }
+
+            return;
+        }
+
+        if (restArea && !sObjectMgr->IsInTavernRestArea(*restArea, player->GetMapId(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ()))
+            return;
+
         // set resting flag we are in the inn
         player->SetFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-        player->InnEnter(time(NULL), atEntry->mapid, atEntry->x, atEntry->y, atEntry->z);
+
+        if (restArea)
+            player->InnEnter(time(NULL), restArea->MapId, restArea->X, restArea->Y, restArea->Z,
+                restArea->Radius, restArea->BoxX, restArea->BoxY, restArea->BoxZ, restArea->BoxOrientation);
+        else
+            player->InnEnter(time(NULL), atEntry->mapid, atEntry->x, atEntry->y, atEntry->z);
+
         player->SetRestType(REST_TYPE_IN_TAVERN);
 
         if (sWorld->IsFFAPvPRealm())
