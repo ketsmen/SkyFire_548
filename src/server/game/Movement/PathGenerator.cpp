@@ -466,8 +466,81 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
     SF_LOG_DEBUG("maps", "++ PathGenerator::BuildPointPath path type %d size %d poly-size %d\n", _type, pointCount, _polyLength);
 }
 
+float PathGenerator::ResolveTerrainZ(Unit const* unit, float x, float y, float z)
+{
+    Map const* map = unit->GetBaseMap();
+    uint32 const phase = unit->GetPhaseMask();
+    float ground = map->GetHeight(phase, x, y, MAX_HEIGHT, true);
+    float floor = map->GetHeight(phase, x, y, z, true);
+
+    if (ground > INVALID_HEIGHT && floor > INVALID_HEIGHT)
+        z = fabs(ground - z) <= fabs(floor - z) ? ground : floor;
+    else if (floor > INVALID_HEIGHT)
+        z = floor;
+    else if (ground > INVALID_HEIGHT)
+        z = ground;
+
+    unit->UpdateAllowedPositionZ(x, y, z);
+    return z;
+}
+
+void PathGenerator::DensifyGroundPath()
+{
+    if (_pathPoints.size() < 2)
+        return;
+
+    if (_sourceUnit->GetTypeId() != TypeID::TYPEID_UNIT || _sourceUnit->CanFly())
+        return;
+
+    Creature const* creature = _sourceUnit->ToCreature();
+    if (!creature->CanWalk())
+        return;
+
+    if (CreatureTemplate const* info = creature->GetCreatureTemplate())
+        if ((info->InhabitType & INHABIT_AIR) && !(info->InhabitType & INHABIT_GROUND))
+            return;
+
+    Movement::PointsArray densified;
+    densified.reserve(_pathPoints.size() * 4);
+
+    for (size_t i = 0; i < _pathPoints.size(); ++i)
+    {
+        if (i == 0)
+        {
+            G3D::Vector3 const& p = _pathPoints[i];
+            densified.emplace_back(p.x, p.y, ResolveTerrainZ(_sourceUnit, p.x, p.y, p.z));
+            continue;
+        }
+
+        G3D::Vector3 const& prev = densified.back();
+        G3D::Vector3 const& next = _pathPoints[i];
+        float const dx = next.x - prev.x;
+        float const dy = next.y - prev.y;
+        float const dist2d = sqrt(dx * dx + dy * dy);
+
+        if (dist2d > SMOOTH_PATH_STEP_SIZE)
+        {
+            uint32 const steps = uint32(dist2d / SMOOTH_PATH_STEP_SIZE);
+            for (uint32 s = 1; s < steps; ++s)
+            {
+                float const t = float(s) / float(steps);
+                float x = prev.x + dx * t;
+                float y = prev.y + dy * t;
+                float z = prev.z + (next.z - prev.z) * t;
+                densified.emplace_back(x, y, ResolveTerrainZ(_sourceUnit, x, y, z));
+            }
+        }
+
+        densified.emplace_back(next.x, next.y, ResolveTerrainZ(_sourceUnit, next.x, next.y, next.z));
+    }
+
+    _pathPoints.swap(densified);
+}
+
 void PathGenerator::NormalizePath()
 {
+    DensifyGroundPath();
+
     for (uint32 i = 0; i < _pathPoints.size(); ++i)
         _sourceUnit->UpdateAllowedPositionZ(_pathPoints[i].x, _pathPoints[i].y, _pathPoints[i].z);
 }

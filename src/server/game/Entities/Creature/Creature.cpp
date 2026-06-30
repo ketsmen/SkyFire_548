@@ -2549,10 +2549,20 @@ void Creature::UpdateMovementFlags()
         return;
     }
 
-    // Idle ground creatures do not need per-tick flag churn; uneven vmap height causes bobbing.
-    if (!(inhabitType & INHABIT_AIR) && !HasUnitMovementFlag(MOVEMENTFLAG_HOVER)
-        && !IsInCombat() && GetMotionMaster()->GetCurrentMovementGeneratorType() == IDLE_MOTION_TYPE)
-        return;
+    // Ground creatures do not need per-tick gravity flag churn during idle wander or chase;
+    // uneven vmap height causes bobbing/falling (notably when kiting in combat).
+    if (!(inhabitType & INHABIT_AIR) && !HasUnitMovementFlag(MOVEMENTFLAG_HOVER))
+    {
+        MovementGeneratorType const curMove = GetMotionMaster()->GetCurrentMovementGeneratorType();
+        if (curMove == CHASE_MOTION_TYPE)
+        {
+            if (inhabitType & INHABIT_WATER)
+                SetSwim(IsInWater());
+            return;
+        }
+        if (!IsInCombat() && (curMove == IDLE_MOTION_TYPE || curMove == RANDOM_MOTION_TYPE))
+            return;
+    }
 
     // Set the movement flags if the creature is in that mode. (Only fly if actually in air, only swim if in water, etc)
     float ground = GetMap()->GetHeight(GetPositionX(), GetPositionY(), GetPositionZMinusOffset());
