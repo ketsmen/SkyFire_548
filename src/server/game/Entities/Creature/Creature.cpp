@@ -2530,6 +2530,23 @@ Unit* Creature::SelectNearestHostileUnitInAggroRange(bool useLOS) const
     return target;
 }
 
+void Creature::SetFlying(bool enable)
+{
+    if (enable)
+        SetAnimTier(ANIM_TIER_FLY);
+    else if (HasUnitMovementFlag(MOVEMENTFLAG_HOVER))
+        SetAnimTier(ANIM_TIER_HOVER);
+    else
+        SetAnimTier(ANIM_TIER_GROUND);
+
+    if (enable)
+    {
+        if (!IsLevitating())
+            SetDisableGravity(true);
+        SetFall(false);
+    }
+}
+
 void Creature::UpdateMovementFlags()
 {
     // Do not update movement flags if creature is controlled by a player (charm/vehicle)
@@ -2538,12 +2555,13 @@ void Creature::UpdateMovementFlags()
 
     uint32 inhabitType = GetCreatureTemplate()->InhabitType;
 
-    // Air-exclusive inhabitants should not toggle gravity from ground proximity (causes hop/bob).
-    if ((inhabitType & INHABIT_AIR) && !(inhabitType & INHABIT_GROUND))
+    if (CanFly() && !IsFalling())
     {
-        if (!IsLevitating())
-            SetDisableGravity(true);
-        SetCanFly(false);
+        float ground = GetMap()->GetHeight(GetPositionX(), GetPositionY(), GetPositionZMinusOffset());
+        bool isInAir = (G3D::fuzzyGt(GetPositionZMinusOffset(), ground + 0.05f) || G3D::fuzzyLt(GetPositionZMinusOffset(), ground - 0.05f));
+
+        SetFlying(isInAir || !(inhabitType & INHABIT_GROUND));
+        SetCanFly(true);
         SetFall(false);
         SetSwim(false);
         return;

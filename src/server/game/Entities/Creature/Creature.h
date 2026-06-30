@@ -498,6 +498,7 @@ public:
     bool UpdateEntry(uint32 entry, uint32 team = ALLIANCE, const CreatureData* data = NULL);
 
     void UpdateMovementFlags();
+    void SetFlying(bool enable);
 
     bool UpdateStats(Stats stat) OVERRIDE;
     bool UpdateAllStats() OVERRIDE;

@@ -5918,6 +5918,17 @@ void Unit::SetStandState(uint8 state)
     }
 }
 
+void Unit::SetAnimTier(AnimTier tier)
+{
+    if (GetTypeId() != TypeID::TYPEID_UNIT)
+        return;
+
+    if (GetByteValue(UNIT_FIELD_ANIM_TIER, 3) == uint8(tier))
+        return;
+
+    SetByteValue(UNIT_FIELD_ANIM_TIER, 3, uint8(tier));
+}
+
 bool Unit::IsPolymorphed() const
 {
     uint32 transformId = getTransForm();
@@ -9289,6 +9300,9 @@ bool Unit::SetSwim(bool enable)
 
 bool Unit::SetCanFly(bool enable)
 {
+    if (enable == HasUnitMovementFlag(MOVEMENTFLAG_CAN_FLY))
+        return false;
+
     if (enable)
     {
         AddUnitMovementFlag(MOVEMENTFLAG_CAN_FLY);
