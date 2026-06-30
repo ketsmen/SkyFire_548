@@ -23,6 +23,8 @@ CMakeLists.txt.user
 cmake-build-debug/
 .idea/
 /.vs/
+/skyfire-build.config.ps1
+/skyfire-build.log
 /contrib/ScriptsConverter/.vs
 /contrib/ScriptsConverter/ScriptConverter/bin
 /contrib/ScriptsConverter/Backup

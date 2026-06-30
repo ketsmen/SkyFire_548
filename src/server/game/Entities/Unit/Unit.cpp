@@ -19,6 +19,7 @@
 #include "InstanceSaveMgr.h"
 #include "InstanceScript.h"
 #include "Log.h"
+#include "Map.h"
 #include "MapManager.h"
 #include "MovementStructures.h"
 #include "MoveSpline.h"
@@ -396,6 +397,29 @@ void Unit::UpdateSplinePosition()
 
     if (HasUnitState(UNIT_STATE_CANNOT_TURN))
         loc.orientation = GetOrientation();
+
+    // Ground spline paths can interpolate below terrain on hills; snap server position to vmap.
+    if (GetTypeId() == TypeID::TYPEID_UNIT && !movespline->isFalling())
+    {
+        Creature const* creature = ToCreature();
+        CreatureTemplate const* cInfo = creature->GetCreatureTemplate();
+        if (cInfo && !(cInfo->InhabitType & INHABIT_AIR) && !creature->CanFly()
+            && !HasUnitMovementFlag(MOVEMENTFLAG_HOVER | MOVEMENTFLAG_DISABLE_GRAVITY | MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY))
+        {
+            float ground = GetMap()->GetHeight(GetPhaseMask(), loc.x, loc.y, MAX_HEIGHT, true);
+            float floor = GetMap()->GetHeight(GetPhaseMask(), loc.x, loc.y, loc.z, true);
+            if (ground > INVALID_HEIGHT || floor > INVALID_HEIGHT)
+            {
+                float const terrainZ = (ground > INVALID_HEIGHT && floor > INVALID_HEIGHT)
+                    ? (fabs(ground - loc.z) <= fabs(floor - loc.z) ? ground : floor)
+                    : (floor > INVALID_HEIGHT ? floor : ground);
+                if (loc.z < terrainZ)
+                    loc.z = terrainZ;
+                else
+                    UpdateAllowedPositionZ(loc.x, loc.y, loc.z);
+            }
+        }
+    }
 
     UpdatePosition(loc.x, loc.y, loc.z, loc.orientation);
 }
@@ -5894,6 +5918,17 @@ void Unit::SetStandState(uint8 state)
     }
 }
 
+void Unit::SetAnimTier(AnimTier tier)
+{
+    if (GetTypeId() != TypeID::TYPEID_UNIT)
+        return;
+
+    if (GetByteValue(UNIT_FIELD_ANIM_TIER, 3) == uint8(tier))
+        return;
+
+    SetByteValue(UNIT_FIELD_ANIM_TIER, 3, uint8(tier));
+}
+
 bool Unit::IsPolymorphed() const
 {
     uint32 transformId = getTransForm();
@@ -9265,6 +9300,9 @@ bool Unit::SetSwim(bool enable)
 
 bool Unit::SetCanFly(bool enable)
 {
+    if (enable == HasUnitMovementFlag(MOVEMENTFLAG_CAN_FLY))
+        return false;
+
     if (enable)
     {
         AddUnitMovementFlag(MOVEMENTFLAG_CAN_FLY);

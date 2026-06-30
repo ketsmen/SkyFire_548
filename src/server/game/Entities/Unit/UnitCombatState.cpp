@@ -329,17 +329,22 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
     if (PvP)
         m_CombatTimer = 5000;
 
-    if (IsInCombat() || HasUnitState(UNIT_STATE_EVADE))
+    // Pulling a creature into combat must override evade (e.g. wandering mobs hit at range).
+    if (HasUnitState(UNIT_STATE_EVADE))
+        ClearUnitState(UNIT_STATE_EVADE);
+
+    if (IsInCombat())
         return;
 
     SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT);
 
     if (Creature* creature = ToCreature())
     {
-        // Set home position at place of engaging combat for escorted creatures
+        // Set home position at place of engaging combat so leash checks use the pull location.
         if ((IsAIEnabled && creature->AI()->IsEscorted()) ||
             GetMotionMaster()->GetCurrentMovementGeneratorType() == WAYPOINT_MOTION_TYPE ||
-            GetMotionMaster()->GetCurrentMovementGeneratorType() == POINT_MOTION_TYPE)
+            GetMotionMaster()->GetCurrentMovementGeneratorType() == POINT_MOTION_TYPE ||
+            GetMotionMaster()->GetCurrentMovementGeneratorType() == RANDOM_MOTION_TYPE)
             creature->SetHomePosition(GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
 
         if (enemy)

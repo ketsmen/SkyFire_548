@@ -137,7 +137,10 @@ public:
         uint32 maxQueuedClientsNum = sWorld->GetMaxQueuedSessionCount();
         std::string uptime = secsToTimeString(sWorld->GetUptime());
         uint32 updateTime = sWorld->GetUpdateTime();
-        Skyfire::ProcessMemoryUsage memoryUsage;
+        Skyfire::ProcessMemoryUsage processMemory;
+        Skyfire::GetProcessMemoryUsage(processMemory);
+        Skyfire::SystemMemoryUsage systemMemory;
+        Skyfire::GetSystemMemoryUsage(systemMemory);
 
         handler->PSendSysMessage("Open Source Emulation https://www.projectskyfire.org");
         handler->PSendSysMessage("www.github.com/ProjectSkyfire/SkyFire_548");
@@ -145,8 +148,8 @@ public:
         handler->PSendSysMessage(LANG_CONNECTED_PLAYERS, playersNum, maxPlayersNum);
         handler->PSendSysMessage(LANG_CONNECTED_USERS, activeClientsNum, maxActiveClientsNum, queuedClientsNum, maxQueuedClientsNum);
         handler->PSendSysMessage(LANG_UPTIME, uptime.c_str());
-        std::string memoryInfo = Skyfire::GetProcessMemoryUsage(memoryUsage) ? Skyfire::FormatProcessMemoryUsage(memoryUsage) : "unavailable";
-        handler->PSendSysMessage("Memory: %s", memoryInfo.c_str());
+        std::string summary = Skyfire::FormatMemoryUsageSummary(processMemory, systemMemory);
+        handler->PSendSysMessage("Memory Summary: %s", summary.c_str());
         SendRuntimeMetrics(handler);
         handler->PSendSysMessage(LANG_UPDATE_DIFF, updateTime);
 

@@ -81,6 +81,8 @@ void RandomMovementGenerator<Creature>::_setRandomLocation(Creature* creature)
                     return;
             }
         }
+
+        creature->UpdateAllowedPositionZ(destX, destY, destZ);
     }
 
     if (is_air_ok)
@@ -129,6 +131,9 @@ void RandomMovementGenerator<Creature>::DoFinalize(Creature* creature)
 template<>
 bool RandomMovementGenerator<Creature>::DoUpdate(Creature* creature, const uint32 diff)
 {
+    if (creature->IsInCombat())
+        return true;
+
     if (creature->HasUnitState(UNIT_STATE_ROOT | UNIT_STATE_STUNNED | UNIT_STATE_DISTRACTED))
     {
         i_nextMoveTime.Reset(0);  // Expire the timer

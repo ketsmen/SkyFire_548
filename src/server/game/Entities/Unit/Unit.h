@@ -191,6 +191,16 @@ enum UnitBytes1_Flags
     UNIT_BYTE1_FLAG_ALL = 0xFF
 };
 
+// byte value (UNIT_FIELD_ANIM_TIER, 3) — client animation tier for creatures
+enum AnimTier : uint8
+{
+    ANIM_TIER_GROUND    = 0,
+    ANIM_TIER_SWIM      = 1,
+    ANIM_TIER_HOVER     = 2,
+    ANIM_TIER_FLY       = 3,
+    ANIM_TIER_SUBMERGED = 4
+};
+
 // high byte (3 from 0..3) of UNIT_FIELD_SHAPESHIFT_FORM
 enum ShapeshiftForm
 {
@@ -1718,6 +1728,7 @@ public:
     bool IsSitState() const;
     bool IsStandState() const;
     void SetStandState(uint8 state);
+    void SetAnimTier(AnimTier tier);
 
     void  SetStandFlags(uint8 flags)
     {

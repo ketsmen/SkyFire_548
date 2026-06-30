@@ -84,6 +84,8 @@ private:
     void SetEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; _endPosition = point; }
     void SetActualEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; }
     void NormalizePath();
+    void DensifyGroundPath();
+    static float ResolveTerrainZ(Unit const* unit, float x, float y, float z);
 
     void Clear()
     {
