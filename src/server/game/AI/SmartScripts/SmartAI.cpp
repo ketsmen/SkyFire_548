@@ -582,9 +582,14 @@ void SmartAI::AttackStart(Unit* who)
 {
     if (who && me->Attack(who, true))
     {
+        me->ClearUnitState(UNIT_STATE_ROAMING | UNIT_STATE_ROAMING_MOVE);
+
         SetRun(mRun);
         if (me->GetMotionMaster()->GetMotionSlotType(MOTION_SLOT_ACTIVE) == POINT_MOTION_TYPE)
             me->GetMotionMaster()->MovementExpired();
+
+        if (me->GetMotionMaster()->GetMotionSlotType(MOTION_SLOT_IDLE) == RANDOM_MOTION_TYPE)
+            me->GetMotionMaster()->MoveIdle();
 
         if (mCanCombatMove)
             me->GetMotionMaster()->MoveChase(who);
