@@ -1077,6 +1077,9 @@ namespace Skyfire
             if (!me->CanSeeOrDetect(u))
                 return false;
 
+            if (!me->IsWithinLOSInMap(u))
+                return false;
+
             if (m_force)
             {
                 if (!me->IsValidAttackTarget(u))
