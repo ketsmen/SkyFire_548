@@ -224,7 +224,7 @@ void Battleground::Update(uint32 diff)
             else
             {
                 _ProcessRessurect(diff);
-                if (sBattlegroundMgr->GetPrematureFinishTime() && (GetPlayersCountByTeam(ALLIANCE) < GetMinPlayersPerTeam() || GetPlayersCountByTeam(HORDE) < GetMinPlayersPerTeam()))
+                if (!sBattlegroundMgr->isTesting() && sBattlegroundMgr->GetPrematureFinishTime() && (GetPlayersCountByTeam(ALLIANCE) < GetMinPlayersPerTeam() || GetPlayersCountByTeam(HORDE) < GetMinPlayersPerTeam()))
                     _ProcessProgress(diff);
                 else if (m_PrematureCountDown)
                     m_PrematureCountDown = false;
@@ -368,6 +368,12 @@ inline void Battleground::_ProcessProgress(uint32 diff)
     // *********************************************************
     // ***           BATTLEGROUND BALLANCE SYSTEM            ***
     // *********************************************************
+    if (sBattlegroundMgr->isTesting())
+    {
+        m_PrematureCountDown = false;
+        return;
+    }
+
     // if less then minimum players are in on one side, then start premature finish timer
     if (!m_PrematureCountDown)
     {
@@ -380,7 +386,7 @@ inline void Battleground::_ProcessProgress(uint32 diff)
         EndBattleground(GetPrematureWinner());
         m_PrematureCountDown = false;
     }
-    else if (!sBattlegroundMgr->isTesting())
+    else
     {
         uint32 newtime = m_PrematureCountDownTimer - diff;
         // announce every minute
