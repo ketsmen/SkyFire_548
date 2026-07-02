@@ -634,15 +634,15 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                     return -1;
                 return HandleSendAuthSession();
             }
-            /*case CMSG_ENABLE_NAGLE:
+            case CMSG_ENABLE_NAGLE:
             {
                 SF_LOG_DEBUG("network", "%s", opcodeName.c_str());
                 sScriptMgr->OnPacketReceive(this, WorldPacket(*new_pct));
                 return m_SessionState.WithSession([](WorldSession* session)
                 {
-                    return session ? session->HandleEnableNagleAlgorithm() : -1;
+                    return session ? session->HandleEnableNagleAlgorithm() : 0;
                 });
-            }*/
+            }
             default:
             {
                 int result = 0;
