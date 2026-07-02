@@ -96,6 +96,7 @@ void OpcodeTable::InitializeClientTable()
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_SUMMON_COMPANION,                  0x1896, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetSummonCompanion            ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_WILD_REQUEST,                      0x06C5, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetWildRequest                ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BEGIN_TRADE,                                  0x1CE3, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBeginTradeOpcode                    ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_BUSY_TRADE,                                   0x14E0, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBusyTradeOpcode                     ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BINDER_ACTIVATE,                              0x1248, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBinderActivateOpcode                ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BLACKMARKET_BID,                              0x12C8, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBlackMarketBidOnItem                ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BLACKMARKET_HELLO,                            0x075A, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBlackMarketHelloOpcode              ); // 5.4.8 18414
@@ -506,7 +507,6 @@ void OpcodeTable::InitializeClientTable()
     //UNHANDLED
     
     DEFINE_OPCODE_HANDLER(CMSG_BATTLEGROUND_PLAYER_POSITIONS, 0x0000, STATUS_UNHANDLED, PROCESS_INPLACE, &WorldSession::HandleBattlegroundPlayerPositionsOpcode);
-    DEFINE_OPCODE_HANDLER(CMSG_BUSY_TRADE, 0x0000, STATUS_UNHANDLED, PROCESS_THREADUNSAFE, &WorldSession::HandleBusyTradeOpcode);
     DEFINE_OPCODE_HANDLER(CMSG_CALENDAR_GUILD_FILTER, 0x0000, STATUS_UNHANDLED, PROCESS_THREADUNSAFE, &WorldSession::HandleCalendarGuildFilter);
     DEFINE_OPCODE_HANDLER(CMSG_CHANNEL_DISPLAY_LIST, 0x0000, STATUS_UNHANDLED, PROCESS_THREADUNSAFE, &WorldSession::HandleChannelDisplayListQuery);
     DEFINE_OPCODE_HANDLER(CMSG_CHANNEL_VOICE_OFF, 0x0000, STATUS_UNHANDLED, PROCESS_THREADUNSAFE, &WorldSession::HandleChannelVoiceOnOpcode);
