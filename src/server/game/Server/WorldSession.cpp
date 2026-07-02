@@ -687,6 +687,13 @@ void WorldSession::Handle_NULL(WorldPacket& recvPacket)
         GetOpcodeNameForLogging(recvPacket.GetOpcode(), false).c_str(), GetPlayerInfo().c_str());
 }
 
+void WorldSession::SendCharacterLoginFailed(ResponseCodes reason)
+{
+    WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
+    data << uint8(reason);
+    SendPacket(&data);
+}
+
 void WorldSession::Handle_EarlyProccess(WorldPacket& recvPacket)
 {
     SF_LOG_ERROR("network.opcode", "Received opcode %s that must be processed in WorldSocket::OnRead from %s",
