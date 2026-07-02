@@ -2057,17 +2057,14 @@ void WorldSession::HandleRealmSplitOpcode(WorldPacket& recvData)
     SF_LOG_DEBUG("network", "CMSG_REALM_SPLIT");
 
     UInt32Request request = ReadUInt32Request(recvData);
-    std::string split_date = "01/01/01";
+    std::string const splitDate = "01/01/01";
+    uint32 const splitState = 0; // 0 normal, 1 split, 2 split pending
 
-    WorldPacket data(SMSG_REALM_SPLIT, 4 + 4 + split_date.size() + 1);
+    WorldPacket data(SMSG_REALM_SPLIT, 4 + 4 + splitDate.size());
+    data.WriteBits(splitDate.size(), 7);
+    data << splitState;
     data << request.value;
-    data << uint32(0x00000000);                             // realm split state
-    // split states:
-    // 0x0 realm normal
-    // 0x1 realm split
-    // 0x2 realm split pending
-    data.WriteBits(split_date.size(), 7);
-    data.WriteString(split_date);
+    data.WriteString(splitDate);
     SendPacket(&data);
     //SF_LOG_DEBUG("response sent %u", unk);
 }
