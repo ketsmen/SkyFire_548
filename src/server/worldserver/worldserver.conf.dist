@@ -536,7 +536,7 @@ PacketLogFile = ""
 #    PacketLogServerControlFile
 #        Description: Control file watched by worldserver for on-demand per-session packet logs.
 #                     Start packetlogserver with the same path to enable session packet logging.
-#                     Relative paths are resolved from LogsDir.
+#                     Relative paths are resolved from the worldserver working directory.
 #        Example:     "packetlogserver.active"
 #        Default:     "packetlogserver.active"
 
@@ -545,7 +545,7 @@ PacketLogServerControlFile = "packetlogserver.active"
 #
 #    PacketLogServerOutputDir
 #        Description: Directory where on-demand packetlogserver session logs are written.
-#                     Relative paths are resolved from LogsDir.
+#                     Relative paths are resolved from the worldserver working directory.
 #        Example:     "PacketLogs"
 #        Default:     "PacketLogs"
 

@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 enum Direction
 {
@@ -46,7 +47,7 @@ private:
 
     FILE* _file;
     std::string _logsDir;
-    std::string _controlFile;
+    std::vector<std::string> _controlFiles;
     std::string _sessionLogDir;
     mutable std::mutex _sessionLock;
     std::unordered_map<void const*, SessionLog> _sessionLogs;

@@ -53,7 +53,7 @@ std::string SanitizePathPart(std::string value)
 }
 }
 
-PacketLog::PacketLog() : _file(NULL), _logsDir(), _controlFile(), _sessionLogDir(), _sessionLogs()
+PacketLog::PacketLog() : _file(NULL), _logsDir(), _controlFiles(), _sessionLogDir(), _sessionLogs()
 {
     Initialize();
 }
@@ -83,8 +83,17 @@ void PacketLog::Initialize()
     if (!logname.empty())
         _file = fopen((_logsDir + logname).c_str(), "wb");
 
-    _controlFile = JoinPath(_logsDir, sConfigMgr->GetStringDefault("PacketLogServerControlFile", "packetlogserver.active"));
-    _sessionLogDir = JoinPath(_logsDir, sConfigMgr->GetStringDefault("PacketLogServerOutputDir", "PacketLogs"));
+    std::string controlFile = sConfigMgr->GetStringDefault("PacketLogServerControlFile", "packetlogserver.active");
+    if (!controlFile.empty())
+    {
+        _controlFiles.push_back(controlFile);
+
+        std::string legacyControlFile = JoinPath(_logsDir, controlFile);
+        if (legacyControlFile != controlFile)
+            _controlFiles.push_back(legacyControlFile);
+    }
+
+    _sessionLogDir = sConfigMgr->GetStringDefault("PacketLogServerOutputDir", "PacketLogs");
 }
 
 bool PacketLog::CanLogPacket() const
@@ -114,8 +123,14 @@ void PacketLog::LogPacket(WorldPacket const& packet, Direction direction)
 
 bool PacketLog::IsSessionLoggingEnabled() const
 {
-    std::error_code error;
-    return !_controlFile.empty() && std::filesystem::exists(_controlFile, error) && !error;
+    for (std::string const& controlFile : _controlFiles)
+    {
+        std::error_code error;
+        if (!controlFile.empty() && std::filesystem::exists(controlFile, error) && !error)
+            return true;
+    }
+
+    return false;
 }
 
 FILE* PacketLog::OpenSessionLog(void const* sessionKey, std::string const& remoteAddress)
