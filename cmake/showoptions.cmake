@@ -54,6 +54,12 @@ else()
   message("* Build map/vmap tools   : No  (default)")
 endif()
 
+if( PACKET_LOG_SERVER )
+  message("* Build packetlogserver  : Yes (default)")
+else()
+  message("* Build packetlogserver  : No")
+endif()
+
 if( USE_COREPCH )
   message("* Build core w/PCH       : Yes (default)")
 else()

@@ -7,6 +7,9 @@
 
 #include "Common.h"
 #include "Platform/Singleton.h"
+#include <mutex>
+#include <string>
+#include <unordered_map>
 
 enum Direction
 {
@@ -26,11 +29,27 @@ private:
 
 public:
     void Initialize();
-    bool CanLogPacket() const { return (_file != NULL); }
+    bool CanLogPacket() const;
     void LogPacket(WorldPacket const& packet, Direction direction);
+    void LogPacket(void const* sessionKey, std::string const& remoteAddress, WorldPacket const& packet, Direction direction);
+    void CloseSession(void const* sessionKey);
 
 private:
+    struct SessionLog
+    {
+        FILE* file;
+        uint64 sequence;
+    };
+
+    bool IsSessionLoggingEnabled() const;
+    FILE* OpenSessionLog(void const* sessionKey, std::string const& remoteAddress);
+
     FILE* _file;
+    std::string _logsDir;
+    std::string _controlFile;
+    std::string _sessionLogDir;
+    mutable std::mutex _sessionLock;
+    std::unordered_map<void const*, SessionLog> _sessionLogs;
 };
 
 #define sPacketLog Skyfire::Singleton<PacketLog, Skyfire::Mutex>::instance()

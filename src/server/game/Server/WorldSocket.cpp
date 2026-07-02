@@ -97,6 +97,7 @@ m_CloseHandler(), m_ReferenceCount(0), m_Closed(false), m_CloseNotified(false)
 
 WorldSocket::~WorldSocket(void)
 {
+    sPacketLog->CloseSession(this);
     delete m_RecvWPct;
     CloseSocket();
 }
@@ -145,7 +146,7 @@ int WorldSocket::SendPacket(WorldPacket const& pct)
 
     // Dump outgoing packet
     if (sPacketLog->CanLogPacket())
-        sPacketLog->LogPacket(pct, SERVER_TO_CLIENT);
+        sPacketLog->LogPacket(this, m_Address, pct, SERVER_TO_CLIENT);
 
     WorldPacket const* pkt = &pct;
 
@@ -588,7 +589,7 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
 
     // Dump received packet.
     if (sPacketLog->CanLogPacket())
-        sPacketLog->LogPacket(*new_pct, CLIENT_TO_SERVER);
+        sPacketLog->LogPacket(this, m_Address, *new_pct, CLIENT_TO_SERVER);
 
     std::string opcodeName = GetOpcodeNameForLogging(opcode, false);
     m_SessionState.WithSession([&opcodeName](WorldSession* session)

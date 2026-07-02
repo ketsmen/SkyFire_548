@@ -10,6 +10,10 @@ if(TOOLS)
   add_subdirectory(tools)
 endif(TOOLS)
 
+if(PACKET_LOG_SERVER)
+  add_subdirectory(tools/packet_log_server)
+endif()
+
 if(SKYFIRE_BUILD_TESTS)
   add_subdirectory(tests)
 endif()
