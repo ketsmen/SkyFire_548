@@ -689,7 +689,7 @@ void WorldSession::Handle_NULL(WorldPacket& recvPacket)
 
 void WorldSession::SendCharacterLoginFailed(ResponseCodes reason)
 {
-    WorldPacket data(serverOpcodeTable.GetOpcodeByNumber(0x1A0B), 1);
+    WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
     data << uint8(reason);
     SendPacket(&data);
 }
