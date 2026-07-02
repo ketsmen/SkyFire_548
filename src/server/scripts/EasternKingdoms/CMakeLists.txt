@@ -148,6 +148,7 @@ set(scripts_STAT_SRCS
   #EasternKingdoms/ShadowfangKeep/instance_shadowfang_keep.cpp
   #EasternKingdoms/ShadowfangKeep/shadowfang_keep.h
   EasternKingdoms/zone_blasted_lands.cpp
+  EasternKingdoms/zone_duskwood.cpp
   #REWORKED IN CATACLYSM
   #EasternKingdoms/ZulAman/boss_halazzi.cpp
   #EasternKingdoms/ZulAman/boss_hexlord.cpp
