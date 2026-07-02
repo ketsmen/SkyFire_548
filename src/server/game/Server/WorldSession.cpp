@@ -681,7 +681,7 @@ const char* WorldSession::GetSkyFireString(int32 entry) const
     return sObjectMgr->GetSkyFireString(entry, GetSessionDbLocaleIndex());
 }
 
-void WorldSession::Handle_NULL(WorldPacket& recvPacket) const
+void WorldSession::Handle_NULL(WorldPacket& recvPacket)
 {
     SF_LOG_ERROR("network.opcode", "Received unhandled opcode %s from %s",
         GetOpcodeNameForLogging(recvPacket.GetOpcode(), false).c_str(), GetPlayerInfo().c_str());
