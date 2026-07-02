@@ -1051,7 +1051,7 @@ public:                                                 // opcodes handlers
     void HandleEjectPassenger(WorldPacket& data);
     void HandleRideVehicleInteract(WorldPacket& recvData);
     void HandleUpdateProjectilePosition(WorldPacket& recvPacket);
-    void HandleRequestHotfix(WorldPacket& recvPacket);
+    void HandleDBQueryBulk(WorldPacket& recvPacket);
     void HandleUpdateMissileTrajectory(WorldPacket& recvPacket);
     void HandleViolenceLevel(WorldPacket& recvPacket);
     void HandleObjectUpdateFailedOpcode(WorldPacket& recvPacket);

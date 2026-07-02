@@ -2577,7 +2577,7 @@ namespace
     }
 }
 
-void WorldSession::HandleRequestHotfix(WorldPacket& recvPacket)
+void WorldSession::HandleDBQueryBulk(WorldPacket& recvPacket)
 {
     uint32 type, count;
     recvPacket >> type;
@@ -2587,7 +2587,7 @@ void WorldSession::HandleRequestHotfix(WorldPacket& recvPacket)
     bool const knownUnsupportedType = !store && knownHotfixType;
     if (!store && !knownUnsupportedType)
     {
-        SF_LOG_ERROR("network", "CMSG_REQUEST_HOTFIX: Received unknown hotfix type: %u", type);
+        SF_LOG_ERROR("network", "CMSG_DB_QUERY_BULK: Received unknown DB2 file type: %u", type);
         recvPacket.rfinish();
         return;
     }
@@ -2621,7 +2621,7 @@ void WorldSession::HandleRequestHotfix(WorldPacket& recvPacket)
             SendPacket(&data);
         }
 
-        SF_LOG_DEBUG("network", "CMSG_REQUEST_HOTFIX: Sent empty replies for unsupported hotfix type: %u count: %u", type, count);
+        SF_LOG_DEBUG("network", "CMSG_DB_QUERY_BULK: Sent empty replies for unsupported DB2 file type: %u count: %u", type, count);
         return;
     }
 
