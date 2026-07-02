@@ -41,6 +41,16 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 
+namespace
+{
+    void SendCharacterLoginFailed(WorldSession* session, ResponseCodes reason)
+    {
+        WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
+        data << uint8(reason);
+        session->SendPacket(&data);
+    }
+}
+
 class LoginQueryHolder : public SQLQueryHolder
 {
 private:
@@ -1383,6 +1393,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     if (PlayerLoading() || GetPlayer() != NULL)
     {
         SF_LOG_ERROR("network", "Player tries to login again, AccountId = %d", GetAccountId());
+        SendCharacterLoginFailed(this, ResponseCodes::CHAR_LOGIN_IN_PROGRESS);
         return;
     }
 
@@ -1398,7 +1409,8 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     if (!IsLegitCharacterForAccount(GUID_LOPART(playerGuid)))
     {
         SF_LOG_ERROR("network", "Account (%u) can't login with that character (%u).", GetAccountId(), GUID_LOPART(playerGuid));
-        KickPlayer();
+        SendCharacterLoginFailed(this, ResponseCodes::CHAR_LOGIN_NO_CHARACTER);
+        m_playerLoading = false;
         return;
     }
 
@@ -1406,6 +1418,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     if (!holder->Initialize())
     {
         delete holder;                                      // delete all unprocessed queries
+        SendCharacterLoginFailed(this, ResponseCodes::CHAR_LOGIN_FAILED);
         m_playerLoading = false;
         return;
     }
@@ -1434,7 +1447,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     if (!pCurrChar->LoadFromDB(GUID_LOPART(playerGuid), holder))
     {
         SetPlayer(NULL);
-        KickPlayer();                                       // disconnect client, player no set to session and it will not deleted or saved at kick
+        SendCharacterLoginFailed(this, ResponseCodes::CHAR_LOGIN_FAILED);
         delete pCurrChar;                                   // delete it manually
         delete holder;                                      // delete all unprocessed queries
         m_playerLoading = false;
