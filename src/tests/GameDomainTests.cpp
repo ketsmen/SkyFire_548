@@ -107,6 +107,26 @@ namespace
         return passed;
     }
 
+    bool TestClientOpcodeTableAcceptsGuildAchievementTracking()
+    {
+        bool passed = true;
+
+        clientOpcodeTable.InitializeClientTable();
+        Opcodes opcode = clientOpcodeTable.GetOpcodeByNumber(0x0CF0);
+        OpcodeHandler const* handler = clientOpcodeTable[opcode];
+
+        passed &= Expect(opcode == CMSG_GUILD_SET_ACHIEVEMENT_TRACKING,
+            "0x0CF0 should map to CMSG_GUILD_SET_ACHIEVEMENT_TRACKING");
+        passed &= Expect(handler != NULL,
+            "CMSG_GUILD_SET_ACHIEVEMENT_TRACKING should have an opcode table entry");
+        passed &= Expect(handler && handler->Status == STATUS_LOGGEDIN,
+            "CMSG_GUILD_SET_ACHIEVEMENT_TRACKING should be accepted while logged in");
+        passed &= Expect(handler && handler->Handler != NULL,
+            "CMSG_GUILD_SET_ACHIEVEMENT_TRACKING should have an executable handler");
+
+        return passed;
+    }
+
     bool TestWorldStateBuilderPacketLayout()
     {
         bool passed = true;
@@ -1648,6 +1668,7 @@ int main()
 
     passed &= TestCurrencyFormulaBoundaries();
     passed &= TestWorldPacketContainerBehavior();
+    passed &= TestClientOpcodeTableAcceptsGuildAchievementTracking();
     passed &= TestWorldStateBuilderPacketLayout();
     passed &= TestThreatSpellModifierRules();
     passed &= TestSpellValidationMasks();

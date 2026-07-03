@@ -15,6 +15,8 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 
+#include <vector>
+
 void WorldSession::HandleGuildQueryOpcode(WorldPacket& recvPacket)
 {
     ObjectGuid guildGuid;
@@ -281,6 +283,32 @@ void WorldSession::HandleGuildSetNoteOpcode(WorldPacket& recvPacket)
 
     if (Guild* guild = GetPlayer()->GetGuild())
         guild->HandleSetMemberNote(this, note, playerGuid, isPublic);
+}
+
+void WorldSession::HandleGuildSetAchievementTracking(WorldPacket& recvPacket)
+{
+    uint32 count = recvPacket.ReadBits(21);
+
+    if (count > 25)
+    {
+        SF_LOG_DEBUG("guild", "CMSG_GUILD_SET_ACHIEVEMENT_TRACKING: ignoring %u tracked achievements from %s",
+            count, GetPlayerInfo().c_str());
+        recvPacket.rfinish();
+        return;
+    }
+
+    std::vector<uint32> achievementIds;
+    achievementIds.reserve(count);
+
+    for (uint32 i = 0; i < count; ++i)
+    {
+        uint32 achievementId = 0;
+        recvPacket >> achievementId;
+        achievementIds.push_back(achievementId);
+    }
+
+    SF_LOG_DEBUG("guild", "CMSG_GUILD_SET_ACHIEVEMENT_TRACKING: %s is tracking %u guild achievements",
+        GetPlayerInfo().c_str(), count);
 }
 
 void WorldSession::HandleGuildQueryRanksOpcode(WorldPacket& recvPacket)

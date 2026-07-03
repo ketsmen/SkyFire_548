@@ -710,6 +710,7 @@ public:                                                 // opcodes handlers
     void HandleGuildMOTDOpcode(WorldPacket& recvPacket);
     void HandleGuildNewsUpdateStickyOpcode(WorldPacket& recvPacket);
     void HandleGuildSetNoteOpcode(WorldPacket& recvPacket);
+    void HandleGuildSetAchievementTracking(WorldPacket& recvPacket);
     void HandleGuildQueryRanksOpcode(WorldPacket& recvPacket);
     void HandleGuildQueryNewsOpcode(WorldPacket& recvPacket);
     void HandleGuildSetRankPermissionsOpcode(WorldPacket& recvPacket);
