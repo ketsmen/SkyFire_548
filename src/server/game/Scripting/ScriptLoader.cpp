@@ -222,6 +222,7 @@ void AddSC_instance_the_stockade();          //The Stockade
 //void AddSC_zulaman();
 void AddSC_arathi_highlands();
 void AddSC_blasted_lands();
+void AddSC_duskwood();
 void AddSC_eastern_plaguelands();
 void AddSC_eversong_woods();
 void AddSC_ghostlands();
@@ -884,6 +885,7 @@ void AddEasternKingdomsScripts()
 
     AddSC_arathi_highlands();
     AddSC_blasted_lands();
+    AddSC_duskwood();
     AddSC_eastern_plaguelands();
     AddSC_eversong_woods();
     AddSC_ghostlands();

@@ -71,8 +71,11 @@ void Spell::EffectJump(SpellEffIndex effIndex)
     float x, y, z;
     unitTarget->GetContactPoint(m_caster, x, y, z, CONTACT_DISTANCE);
 
+    // Use 3D distance: near-vertical jumps (e.g. a creature pouncing down from a
+    // ledge) have almost no 2D distance, which yields a horizontal speed below the
+    // spline validation minimum (velocity > 0.1f) and silently aborts the jump.
     float speedXY, speedZ;
-    CalculateJumpSpeeds(effIndex, m_caster->GetExactDist2d(x, y), speedXY, speedZ);
+    CalculateJumpSpeeds(effIndex, m_caster->GetExactDist(x, y, z), speedXY, speedZ);
     m_caster->GetMotionMaster()->MoveJump(x, y, z, speedXY, speedZ);
 }
 
@@ -100,7 +103,7 @@ void Spell::EffectJumpDest(SpellEffIndex effIndex)
     }
 
     float speedXY, speedZ;
-    CalculateJumpSpeeds(effIndex, m_caster->GetExactDist2d(x, y), speedXY, speedZ);
+    CalculateJumpSpeeds(effIndex, m_caster->GetExactDist(x, y, z), speedXY, speedZ);
     m_caster->GetMotionMaster()->MoveJump(x, y, z, speedXY, speedZ);
 }
 
@@ -113,6 +116,10 @@ void Spell::CalculateJumpSpeeds(uint8 i, float dist, float& speedXY, float& spee
     else
         speedZ = 10.0f;
     speedXY = dist * 10.0f / speedZ;
+
+    // Keep above the spline validation minimum (velocity > 0.1f) for very short jumps.
+    if (speedXY < 2.0f)
+        speedXY = 2.0f;
 }
 
 void Spell::EffectTeleportUnits(SpellEffIndex /*effIndex*/)
