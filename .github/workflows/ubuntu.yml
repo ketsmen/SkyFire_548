@@ -141,6 +141,7 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DTOOLS=ON \
+          -DPACKET_LOG_SERVER=ON \
           -DUSE_COREPCH=ON \
           -DUSE_SCRIPTPCH=ON \
           -DSKYFIRE_BUILD_TESTS=OFF \
@@ -166,6 +167,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX="$ELUNA_INSTALL_DIR" \
           -DCONF_DIR="$ELUNA_INSTALL_DIR/etc" \
           -DTOOLS=OFF \
+          -DPACKET_LOG_SERVER=OFF \
           -DUSE_COREPCH=ON \
           -DUSE_SCRIPTPCH=ON \
           -DSKYFIRE_BUILD_TESTS=OFF \

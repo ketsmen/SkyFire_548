@@ -103,6 +103,7 @@ jobs:
         cmake -S "$env:GITHUB_WORKSPACE" -B "$env:BUILD_DIR" `
           -A x64 `
           -DTOOLS=ON `
+          -DPACKET_LOG_SERVER=ON `
           -DUSE_COREPCH=ON `
           -DUSE_SCRIPTPCH=ON `
           -DSKYFIRE_BUILD_TESTS=OFF `
