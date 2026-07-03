@@ -814,6 +814,12 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
 
     uint32 name_id = m_spellInfo->Effects[effIndex].MiscValue;
 
+    // Basic Campfire (29784): CREATED_BY on a SPELL_FOCUS GO uses CREATE_OBJECT2 and
+    // crashes the 5.4.8 client (WowClientDB2 OOM). Track for cleanup without owner.
+    bool const basicCampfire = (name_id == 29784);
+    if (basicCampfire)
+        m_caster->RemoveGameObject(m_spellInfo->Id, true);
+
     GameObjectTemplate const* goinfo = sObjectMgr->GetGameObjectTemplate(name_id);
 
     if (!goinfo)
@@ -902,7 +908,8 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
 
     pGameObj->SetRespawnTime(duration > 0 ? duration / IN_MILLISECONDS : 0);
 
-    pGameObj->SetOwnerGUID(m_caster->GetGUID());
+    if (!basicCampfire)
+        pGameObj->SetOwnerGUID(m_caster->GetGUID());
 
     //pGameObj->SetUInt32Value(GAMEOBJECT_FIELD_LEVEL, m_caster->getLevel());
     pGameObj->SetSpellId(m_spellInfo->Id);
@@ -914,6 +921,9 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
     //m_ObjToDel.push_back(pGameObj);
 
     cMap->AddToMap(pGameObj);
+
+    if (basicCampfire)
+        m_caster->TrackGameObject(pGameObj);
 
     if (uint32 linkedEntry = pGameObj->GetGOInfo()->GetLinkedGameObjectEntry())
     {
@@ -927,7 +937,8 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
             linkedGO->SetRespawnTime(duration > 0 ? duration / IN_MILLISECONDS : 0);
             //linkedGO->SetUInt32Value(GAMEOBJECT_FIELD_LEVEL, m_caster->getLevel());
             linkedGO->SetSpellId(m_spellInfo->Id);
-            linkedGO->SetOwnerGUID(m_caster->GetGUID());
+            // Linked traps (e.g. Basic Campfire 29784 -> 31442) are environmental;
+            // owner on the trap breaks cozy-fire targeting and can crash the client.
 
             ExecuteLogEffectSummonObject(effIndex, linkedGO);
 

@@ -1655,6 +1655,14 @@ GameObject* Unit::GetGameObject(uint32 spellId) const
     return NULL;
 }
 
+void Unit::TrackGameObject(GameObject* gameObj)
+{
+    if (!gameObj)
+        return;
+
+    m_gameObj.push_back(gameObj);
+}
+
 void Unit::AddGameObject(GameObject* gameObj)
 {
     if (!gameObj || !(gameObj->GetOwnerGUID() == 0))

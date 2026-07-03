@@ -2519,6 +2519,7 @@ public:
 
     GameObject* GetGameObject(uint32 spellId) const;
     void AddGameObject(GameObject* gameObj);
+    void TrackGameObject(GameObject* gameObj);
     void RemoveGameObject(GameObject* gameObj, bool del);
     void RemoveGameObject(uint32 spellid, bool del);
     void RemoveAllGameObjects();
