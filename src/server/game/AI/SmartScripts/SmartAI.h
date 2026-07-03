@@ -163,6 +163,7 @@ public:
 
     void SetInvincibilityHpLevel(uint32 level) { mInvincibilityHpLevel = level; }
 
+    bool OnGossipHello(Player* player) OVERRIDE;
     void sGossipHello(Player* player) OVERRIDE;
     void sGossipSelect(Player* player, uint32 sender, uint32 action) OVERRIDE;
     void sGossipSelectCode(Player* player, uint32 sender, uint32 action, const char* code) OVERRIDE;
@@ -185,6 +186,8 @@ public:
     void RemoveAuras();
 
     void OnSpellClick(Unit* clicker, bool& result) OVERRIDE;
+
+    void SetGossipReturn(bool value) { _gossipReturn = value; }
 
 private:
     uint32 mFollowCreditType;
@@ -219,12 +222,13 @@ private:
     uint32 mDespawnState;
     void UpdateDespawn(const uint32 diff);
     uint32 mEscortInvokerCheckTimer;
+    bool _gossipReturn;
 };
 
 class SmartGameObjectAI : public GameObjectAI
 {
 public:
-    SmartGameObjectAI(GameObject* g) : GameObjectAI(g), go(g) { }
+    SmartGameObjectAI(GameObject* g) : GameObjectAI(g), go(g), _gossipReturn(false) { }
     ~SmartGameObjectAI() { }
 
     void UpdateAI(uint32 diff) OVERRIDE;
@@ -236,6 +240,7 @@ public:
     bool GossipHello(Player* player) OVERRIDE;
     bool GossipSelect(Player* player, uint32 sender, uint32 action) OVERRIDE;
     bool GossipSelectCode(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/, const char* /*code*/) OVERRIDE;
+    void SetGossipReturn(bool value) { _gossipReturn = value; }
     bool QuestAccept(Player* player, Quest const* quest) OVERRIDE;
     bool QuestReward(Player* player, Quest const* quest, uint32 opt) OVERRIDE;
     uint32 GetDialogStatus(Player* /*player*/) OVERRIDE;
@@ -249,5 +254,6 @@ public:
 protected:
     GameObject* const go;
     SmartScript mScript;
+    bool _gossipReturn;
 };
 #endif

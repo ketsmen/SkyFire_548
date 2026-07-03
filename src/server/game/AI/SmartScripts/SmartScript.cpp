@@ -1994,6 +1994,17 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             SF_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction:: SMART_ACTION_SEND_GOSSIP_MENU: gossipMenuId %d, gossipNpcTextId %d",
                 e.action.sendGossipMenu.gossipMenuId, e.action.sendGossipMenu.gossipNpcTextId);
 
+            if (me)
+            {
+                if (SmartAI* ai = CAST_AI(SmartAI, me->AI()))
+                    ai->SetGossipReturn(true);
+            }
+            else if (go)
+            {
+                if (SmartGameObjectAI* ai = CAST_AI(SmartGameObjectAI, go->AI()))
+                    ai->SetGossipReturn(true);
+            }
+
             ObjectList* targets = GetTargets(e, unit);
             if (!targets)
                 break;

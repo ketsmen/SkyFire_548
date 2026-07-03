@@ -21,7 +21,7 @@
 SmartAI::SmartAI(Creature* c) : CreatureAI(c), mWayPoints(NULL), mEscortState(SMART_ESCORT_NONE), mCurrentWPID(0), mWPReached(false), mWPPauseTimer(0),
 mLastWP(NULL), mCanRepeatPath(false), mRun(false), mCanAutoAttack(true), mCanCombatMove(true), mForcedPaused(false), mLastWPIDReached(0),
 mEscortQuestID(0), mDespawnTime(0), mDespawnState(0), mEscortInvokerCheckTimer(1000), mFollowGuid(0), mFollowDist(0), mFollowAngle(0),
-mFollowCredit(0), mFollowArrivedEntry(0), mFollowArrivedTimer(0), mFollowCreditType(0), mInvincibilityHpLevel(0)
+mFollowCredit(0), mFollowArrivedEntry(0), mFollowArrivedTimer(0), mFollowCreditType(0), mInvincibilityHpLevel(0), _gossipReturn(false)
 {
     // spawn in run mode
     me->SetWalk(false);
@@ -715,6 +715,13 @@ void SmartAI::sGossipHello(Player* player)
     GetScript()->ProcessEventsFor(SMART_EVENT_GOSSIP_HELLO, player);
 }
 
+bool SmartAI::OnGossipHello(Player* player)
+{
+    _gossipReturn = false;
+    sGossipHello(player);
+    return _gossipReturn;
+}
+
 void SmartAI::sGossipSelect(Player* player, uint32 sender, uint32 action)
 {
     GetScript()->ProcessEventsFor(SMART_EVENT_GOSSIP_SELECT, player, sender, action);
@@ -825,8 +832,9 @@ void SmartGameObjectAI::Reset()
 bool SmartGameObjectAI::GossipHello(Player* player)
 {
     SF_LOG_DEBUG("scripts.ai", "SmartGameObjectAI::GossipHello");
+    _gossipReturn = false;
     GetScript()->ProcessEventsFor(SMART_EVENT_GOSSIP_HELLO, player, 0, 0, false, NULL, go);
-    return false;
+    return _gossipReturn;
 }
 
 // Called when a player selects a gossip item in the gameobject's gossip menu.

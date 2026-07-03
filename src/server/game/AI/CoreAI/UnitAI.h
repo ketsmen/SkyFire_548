@@ -242,6 +242,7 @@ public:
     static AISpellInfoType* AISpellInfo;
     static void FillAISpellInfo();
 
+    virtual bool OnGossipHello(Player* player) { sGossipHello(player); return false; }
     virtual void sGossipHello(Player* /*player*/) { }
     virtual void sGossipSelect(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/) { }
     virtual void sGossipSelectCode(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/, char const* /*code*/) { }
