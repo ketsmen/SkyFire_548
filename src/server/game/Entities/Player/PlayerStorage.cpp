@@ -3337,6 +3337,24 @@ void Player::SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2, uint
     GetSession()->SendPacket(&data);
 }
 
+void Player::SendGameError(GameError error, uint32 arg1, uint32 arg2)
+{
+    SF_LOG_DEBUG("network", "WORLD: Sent SMSG_DISPLAY_GAME_ERROR (%u)", uint32(error));
+
+    WorldPacket data(SMSG_DISPLAY_GAME_ERROR);
+    data << uint32(error);
+    data.WriteBit(arg1 != 0);
+    data.WriteBit(arg2 != 0);
+
+    if (arg1)
+        data << uint32(arg1);
+
+    if (arg2)
+        data << uint32(arg2);
+
+    GetSession()->SendPacket(&data);
+}
+
 bool Player::IsUseEquipedWeapon(bool mainhand) const
 {
     // disarm applied only to mainhand weapon

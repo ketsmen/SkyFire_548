@@ -127,6 +127,23 @@ namespace
         return passed;
     }
 
+    bool TestServerOpcodeTableEnablesDisplayGameError()
+    {
+        bool passed = true;
+
+        serverOpcodeTable.InitializeServerTable();
+        OpcodeHandler const* handler = serverOpcodeTable[SMSG_DISPLAY_GAME_ERROR];
+
+        passed &= Expect(handler != NULL,
+            "SMSG_DISPLAY_GAME_ERROR should have an opcode table entry");
+        passed &= Expect(handler && handler->Opcode == 0x181F,
+            "SMSG_DISPLAY_GAME_ERROR should use the 5.4.8 opcode number");
+        passed &= Expect(handler && handler->Status == STATUS_NEVER,
+            "SMSG_DISPLAY_GAME_ERROR should be enabled as a server-only opcode");
+
+        return passed;
+    }
+
     bool TestWorldStateBuilderPacketLayout()
     {
         bool passed = true;
@@ -1669,6 +1686,7 @@ int main()
     passed &= TestCurrencyFormulaBoundaries();
     passed &= TestWorldPacketContainerBehavior();
     passed &= TestClientOpcodeTableAcceptsGuildAchievementTracking();
+    passed &= TestServerOpcodeTableEnablesDisplayGameError();
     passed &= TestWorldStateBuilderPacketLayout();
     passed &= TestThreatSpellModifierRules();
     passed &= TestSpellValidationMasks();

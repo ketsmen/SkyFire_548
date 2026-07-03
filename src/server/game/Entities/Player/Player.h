@@ -1656,6 +1656,7 @@ public:
     Item* GetItemFromBuyBackSlot(uint32 slot);
     void RemoveItemFromBuyBackSlot(uint32 slot, bool del);
     void SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2 = NULL, uint32 itemid = 0);
+    void SendGameError(GameError error, uint32 arg1 = 0, uint32 arg2 = 0);
     void SendBuyFailed(BuyResult msg, ObjectGuid VendorGUID, uint32 item);
     void SendSellResponse(SellResult msg, ObjectGuid VendorGUID, ObjectGuid ItemGUID);
     void AddWeaponProficiency(uint32 newflag)
