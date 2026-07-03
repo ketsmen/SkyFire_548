@@ -267,7 +267,7 @@ public:
     void SendQuestGiverQuestList(QEmote eEmote, const std::string& Title, uint64 npcGUID);
 
     void SendQuestQueryResponse(Quest const* quest) const;
-    void SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, bool activateAccept) const;
+    void SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, bool activateAccept, bool displayPopup = false) const;
 
     void SendQuestGiverOfferReward(Quest const* quest, uint64 npcGUID, bool enableNext) const;
     void SendQuestGiverRequestItems(Quest const* quest, uint64 npcGUID, bool canComplete, bool closeOnCancel) const;
