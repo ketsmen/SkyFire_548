@@ -8166,7 +8166,7 @@ void ObjectMgr::LoadGossipMenu()
 
     _gossipMenusStore.clear();
 
-    QueryResult result = WorldDatabase.Query("SELECT entry, text_id FROM gossip_menu");
+    QueryResult result = WorldDatabase.Query("SELECT MenuID, TextID FROM gossip_menu");
 
     if (!result)
     {
@@ -8182,7 +8182,7 @@ void ObjectMgr::LoadGossipMenu()
 
         GossipMenus gMenu;
 
-        gMenu.entry = fields[0].GetUInt16();
+        gMenu.entry = fields[0].GetUInt32();
         gMenu.text_id = fields[1].GetUInt32();
 
         if (!GetGossipText(gMenu.text_id))
@@ -8206,9 +8206,13 @@ void ObjectMgr::LoadGossipMenuItems()
     _gossipMenuItemsStore.clear();
 
     QueryResult result = WorldDatabase.Query(
-        //      0        1   2            3            4          5                     6               7              8          9          10
-        "SELECT menu_id, id, option_icon, option_text, option_id, npc_option_npcflag, action_menu_id, action_poi_id, box_coded, box_money, box_text "
-        "FROM gossip_menu_option ORDER BY menu_id, id");
+        //      0       1            2           3           4           5              6             7            8         9         10
+        "SELECT o.MenuId, o.OptionIndex, o.OptionIcon, o.OptionText, o.OptionType, o.OptionNpcflag, "
+        "COALESCE(a.ActionMenuId, 0), COALESCE(a.ActionPoiId, 0), COALESCE(b.BoxCoded, 0), COALESCE(b.BoxMoney, 0), COALESCE(b.BoxText, '') "
+        "FROM gossip_menu_option o "
+        "LEFT JOIN gossip_menu_option_action a ON a.MenuId = o.MenuId AND a.OptionIndex = o.OptionIndex "
+        "LEFT JOIN gossip_menu_option_box b ON b.MenuId = o.MenuId AND b.OptionIndex = o.OptionIndex "
+        "ORDER BY o.MenuId, o.OptionIndex");
 
     if (!result)
     {
@@ -8224,8 +8228,8 @@ void ObjectMgr::LoadGossipMenuItems()
 
         GossipMenuItems gMenuItem;
 
-        gMenuItem.MenuId = fields[0].GetUInt16();
-        gMenuItem.OptionIndex = fields[1].GetUInt16();
+        gMenuItem.MenuId = fields[0].GetUInt32();
+        gMenuItem.OptionIndex = fields[1].GetUInt32();
         gMenuItem.OptionIcon = fields[2].GetUInt32();
         gMenuItem.OptionText = fields[3].GetString();
         gMenuItem.OptionType = fields[4].GetUInt8();
