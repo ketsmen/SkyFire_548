@@ -11743,6 +11743,15 @@ void Player::SendPreparedGossip(WorldObject* source)
     if (!source)
         return;
 
+    if (source->GetTypeId() == TypeID::TYPEID_UNIT || source->GetTypeId() == TypeID::TYPEID_GAMEOBJECT)
+    {
+        if (PlayerTalkClass->GetGossipMenu().Empty() && PlayerTalkClass->GetQuestMenu().GetMenuItemCount() == 1)
+        {
+            SendPreparedQuest(source->GetGUID());
+            return;
+        }
+    }
+
     if (source->GetTypeId() == TypeID::TYPEID_UNIT)
     {
         // in case no gossip flag and quest menu not empty, open quest menu (client expect gossip menu with this flag)
