@@ -391,7 +391,7 @@ void PlayerMenu::SendQuestGiverStatus(uint32 questStatus, uint64 npcGUID) const
     SF_LOG_DEBUG("network", "WORLD: Sent SMSG_QUESTGIVER_STATUS NPC Guid=%u, status=%u", GUID_LOPART(npcGUID), questStatus);
 }
 
-void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, bool activateAccept) const
+void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, bool activateAccept, bool displayPopup) const
 {
     std::string questTitle = quest->GetTitle();
     std::string questDetails = quest->GetDetails();
@@ -520,7 +520,7 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
     data.WriteGuidMask(InformUnit, 2);
 
     data.WriteBits(questGiverTextWindow.size(), 10);
-    data.WriteBit(activateAccept);
+    data.WriteBit(displayPopup);
 
     data.WriteGuidMask(QuestGiverGUID, 2);
 
@@ -542,7 +542,7 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
     data.WriteGuidMask(QuestGiverGUID, 3, 5, 4);
 
     data.WriteBits(questTurnTextWindow.size(), 10);
-    data.WriteBit(0);                                       /// DisplayPopup
+    data.WriteBit(activateAccept);
 
     data.WriteGuidMask(QuestGiverGUID, 6);
     data.WriteGuidMask(InformUnit, 7);
