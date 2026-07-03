@@ -34,19 +34,12 @@ INSERT INTO `creature_template_addon`
 VALUES
     (43814, 0, 0, 0, 1, 433, NULL);
 
+-- type 41 = CHAT_MSG_RAID_BOSS_EMOTE (yellow center screen); not 12 (say) or 63 (white quest boss emote)
 DELETE FROM `creature_text` WHERE `entry` = 43814;
 INSERT INTO `creature_text`
     (`entry`, `groupid`, `id`, `text`, `type`, `language`, `probability`, `emote`, `duration`, `sound`, `comment`)
 VALUES
     (43814, 0, 0, 'The worgen stares and hesitates!', 41, 0, 100, 0, 0, 0, 'Lurking Worgen - quest 26720 yellow boss emote');
-
--- Idempotent: type 41 = CHAT_MSG_RAID_BOSS_EMOTE (yellow center screen).
--- Type 12 = NPC say (bubble); type 63 = quest boss emote (white center).
-UPDATE `creature_text`
-SET `type` = 41,
-    `text` = 'The worgen stares and hesitates!',
-    `comment` = 'Lurking Worgen - quest 26720 yellow boss emote'
-WHERE `entry` = 43814 AND `groupid` = 0 AND `id` = 0;
 
 -- Harris's Ampule (82058): validation handled in spell_q26720_harris_ampule C++ script.
 DELETE FROM `conditions`
