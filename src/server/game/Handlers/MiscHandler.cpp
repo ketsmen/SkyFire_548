@@ -2514,14 +2514,14 @@ namespace
     {
         switch (type)
         {
-            case DB2_REPLY_SPELLVISUAL:
-            case DB2_REPLY_SPELLVISUALEFFECTNAME:
-            case DB2_REPLY_SPELLVISUALKIT:
-            case DB2_REPLY_SPELLVISUALKITMODELATTACH:
-            case DB2_REPLY_SPELLVISUALMISSILE:
-            case DB2_REPLY_SPELLEFFECTCAMERASHAKES:
-            case DB2_REPLY_SPELLMISSILE:
-            case DB2_REPLY_SPELLMISSILEMOTION:
+            case DB2_REPLY_SPELL_VISUAL:
+            case DB2_REPLY_SPELL_VISUAL_EFFECT_NAME:
+            case DB2_REPLY_SPELL_VISUAL_KIT:
+            case DB2_REPLY_SPELL_VISUAL_KIT_MODEL_ATTACH:
+            case DB2_REPLY_SPELL_VISUAL_MISSILE:
+            case DB2_REPLY_SPELL_EFFECT_CAMERA_SHAKES:
+            case DB2_REPLY_SPELL_MISSILE:
+            case DB2_REPLY_SPELL_MISSILE_MOTION:
                 return true;
             default:
                 return false;
@@ -2556,63 +2556,63 @@ namespace
     {
         switch (type)
         {
-            case DB2_REPLY_BATTLEPETABILITY:
-            case DB2_REPLY_BATTLEPETABILITYEFFECT:
-            case DB2_REPLY_BATTLEPETABILITYSTATE:
-            case DB2_REPLY_BATTLEPETABILITYTURN:
-            case DB2_REPLY_BATTLEPETBREEDQUALITY:
-            case DB2_REPLY_BATTLEPETBREEDSTATE:
-            case DB2_REPLY_BATTLEPETEFFECTPROPERTIES:
-            case DB2_REPLY_BATTLEPETNPCTEAMMEMBER:
-            case DB2_REPLY_BATTLEPETSPECIES:
-            case DB2_REPLY_BATTLEPETSPECIESSTATE:
-            case DB2_REPLY_BATTLEPETSPECIESXABILITY:
-            case DB2_REPLY_BATTLEPETSTATE:
-            case DB2_REPLY_BATTLEPETVISUAL:
-            case DB2_REPLY_BROADCASTTEXT:
+            case DB2_REPLY_BATTLE_PET_ABILITY:
+            case DB2_REPLY_BATTLE_PET_ABILITY_EFFECT:
+            case DB2_REPLY_BATTLE_PET_ABILITY_STATE:
+            case DB2_REPLY_BATTLE_PET_ABILITY_TURN:
+            case DB2_REPLY_BATTLE_PET_BREED_QUALITY:
+            case DB2_REPLY_BATTLE_PET_BREED_STATE:
+            case DB2_REPLY_BATTLE_PET_EFFECT_PROPERTIES:
+            case DB2_REPLY_BATTLE_PET_NPC_TEAM_MEMBER:
+            case DB2_REPLY_BATTLE_PET_SPECIES:
+            case DB2_REPLY_BATTLE_PET_SPECIES_STATE:
+            case DB2_REPLY_BATTLE_PET_SPECIESX_ABILITY:
+            case DB2_REPLY_BATTLE_PET_STATE:
+            case DB2_REPLY_BATTLE_PET_VISUAL:
+            case DB2_REPLY_BROADCAST_TEXT:
             case DB2_REPLY_CREATURE:
-            case DB2_REPLY_CREATUREDIFFICULTY:
+            case DB2_REPLY_CREATURE_DIFFICULTY:
             case DB2_REPLY_CURVE:
-            case DB2_REPLY_CURVEPOINT:
-            case DB2_REPLY_DEVICEBLACKLIST:
-            case DB2_REPLY_DRIVERBLACKLIST:
+            case DB2_REPLY_CURVE_POINT:
+            case DB2_REPLY_DEVICE_BLACKLIST:
+            case DB2_REPLY_DRIVER_BLACKLIST:
             case DB2_REPLY_GAMEOBJECTS:
             case DB2_REPLY_ITEM:
             case DB2_REPLY_ITEM_SPARSE:
-            case DB2_REPLY_ITEMCURRENCYCOST:
-            case DB2_REPLY_ITEMEXTENDEDCOST:
-            case DB2_REPLY_ITEMTOBATTLEPET:
-            case DB2_REPLY_ITEMTOMOUNTSPELL:
-            case DB2_REPLY_ITEMUPGRADE:
+            case DB2_REPLY_ITEM_CURRENCY_COST:
+            case DB2_REPLY_ITEM_EXTENDED_COST:
+            case DB2_REPLY_ITEM_TO_BATTLE_PET:
+            case DB2_REPLY_ITEM_TO_MOUNT_SPELL:
+            case DB2_REPLY_ITEM_UPGRADE:
             case DB2_REPLY_KEYCHAIN:
             case DB2_REPLY_LOCALE:
             case DB2_REPLY_LOCATION:
-            case DB2_REPLY_MAPCHALLENGEMODE:
-            case DB2_REPLY_MARKETINGPROMOTIONSXLOCALE:
+            case DB2_REPLY_MAP_CHALLENGE_MODE:
+            case DB2_REPLY_MARKETING_PROMOTIONS_X_LOCALE:
             case DB2_REPLY_PATH:
-            case DB2_REPLY_PATHNODE:
-            case DB2_REPLY_PATHNODEPROPERTY:
-            case DB2_REPLY_PATHPROPERTY:
-            case DB2_REPLY_QUESTPACKAGEITEM:
-            case DB2_REPLY_RULESETITEMUPGRADE:
-            case DB2_REPLY_RULESETRAIDLOOTUPGRADE:
-            case DB2_REPLY_SCENESCRIPT:
-            case DB2_REPLY_SCENESCRIPTPACKAGE:
-            case DB2_REPLY_SCENESCRIPTPACKAGEMEMBER:
-            case DB2_REPLY_SPELLEFFECTCAMERASHAKES:
-            case DB2_REPLY_SPELLMISSILE:
-            case DB2_REPLY_SPELLMISSILEMOTION:
-            case DB2_REPLY_SPELLREAGENTS:
-            case DB2_REPLY_SPELLVISUAL:
-            case DB2_REPLY_SPELLVISUALEFFECTNAME:
-            case DB2_REPLY_SPELLVISUALKIT:
-            case DB2_REPLY_SPELLVISUALKITMODELATTACH:
-            case DB2_REPLY_SPELLVISUALMISSILE:
+            case DB2_REPLY_PATH_NODE:
+            case DB2_REPLY_PATH_NODE_PROPERTY:
+            case DB2_REPLY_PATH_PROPERTY:
+            case DB2_REPLY_QUEST_PACKAGE_ITEM:
+            case DB2_REPLY_RULE_SET_ITEM_UPGRADE:
+            case DB2_REPLY_RULE_SET_RAID_LOOT_UPGRADE:
+            case DB2_REPLY_SCENE_SCRIPT:
+            case DB2_REPLY_SCENE_SCRIPT_PACKAGE:
+            case DB2_REPLY_SCENE_SCRIPT_PACKAGE_MEMBER:
+            case DB2_REPLY_SPELL_EFFECT_CAMERA_SHAKES:
+            case DB2_REPLY_SPELL_MISSILE:
+            case DB2_REPLY_SPELL_MISSILE_MOTION:
+            case DB2_REPLY_SPELL_REAGENTS:
+            case DB2_REPLY_SPELL_VISUAL:
+            case DB2_REPLY_SPELL_VISUAL_EFFECT_NAME:
+            case DB2_REPLY_SPELL_VISUAL_KIT:
+            case DB2_REPLY_SPELL_VISUAL_KIT_MODEL_ATTACH:
+            case DB2_REPLY_SPELL_VISUAL_MISSILE:
             case DB2_REPLY_VIGNETTE:
-            case DB2_REPLY_WBACCESSCONTROLLIST:
-            case DB2_REPLY_WBCERTBLACKLIST:
-            case DB2_REPLY_WBCERTWHITELIST:
-            case DB2_REPLY_WBPERMISSIONS:
+            case DB2_REPLY_WB_ACCESS_CONTROL_LIST:
+            case DB2_REPLY_WB_CERT_BLACKLIST:
+            case DB2_REPLY_WB_CERT_WHITELIST:
+            case DB2_REPLY_WB_PERMISSIONS:
                 return true;
             default:
                 return false;
@@ -2676,7 +2676,7 @@ void WorldSession::HandleRequestHotfix(WorldPacket& recvPacket)
         }
 
         // temp: this should be moved once broadcast text is properly implemented
-        if (type == DB2_REPLY_BROADCASTTEXT)
+        if (type == DB2_REPLY_BROADCAST_TEXT)
         {
             SF_LOG_INFO("network", "SMSG_DB_REPLY: broadcast text hotfix entry %u (gossip hack)", entries[i]);
             SendBroadcastText(entries[i]);
@@ -2737,7 +2737,7 @@ void WorldSession::SendBroadcastText(uint32 entry)
     WorldPacket data(SMSG_DB_REPLY);
     data << uint32(entry);
     data << uint32(time(NULL));
-    data << uint32(DB2_REPLY_BROADCASTTEXT);
+    data << uint32(DB2_REPLY_BROADCAST_TEXT);
     data << uint32(buffer.size());
     data.append(buffer);
 
