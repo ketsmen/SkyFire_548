@@ -43,13 +43,102 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 SET @stmt := IF(
+    EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option'
+            AND COLUMN_NAME = 'npc_option_npcflag'
+    ),
+    'ALTER TABLE `gossip_menu_option` CHANGE COLUMN `npc_option_npcflag` `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
+    EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option'
+            AND COLUMN_NAME = 'OptionNpcFlag'
+    ),
+    'ALTER TABLE `gossip_menu_option` CHANGE COLUMN `OptionNpcFlag` `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
+    NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option'
+            AND COLUMN_NAME = 'OptionNpcflag'
+    ),
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
+    EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option_548_backup'
+            AND COLUMN_NAME = 'npc_option_npcflag'
+    ),
+    'ALTER TABLE `gossip_menu_option_548_backup` CHANGE COLUMN `npc_option_npcflag` `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
+    EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option_548_backup'
+            AND COLUMN_NAME = 'OptionNpcFlag'
+    ),
+    'ALTER TABLE `gossip_menu_option_548_backup` CHANGE COLUMN `OptionNpcFlag` `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
+    EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option_548_backup'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'gossip_menu_option_548_backup'
+            AND COLUMN_NAME = 'OptionNpcflag'
+    ),
+    'ALTER TABLE `gossip_menu_option_548_backup` ADD COLUMN `OptionNpcflag` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+    'SELECT 1'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := IF(
     NOT EXISTS (
         SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'ActionMenuID'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `ActionMenuID` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `OptionNpcflag`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `ActionMenuID` INT UNSIGNED NOT NULL DEFAULT 0',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
@@ -63,7 +152,7 @@ SET @stmt := IF(
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'ActionPoiID'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `ActionPoiID` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `ActionMenuID`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `ActionPoiID` INT UNSIGNED NOT NULL DEFAULT 0',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
@@ -77,7 +166,7 @@ SET @stmt := IF(
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'BoxCoded'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxCoded` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `ActionPoiID`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxCoded` TINYINT UNSIGNED NOT NULL DEFAULT 0',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
@@ -91,7 +180,7 @@ SET @stmt := IF(
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'BoxMoney'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxMoney` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `BoxCoded`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxMoney` INT UNSIGNED NOT NULL DEFAULT 0',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
@@ -105,7 +194,7 @@ SET @stmt := IF(
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'BoxText'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxText` MEDIUMTEXT NULL AFTER `BoxMoney`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxText` MEDIUMTEXT NULL',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
@@ -119,7 +208,7 @@ SET @stmt := IF(
             AND TABLE_NAME = 'gossip_menu_option'
             AND COLUMN_NAME = 'BoxBroadcastTextID'
     ),
-    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxBroadcastTextID` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `BoxText`',
+    'ALTER TABLE `gossip_menu_option` ADD COLUMN `BoxBroadcastTextID` INT UNSIGNED NOT NULL DEFAULT 0',
     'SELECT 1'
 );
 PREPARE stmt FROM @stmt;
