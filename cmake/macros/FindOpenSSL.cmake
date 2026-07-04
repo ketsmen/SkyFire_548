@@ -224,12 +224,21 @@ IF(WIN32 AND NOT CYGWIN)
     )
   ELSE(MSVC)
     # Not sure what to pick for -say- intel, let's use the toplevel ones and hope someone report issues:
+    FIND_LIBRARY(OPENSSL_LIB_LEGACY
+      NAMES
+        liblegacy
+      PATHS
+        ${OPENSSL_ROOT_DIR}/lib
+        ${OPENSSL_ROOT_DIR}/lib/VC/x64/MD
+    )
+
     FIND_LIBRARY(OPENSSL_LIB_CRYPTO
       NAMES
         libcrypto
       PATHS
         ${OPENSSL_ROOT_DIR}/lib
         ${OPENSSL_ROOT_DIR}/lib/VC
+        ${OPENSSL_ROOT_DIR}/lib/VC/x64/MD
     )
 
     FIND_LIBRARY(OPENSSL_LIB_SSL
@@ -238,10 +247,11 @@ IF(WIN32 AND NOT CYGWIN)
       PATHS
         ${OPENSSL_ROOT_DIR}/lib
         ${OPENSSL_ROOT_DIR}/lib/VC
+        ${OPENSSL_ROOT_DIR}/lib/VC/x64/MD
     )
     MARK_AS_ADVANCED(OPENSSL_LIB_SSL OPENSSL_LIB_CRYPTO)
 
-    SET( OPENSSL_LIBRARIES ${OPENSSL_LIB_SSL} ${OPENSSL_LIB_CRYPTO} )
+    SET( OPENSSL_LIBRARIES ${OPENSSL_LIB_LEGACY} ${OPENSSL_LIB_SSL} ${OPENSSL_LIB_CRYPTO} )
   ENDIF(MSVC)
 ELSE(WIN32 AND NOT CYGWIN)
   FIND_LIBRARY(OPENSSL_SSL_LIBRARIES
