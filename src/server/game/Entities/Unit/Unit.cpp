@@ -8621,6 +8621,9 @@ void Unit::WriteMovementInfo(WorldPacket& data, Movement::ExtraMovementStatusEle
                 if (hasOrientation)
                     data << GetOrientation();
                 break;
+            case MSEOrientationWithoutCheck:
+                data << GetOrientation();
+                break;
             case MSETransportPositionX:
                 if (hasTransportData)
                     data << GetTransOffsetX();
