@@ -11658,8 +11658,10 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                         canTalk = false;
                     break;
                 case GOSSIP_OPTION_TAXIVENDOR:
-                    if (GetSession()->SendLearnNewTaxiNode(creature))
-                        return;
+                    if (!sObjectMgr->GetNearestTaxiNode(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ(), creature->GetMapId(), GetTeam()))
+                        canTalk = false;
+                    else
+                        GetSession()->SendLearnNewTaxiNode(creature);
                     break;
                 case GOSSIP_OPTION_BATTLEFIELD:
                     if (!creature->isCanInteractWithBattleMaster(this, false))
