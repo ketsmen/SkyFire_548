@@ -200,7 +200,10 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         }
         case HIGHGUID_GAMEOBJECT:
         {
-            if (IS_PLAYER_GUID(ToGameObject()->GetOwnerGUID()))
+            // SPELL_FOCUS GOs (e.g. Basic Campfire 29784) crash the 5.4.8 client when
+            // sent as CREATE_OBJECT2 with a player CREATED_BY (WowClientDB2 OOM).
+            if (IS_PLAYER_GUID(ToGameObject()->GetOwnerGUID()) &&
+                ToGameObject()->GetGoType() != GAMEOBJECT_TYPE_SPELL_FOCUS)
                 updateType = UPDATETYPE_CREATE_OBJECT2;
             break;
         }
@@ -225,6 +228,17 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
                     break;
             }
         }
+    }
+
+    // MoP 5.4.8 client: SPELL_FOCUS GOs must use CREATE_OBJECT (WowClientDB2 OOM otherwise).
+    if (isType(TYPEMASK_GAMEOBJECT))
+    {
+        GameobjectTypes const goType = ToGameObject()->GetGoType();
+        if (goType == GAMEOBJECT_TYPE_SPELL_FOCUS)
+            updateType = UPDATETYPE_CREATE_OBJECT;
+        // Linked campfire trap (31442): CREATE_OBJECT2 on environmental traps also crashes client.
+        else if (goType == GAMEOBJECT_TYPE_TRAP && !ToGameObject()->GetOwnerGUID())
+            updateType = UPDATETYPE_CREATE_OBJECT;
     }
 
     if (Unit const* unit = ToUnit())

@@ -660,6 +660,10 @@ public:
 
     void SetOwnerGUID(uint64 owner)
     {
+        // SPELL_FOCUS GOs (Basic Campfire 29784): player CREATED_BY + CREATE_OBJECT2 crashes 5.4.8 client.
+        if (GetGoType() == GAMEOBJECT_TYPE_SPELL_FOCUS && IS_PLAYER_GUID(owner))
+            owner = 0;
+
         // Owner already found and different than expected owner - remove object from old owner
         if (owner && GetOwnerGUID() && GetOwnerGUID() != owner)
         {

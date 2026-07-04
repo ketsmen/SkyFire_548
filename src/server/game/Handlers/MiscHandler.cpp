@@ -2509,6 +2509,49 @@ void WorldSession::HandleInstanceLockResponse(WorldPacket& recvPacket)
 
 namespace
 {
+    // No server DB2 loaded — replying (even with size 0) can crash the 5.4.8 client.
+    bool AlwaysSkipHotfixReply(uint32 type)
+    {
+        switch (type)
+        {
+            case DB2_REPLY_SPELLVISUAL:
+            case DB2_REPLY_SPELLVISUALEFFECTNAME:
+            case DB2_REPLY_SPELLVISUALKIT:
+            case DB2_REPLY_SPELLVISUALKITMODELATTACH:
+            case DB2_REPLY_SPELLVISUALMISSILE:
+            case DB2_REPLY_SPELLEFFECTCAMERASHAKES:
+            case DB2_REPLY_SPELLMISSILE:
+            case DB2_REPLY_SPELLMISSILEMOTION:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    bool IsPlausibleHotfixEntry(uint32 entry)
+    {
+        return entry != 0 && entry <= 0x00FFFFFF;
+    }
+
+    bool ShouldSendHotfixReply(uint32 type, uint32 entry)
+    {
+        if (AlwaysSkipHotfixReply(type))
+            return false;
+        return IsPlausibleHotfixEntry(entry);
+    }
+
+    void SendEmptyDbReply(WorldSession* session, uint32 entry, uint32 type, char const* reason)
+    {
+        WorldPacket data(SMSG_DB_REPLY);
+        data << uint32(entry);
+        data << uint32(time(NULL));
+        data << uint32(type);
+        data << uint32(0);
+
+        session->SendPacket(&data);
+        SF_LOG_INFO("network", "SMSG_DB_REPLY: empty hotfix entry %u type %u (%s)", entry, type, reason);
+    }
+
     bool IsKnownHotfixType(uint32 type)
     {
         switch (type)
@@ -2612,24 +2655,30 @@ void WorldSession::HandleRequestHotfix(WorldPacket& recvPacket)
     {
         for (uint32 i = 0; i < count; ++i)
         {
-            WorldPacket data(SMSG_DB_REPLY);
-            data << uint32(entries[i]);
-            data << uint32(time(NULL));
-            data << uint32(type);
-            data << uint32(0);
+            if (!ShouldSendHotfixReply(type, entries[i]))
+            {
+                SF_LOG_INFO("network", "CMSG_REQUEST_HOTFIX: skipped entry %u type %u", entries[i], type);
+                continue;
+            }
 
-            SendPacket(&data);
+            SendEmptyDbReply(this, entries[i], type, "unsupported store");
         }
 
-        SF_LOG_DEBUG("network", "CMSG_REQUEST_HOTFIX: Sent empty replies for unsupported hotfix type: %u count: %u", type, count);
         return;
     }
 
     for (uint32 i = 0; i < count; ++i)
     {
+        if (!ShouldSendHotfixReply(type, entries[i]))
+        {
+            SF_LOG_INFO("network", "CMSG_REQUEST_HOTFIX: skipped entry %u type %u", entries[i], type);
+            continue;
+        }
+
         // temp: this should be moved once broadcast text is properly implemented
         if (type == DB2_REPLY_BROADCASTTEXT)
         {
+            SF_LOG_INFO("network", "SMSG_DB_REPLY: broadcast text hotfix entry %u (gossip hack)", entries[i]);
             SendBroadcastText(entries[i]);
             continue;
         }

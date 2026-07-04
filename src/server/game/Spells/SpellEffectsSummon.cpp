@@ -814,12 +814,6 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
 
     uint32 name_id = m_spellInfo->Effects[effIndex].MiscValue;
 
-    // Basic Campfire (29784): CREATED_BY on a SPELL_FOCUS GO uses CREATE_OBJECT2 and
-    // crashes the 5.4.8 client (WowClientDB2 OOM). Track for cleanup without owner.
-    bool const basicCampfire = (name_id == 29784);
-    if (basicCampfire)
-        m_caster->RemoveGameObject(m_spellInfo->Id, true);
-
     GameObjectTemplate const* goinfo = sObjectMgr->GetGameObjectTemplate(name_id);
 
     if (!goinfo)
@@ -827,6 +821,12 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
         SF_LOG_ERROR("sql.sql", "Gameobject (Entry: %u) not exist and not created at spell (ID: %u) cast", name_id, m_spellInfo->Id);
         return;
     }
+
+    // SPELL_FOCUS GOs (e.g. Basic Campfire 29784): CREATED_BY uses CREATE_OBJECT2 and
+    // crashes the 5.4.8 client (WowClientDB2 OOM). Track for cleanup without owner.
+    bool const spellFocusGo = (goinfo->type == GAMEOBJECT_TYPE_SPELL_FOCUS);
+    if (spellFocusGo)
+        m_caster->RemoveGameObject(m_spellInfo->Id, true);
 
     float fx, fy, fz;
 
@@ -908,7 +908,7 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
 
     pGameObj->SetRespawnTime(duration > 0 ? duration / IN_MILLISECONDS : 0);
 
-    if (!basicCampfire)
+    if (!spellFocusGo)
         pGameObj->SetOwnerGUID(m_caster->GetGUID());
 
     //pGameObj->SetUInt32Value(GAMEOBJECT_FIELD_LEVEL, m_caster->getLevel());
@@ -922,7 +922,7 @@ void Spell::EffectTransmitted(SpellEffIndex effIndex)
 
     cMap->AddToMap(pGameObj);
 
-    if (basicCampfire)
+    if (spellFocusGo)
         m_caster->TrackGameObject(pGameObj);
 
     if (uint32 linkedEntry = pGameObj->GetGOInfo()->GetLinkedGameObjectEntry())
