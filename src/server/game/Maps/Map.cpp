@@ -382,6 +382,12 @@ void Map::EnsureGridCreated(const GridCoord& p)
 //But object data is not loaded here
 void Map::EnsureGridCreated_i(const GridCoord& p)
 {
+    if (!p.IsCoordValid())
+    {
+        SF_LOG_ERROR("maps", "EnsureGridCreated_i: invalid grid [%u, %u] for map %u instance %u", p.x_coord, p.y_coord, GetId(), i_InstanceId);
+        return;
+    }
+
     if (!getNGrid(p.x_coord, p.y_coord))
     {
         SF_LOG_DEBUG("maps", "Creating grid[%u, %u] for map %u instance %u", p.x_coord, p.y_coord, GetId(), i_InstanceId);
@@ -565,6 +571,9 @@ bool Map::AddToMap(Transport* obj)
 
 bool Map::IsGridLoaded(const GridCoord& p) const
 {
+    if (!p.IsCoordValid())
+        return false;
+
     return (getNGrid(p.x_coord, p.y_coord) && isGridObjectDataLoaded(p.x_coord, p.y_coord));
 }
 
@@ -1889,12 +1898,17 @@ inline ZLiquidStatus GridMap::getLiquidStatus(float x, float y, float z, uint8 R
 
 inline GridMap* Map::GetGrid(float x, float y)
 {
-    // half opt method
-    int gx = (int)(32 - x / SIZE_OF_GRIDS);                       //grid x
-    int gy = (int)(32 - y / SIZE_OF_GRIDS);                       //grid y
+    if (!Skyfire::IsValidMapCoord(x, y))
+        return NULL;
 
-    // ensure GridMap is loaded
-    EnsureGridCreated(GridCoord(63 - gx, 63 - gy));
+    GridCoord const gridCoord = Skyfire::ComputeGridCoord(x, y);
+    if (!gridCoord.IsCoordValid())
+        return NULL;
+
+    int const gx = (MAX_NUMBER_OF_GRIDS - 1) - gridCoord.x_coord;
+    int const gy = (MAX_NUMBER_OF_GRIDS - 1) - gridCoord.y_coord;
+
+    EnsureGridCreated(gridCoord);
 
     return GridMaps[gx][gy];
 }
@@ -2532,6 +2546,13 @@ void Map::AddToActive(Creature* c)
         float x, y, z;
         c->GetRespawnPosition(x, y, z);
         GridCoord p = Skyfire::ComputeGridCoord(x, y);
+        if (!p.IsCoordValid())
+        {
+            SF_LOG_ERROR("maps", "Active creature (GUID: %u Entry: %u) has invalid respawn coordinates X:%f Y:%f Z:%f",
+                c->GetGUIDLow(), c->GetEntry(), x, y, z);
+            return;
+        }
+
         if (getNGrid(p.x_coord, p.y_coord))
             getNGrid(p.x_coord, p.y_coord)->incUnloadActiveLock();
         else
@@ -2563,6 +2584,13 @@ void Map::RemoveFromActive(Creature* c)
         float x, y, z;
         c->GetRespawnPosition(x, y, z);
         GridCoord p = Skyfire::ComputeGridCoord(x, y);
+        if (!p.IsCoordValid())
+        {
+            SF_LOG_ERROR("maps", "Active creature (GUID: %u Entry: %u) has invalid respawn coordinates X:%f Y:%f Z:%f",
+                c->GetGUIDLow(), c->GetEntry(), x, y, z);
+            return;
+        }
+
         if (getNGrid(p.x_coord, p.y_coord))
             getNGrid(p.x_coord, p.y_coord)->decUnloadActiveLock();
         else

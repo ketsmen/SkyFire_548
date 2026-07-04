@@ -491,7 +491,7 @@ void GameObject::Update(uint32 diff)
 
                     // Note: this hack with search required until GO casting not implemented
                     // search unfriendly creature
-                    if (owner)                    // hunter trap
+                    if (owner && goInfo->trap.autoCloseTime != -1) // hunter trap; -1 = environmental (campfire)
                     {
                         Skyfire::AnyUnfriendlyNoTotemUnitInObjectRangeCheck checker(this, owner, radius);
                         Skyfire::UnitSearcher<Skyfire::AnyUnfriendlyNoTotemUnitInObjectRangeCheck> searcher(this, ok, checker);

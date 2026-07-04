@@ -233,6 +233,55 @@ function Set-SkyFireBuildEnvironment {
     $env:MYSQL_ROOT = $Config.MySqlRoot
 }
 
+function Invoke-SkyFireNativeCommand {
+    param(
+        [Parameter(Mandatory)]
+        [scriptblock] $Command,
+        [object[]] $ArgumentList = @(),
+        [switch] $EchoOutput
+    )
+
+    # Native tools (git, cmake) write progress to stderr. With $ErrorActionPreference = 'Stop',
+    # PowerShell treats that as a terminating error unless we relax it for the call.
+    $savedEap = $ErrorActionPreference
+    $savedNative = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+        $savedNative = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $Command @ArgumentList 2>&1
+    }
+    finally {
+        $ErrorActionPreference = $savedEap
+        if ($null -ne $savedNative) {
+            $PSNativeCommandUseErrorActionPreference = $savedNative
+        }
+    }
+
+    foreach ($line in @($output)) {
+        if ($null -eq $line) {
+            continue
+        }
+
+        $text = if ($line -is [System.Management.Automation.ErrorRecord]) {
+            $line.ToString()
+        }
+        else {
+            [string]$line
+        }
+
+        if ($EchoOutput) {
+            Write-Host $text
+            Write-SkyFireLog -Message $text
+        }
+    }
+
+    return $LASTEXITCODE
+}
+
 function Invoke-SkyFireGitUpdate {
     param([hashtable] $Config)
 
@@ -241,14 +290,22 @@ function Invoke-SkyFireGitUpdate {
 
     Write-Host "Running git pull in $sourceDir ..." -ForegroundColor Cyan
 
-    $output = & git -C $sourceDir pull 2>&1
-    foreach ($line in @($output)) {
-        $text = [string]$line
-        Write-Host $text
-        Write-SkyFireLog -Message $text
+    $savedGitStderrRedirect = $env:GIT_REDIRECT_STDERR
+    $env:GIT_REDIRECT_STDERR = '2>&1'
+    try {
+        $exitCode = Invoke-SkyFireNativeCommand -EchoOutput -ArgumentList $sourceDir -Command {
+            param([string] $RepoPath)
+            & git -C $RepoPath pull
+        }
     }
-
-    $exitCode = $LASTEXITCODE
+    finally {
+        if ($null -eq $savedGitStderrRedirect) {
+            Remove-Item Env:\GIT_REDIRECT_STDERR -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:GIT_REDIRECT_STDERR = $savedGitStderrRedirect
+        }
+    }
     if ($exitCode -ne 0) {
         $hint = 'git pull failed. Commit or stash local changes, or run "git status" in the repo folder.'
         Write-SkyFireLog -Message "git pull failed with exit code $exitCode. $hint" -Level ERROR
