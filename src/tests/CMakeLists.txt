@@ -415,6 +415,17 @@ target_include_directories(spell_book_packet_tests PRIVATE
 
 add_test(NAME spell_book_packet_tests COMMAND spell_book_packet_tests)
 
+add_executable(gossip_schema_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/Globals/GossipSchema.cpp
+  GossipSchemaTests.cpp
+)
+
+target_include_directories(gossip_schema_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/server/game/Globals
+)
+
+add_test(NAME gossip_schema_tests COMMAND gossip_schema_tests)
+
 add_executable(game_domain_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player/PlayerRestState.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/Auras/SpellAuraMetadata.cpp
