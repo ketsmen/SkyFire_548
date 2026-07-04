@@ -1,9 +1,47 @@
--- Seed inline gossip data from the prepared 4.3.4 world database.
+-- Replace SkyFire gossip tables with the prepared 4.3.4 gossip tables.
+-- Current SkyFire gossip data is preserved by 2026_07_04_00_world_gossip_548_backup.sql.
 
-DELETE FROM `gossip_menu_option_locale`;
-DELETE FROM `gossip_menu_option`;
-DELETE FROM `gossip_menu`;
+DROP TABLE IF EXISTS `gossip_menu_option_action`;
+DROP TABLE IF EXISTS `gossip_menu_option_box`;
 
+-- MySQL dump 10.13  Distrib 9.7.0, for Win64 (x86_64)
+--
+-- Host: 127.0.0.1    Database: tc__434_world
+-- ------------------------------------------------------
+-- Server version	9.7.0
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `gossip_menu`
+--
+
+DROP TABLE IF EXISTS `gossip_menu`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `gossip_menu` (
+  `MenuID` int unsigned NOT NULL DEFAULT '0',
+  `TextID` int unsigned NOT NULL DEFAULT '0',
+  `VerifiedBuild` smallint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`MenuID`,`TextID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `gossip_menu`
+--
+
+LOCK TABLES `gossip_menu` WRITE;
+/*!40000 ALTER TABLE `gossip_menu` DISABLE KEYS */;
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (21,518,14007);
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (21,519,15595);
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (22,520,15595);
@@ -8229,6 +8267,41 @@ INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (57016,50
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (57017,50013,0);
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (57018,50014,0);
 INSERT INTO `gossip_menu` (`MenuID`, `TextID`, `VerifiedBuild`) VALUES (57019,50015,0);
+/*!40000 ALTER TABLE `gossip_menu` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `gossip_menu_option`
+--
+
+DROP TABLE IF EXISTS `gossip_menu_option`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `gossip_menu_option` (
+  `MenuID` int unsigned NOT NULL DEFAULT '0',
+  `OptionID` int unsigned NOT NULL DEFAULT '0',
+  `OptionIcon` tinyint unsigned NOT NULL DEFAULT '0',
+  `OptionText` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `OptionBroadcastTextID` int unsigned NOT NULL DEFAULT '0',
+  `OptionType` int unsigned NOT NULL DEFAULT '0',
+  `OptionNpcflag` bigint unsigned NOT NULL DEFAULT '0',
+  `ActionMenuID` int unsigned NOT NULL DEFAULT '0',
+  `ActionPoiID` int unsigned NOT NULL DEFAULT '0',
+  `BoxCoded` tinyint unsigned NOT NULL DEFAULT '0',
+  `BoxMoney` int unsigned NOT NULL DEFAULT '0',
+  `BoxText` mediumtext COLLATE utf8mb4_unicode_ci,
+  `BoxBroadcastTextID` int unsigned NOT NULL DEFAULT '0',
+  `VerifiedBuild` smallint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`MenuID`,`OptionID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `gossip_menu_option`
+--
+
+LOCK TABLES `gossip_menu_option` WRITE;
+/*!40000 ALTER TABLE `gossip_menu_option` DISABLE KEYS */;
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (0,0,0,'GOSSIP_OPTION_QUESTGIVER',0,2,2,0,0,0,0,NULL,0,0);
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (0,1,1,'I want to browse your goods',3370,3,128,0,0,0,0,NULL,0,0);
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (0,2,2,'I want to travel fast',0,4,8192,0,0,0,0,NULL,0,0);
@@ -14082,3 +14155,42 @@ INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionTex
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (57015,0,0,'Yes I checked, I\'m missing the top piece!',11778,1,1,57016,0,0,0,NULL,0,0);
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (57015,1,0,'Yes I checked, I\'m missing the left piece!',11780,1,1,57017,0,0,0,NULL,0,0);
 INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionText`, `OptionBroadcastTextID`, `OptionType`, `OptionNpcflag`, `ActionMenuID`, `ActionPoiID`, `BoxCoded`, `BoxMoney`, `BoxText`, `BoxBroadcastTextID`, `VerifiedBuild`) VALUES (57018,0,0,'Yes, please summon it back!',11786,1,1,57019,0,0,0,NULL,0,0);
+/*!40000 ALTER TABLE `gossip_menu_option` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `gossip_menu_option_locale`
+--
+
+DROP TABLE IF EXISTS `gossip_menu_option_locale`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `gossip_menu_option_locale` (
+  `MenuID` int unsigned NOT NULL DEFAULT '0',
+  `OptionID` int unsigned NOT NULL DEFAULT '0',
+  `Locale` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `OptionText` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `BoxText` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`MenuID`,`OptionID`,`Locale`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `gossip_menu_option_locale`
+--
+
+LOCK TABLES `gossip_menu_option_locale` WRITE;
+/*!40000 ALTER TABLE `gossip_menu_option_locale` DISABLE KEYS */;
+/*!40000 ALTER TABLE `gossip_menu_option_locale` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2026-07-04 16:09:18
