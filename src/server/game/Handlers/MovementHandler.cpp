@@ -812,3 +812,10 @@ void WorldSession::HandleMovementForceAck(WorldPacket& recvPacket)
 
     ReadMovementForceAckRequest(GetPlayer(), recvPacket);
 }
+
+void WorldSession::HandleMoveSetCanTurnWhileFallingAck(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: CMSG_MOVE_SET_CAN_TURN_WHILE_FALLING_ACK");
+
+    recvData.rfinish();
+}
