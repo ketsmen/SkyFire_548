@@ -67,6 +67,7 @@ enum MovementStatusElements
     MSEPositionY,
     MSEPositionZ,
     MSEOrientation,
+    MSEOrientationWithoutCheck,
     MSETransportGuidByte0,
     MSETransportGuidByte1,
     MSETransportGuidByte2,

@@ -22832,6 +22832,11 @@ void Player::ReadMovementInfo(WorldPacket& data, MovementInfo* mi, Movement::Ext
                     mi->pos.SetOrientation(data.read<float>());
                 break;
             }
+            case MSEOrientationWithoutCheck:
+            {
+                mi->pos.SetOrientation(data.read<float>());
+                break;
+            }
             case MSETransportPositionX:
             {
                 if (hasTransportData)
