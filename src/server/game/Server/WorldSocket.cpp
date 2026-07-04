@@ -84,6 +84,23 @@ struct WorldClientPktHeader
 #pragma pack(pop)
 #endif
 
+namespace
+{
+bool IsHushedUnhandledClientOpcode(uint16 opcode)
+{
+    switch (opcode)
+    {
+        case 0x18B2:
+        case 0x044E:
+        case 0x0A23:
+        case 0x0CF0:
+            return true;
+        default:
+            return false;
+    }
+}
+}
+
 WorldSocket::WorldSocket(std::unique_ptr<WorldSocketHandle> socket, std::string remoteAddress) :
 m_LastPingTime(), m_HasLastPingTime(false), m_OverSpeedPings(0), m_Address(std::move(remoteAddress)),
 m_SessionState(), m_RecvWPct(0), m_RecvPctRead(0), m_Header(sizeof(AuthClientPktHeader)),
@@ -666,7 +683,9 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                     OpcodeHandler const* handler = clientOpcodeTable[opcode];
                     if (!handler || handler->Status == STATUS_UNHANDLED)
                     {
-                        SF_LOG_ERROR("network.opcode", "No defined handler for opcode %s sent by %s", GetOpcodeNameForLogging(new_pct->GetOpcode(), false, new_pct->GetReceivedOpcode()).c_str(), session->GetPlayerInfo().c_str());
+                        if (!IsHushedUnhandledClientOpcode(new_pct->GetReceivedOpcode()))
+                            SF_LOG_ERROR("network.opcode", "No defined handler for opcode %s sent by %s", GetOpcodeNameForLogging(new_pct->GetOpcode(), false, new_pct->GetReceivedOpcode()).c_str(), session->GetPlayerInfo().c_str());
+
                         result = 0;
                         return;
                     }
