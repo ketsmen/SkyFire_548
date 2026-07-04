@@ -55,9 +55,10 @@ void WorldSession::SendTaxiStatus(uint64 guid)
     data.WriteBit(Guid[5]);
     data.WriteBit(Guid[4]);
     data.WriteBit(Guid[1]);
-    data.WriteBits(!GetPlayer()->m_taxi.IsTaximaskNodeKnown(curloc), 2);
+    data.WriteBits(GetPlayer()->m_taxi.IsTaximaskNodeKnown(curloc) ? 1 : 3, 2);
     data.WriteBit(Guid[3]);
     data.WriteBit(Guid[0]);
+    data.FlushBits();
 
     data.WriteByteSeq(Guid[0]);
     data.WriteByteSeq(Guid[5]);
@@ -116,10 +117,11 @@ void WorldSession::SendTaxiMenu(Creature* unit)
     SF_LOG_DEBUG("network", "WORLD: CMSG_TAXI_NODE_STATUS_QUERY %u ", curloc);
     ObjectGuid Guid = unit->GetGUID();
 
-    WorldPacket data(SMSG_SHOW_TAXI_NODES, (4 + 8 + 4 + 4 * 4));
+    WorldPacket data(SMSG_SHOW_TAXI_NODES, (4 + 8 + 4 + 8 * 4));
     data.WriteBit(1); //unk
     data.WriteGuidMask(Guid, 3, 0, 4, 2, 1, 7, 6, 5);
     data.WriteBits(TaxiMaskSize, 24);
+    data.FlushBits();
 
     data.WriteGuidBytes(Guid, 0, 3);
     data << uint32(curloc);
