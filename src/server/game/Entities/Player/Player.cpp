@@ -6877,8 +6877,14 @@ void Player::StopCinematic()
 }
 void Player::SendCinematicStart(uint32 CinematicSequenceId)
 {
-    WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4);
+    WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4 + 8 + 1);
     data << uint32(CinematicSequenceId);
+
+    ObjectGuid conversationGuid;
+    data.WriteGuidMask(conversationGuid, 0, 1, 2, 3, 4, 5, 6, 7);
+    data.FlushBits();
+    data.WriteGuidBytes(conversationGuid, 0, 1, 2, 3, 4, 5, 6, 7);
+
     SendDirectMessage(&data);
 
     StopCinematic();
