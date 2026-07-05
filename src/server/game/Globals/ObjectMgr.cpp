@@ -16,6 +16,7 @@
 #include "DisableMgr.h"
 #include "GameEventMgr.h"
 #include "GossipDef.h"
+#include "GossipSchema.h"
 #include "GroupMgr.h"
 #include "GuildMgr.h"
 #include "InstanceSaveMgr.h"
@@ -364,14 +365,7 @@ void ObjectMgr::LoadGossipMenuItemsLocales()
 
     _gossipMenuItemsLocaleStore.clear();                              // need for reload case
 
-    QueryResult result = WorldDatabase.Query("SELECT menu_id, id, "
-        "option_text_loc1, box_text_loc1, option_text_loc2, box_text_loc2, "
-        "option_text_loc3, box_text_loc3, option_text_loc4, box_text_loc4, "
-        "option_text_loc5, box_text_loc5, option_text_loc6, box_text_loc6, "
-        "option_text_loc7, box_text_loc7, option_text_loc8, box_text_loc8, "
-        "option_text_loc9, box_text_loc9, option_text_loc10, box_text_loc10, "
-        "option_text_loc11, box_text_loc11 "
-        "FROM locales_gossip_menu_option");
+    QueryResult result = WorldDatabase.Query(SkyFire::Gossip::GetGossipMenuOptionLocaleLoadQuery());
 
     if (!result)
         return;
@@ -382,15 +376,12 @@ void ObjectMgr::LoadGossipMenuItemsLocales()
 
         uint16 menuId = fields[0].GetUInt16();
         uint16 id = fields[1].GetUInt16();
+        LocaleConstant locale = GetLocaleByName(fields[2].GetString());
 
         GossipMenuItemsLocale& data = _gossipMenuItemsLocaleStore[MAKE_PAIR32(menuId, id)];
 
-        for (uint8 i = 1; i < TOTAL_LOCALES; ++i)
-        {
-            LocaleConstant locale = (LocaleConstant)i;
-            AddLocaleString(fields[2 + 2 * (i - 1)].GetString(), locale, data.OptionText);
-            AddLocaleString(fields[2 + 2 * (i - 1) + 1].GetString(), locale, data.BoxText);
-        }
+        AddLocaleString(fields[3].GetString(), locale, data.OptionText);
+        AddLocaleString(fields[4].GetString(), locale, data.BoxText);
     } while (result->NextRow());
 
     SF_LOG_INFO("server.loading", ">> Loaded %lu gossip_menu_option locale strings in %u ms", (unsigned long)_gossipMenuItemsLocaleStore.size(), GetMSTimeDiffToNow(oldMSTime));
@@ -8211,27 +8202,7 @@ void ObjectMgr::LoadGossipMenuItems()
 
     _gossipMenuItemsStore.clear();
 
-    QueryResult result = WorldDatabase.Query(
-        "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gossip_menu_option' AND LOWER(COLUMN_NAME) = 'optionindex' LIMIT 1");
-
-    if (result)
-    {
-        result = WorldDatabase.Query(
-            //      0       1            2           3           4           5              6             7            8         9         10
-            "SELECT o.MenuId, o.OptionIndex, o.OptionIcon, o.OptionText, o.OptionType, o.OptionNpcflag, "
-            "COALESCE(a.ActionMenuId, 0), COALESCE(a.ActionPoiId, 0), COALESCE(b.BoxCoded, 0), COALESCE(b.BoxMoney, 0), COALESCE(b.BoxText, '') "
-            "FROM gossip_menu_option o "
-            "LEFT JOIN gossip_menu_option_action a ON a.MenuId = o.MenuId AND a.OptionIndex = o.OptionIndex "
-            "LEFT JOIN gossip_menu_option_box b ON b.MenuId = o.MenuId AND b.OptionIndex = o.OptionIndex "
-            "ORDER BY o.MenuId, o.OptionIndex");
-    }
-    else
-    {
-        result = WorldDatabase.Query(
-            //      0        1   2            3            4          5                     6               7              8          9          10
-            "SELECT menu_id, id, option_icon, option_text, option_id, npc_option_npcflag, action_menu_id, action_poi_id, box_coded, box_money, box_text "
-            "FROM gossip_menu_option ORDER BY menu_id, id");
-    }
+    QueryResult result = WorldDatabase.Query(SkyFire::Gossip::GetGossipMenuOptionLoadQuery());
 
     if (!result)
     {
@@ -8247,34 +8218,36 @@ void ObjectMgr::LoadGossipMenuItems()
 
         GossipMenuItems gMenuItem;
 
-        gMenuItem.MenuId = fields[0].GetUInt32();
-        gMenuItem.OptionIndex = fields[1].GetUInt32();
-        gMenuItem.OptionIcon = fields[2].GetUInt32();
+        gMenuItem.MenuID = fields[0].GetUInt32();
+        gMenuItem.OptionID = fields[1].GetUInt32();
+        gMenuItem.OptionIcon = fields[2].GetUInt8();
         gMenuItem.OptionText = fields[3].GetString();
-        gMenuItem.OptionType = fields[4].GetUInt8();
-        gMenuItem.OptionNpcflag = fields[5].GetUInt32();
-        gMenuItem.ActionMenuId = fields[6].GetUInt32();
-        gMenuItem.ActionPoiId = fields[7].GetUInt32();
-        gMenuItem.BoxCoded = fields[8].GetBool();
-        gMenuItem.BoxMoney = fields[9].GetUInt32();
-        gMenuItem.BoxText = fields[10].GetString();
+        gMenuItem.OptionBroadcastTextID = fields[4].GetUInt32();
+        gMenuItem.OptionType = fields[5].GetUInt8();
+        gMenuItem.OptionNpcflag = fields[6].GetUInt32();
+        gMenuItem.ActionMenuID = fields[7].GetUInt32();
+        gMenuItem.ActionPoiID = fields[8].GetUInt32();
+        gMenuItem.BoxCoded = fields[9].GetBool();
+        gMenuItem.BoxMoney = fields[10].GetUInt32();
+        gMenuItem.BoxText = fields[11].GetString();
+        gMenuItem.BoxBroadcastTextID = fields[12].GetUInt32();
 
         if (gMenuItem.OptionIcon >= GOSSIP_ICON_MAX)
         {
-            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u has unknown icon id %u. Replacing with GOSSIP_ICON_CHAT", gMenuItem.MenuId, gMenuItem.OptionIndex, gMenuItem.OptionIcon);
+            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u has unknown icon id %u. Replacing with GOSSIP_ICON_CHAT", gMenuItem.MenuID, gMenuItem.OptionID, gMenuItem.OptionIcon);
             gMenuItem.OptionIcon = GOSSIP_ICON_CHAT;
         }
 
         if (gMenuItem.OptionType >= GOSSIP_OPTION_MAX)
-            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u has unknown option id %u. Option will not be used", gMenuItem.MenuId, gMenuItem.OptionIndex, gMenuItem.OptionType);
+            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u has unknown option id %u. Option will not be used", gMenuItem.MenuID, gMenuItem.OptionID, gMenuItem.OptionType);
 
-        if (gMenuItem.ActionPoiId && !GetPointOfInterest(gMenuItem.ActionPoiId))
+        if (gMenuItem.ActionPoiID && !GetPointOfInterest(gMenuItem.ActionPoiID))
         {
-            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u use non-existing action_poi_id %u, ignoring", gMenuItem.MenuId, gMenuItem.OptionIndex, gMenuItem.ActionPoiId);
-            gMenuItem.ActionPoiId = 0;
+            SF_LOG_ERROR("sql.sql", "Table gossip_menu_option for menu %u, id %u use non-existing action_poi_id %u, ignoring", gMenuItem.MenuID, gMenuItem.OptionID, gMenuItem.ActionPoiID);
+            gMenuItem.ActionPoiID = 0;
         }
 
-        _gossipMenuItemsStore.insert(GossipMenuItemsContainer::value_type(gMenuItem.MenuId, gMenuItem));
+        _gossipMenuItemsStore.insert(GossipMenuItemsContainer::value_type(gMenuItem.MenuID, gMenuItem));
         ++count;
     } while (result->NextRow());
 

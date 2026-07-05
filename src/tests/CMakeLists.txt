@@ -394,6 +394,38 @@ target_compile_definitions(player_dump_schema_tests PRIVATE SKYFIRE_SOURCE_DIR=\
 
 add_test(NAME player_dump_schema_tests COMMAND player_dump_schema_tests)
 
+add_executable(spell_book_packet_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player/SpellBookPackets.cpp
+  GameDomainTestSupport.cpp
+  SpellBookPacketTests.cpp
+)
+
+target_include_directories(spell_book_packet_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Debugging
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Logging
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Packets
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities
+  ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player
+  ${CMAKE_SOURCE_DIR}/src/server/game/Server
+  ${CMAKE_SOURCE_DIR}/src/server/game/Server/Protocol
+)
+
+add_test(NAME spell_book_packet_tests COMMAND spell_book_packet_tests)
+
+add_executable(gossip_schema_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/Globals/GossipSchema.cpp
+  GossipSchemaTests.cpp
+)
+
+target_include_directories(gossip_schema_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/server/game/Globals
+)
+
+add_test(NAME gossip_schema_tests COMMAND gossip_schema_tests)
+
 add_executable(game_domain_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Entities/Player/PlayerRestState.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/Auras/SpellAuraMetadata.cpp

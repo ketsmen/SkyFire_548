@@ -57,6 +57,7 @@
 #include "Spell.h"
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
+#include "SpellBookPackets.h"
 #include "SpellMgr.h"
 #include "Transport.h"
 #include "UpdateData.h"
@@ -3702,9 +3703,7 @@ bool Player::addSpell(uint32 spellId, bool active, bool learning, bool dependent
                 if (next_active_spell_id)
                 {
                     // update spell ranks in spellbook and action bar
-                    WorldPacket data(SMSG_SUPERCEDED_SPELL, 4 + 4);
-                    data << uint32(spellId);
-                    data << uint32(next_active_spell_id);
+                    WorldPacket data = Skyfire::SpellBook::BuildSupercededSpellPacket({ { spellId, next_active_spell_id } });
                     GetSession()->SendPacket(&data);
                 }
                 else
@@ -3789,9 +3788,7 @@ bool Player::addSpell(uint32 spellId, bool active, bool learning, bool dependent
                         {
                             if (IsInWorld())                 // not send spell (re-/over-)learn packets at loading
                             {
-                                WorldPacket data(SMSG_SUPERCEDED_SPELL, 4 + 4);
-                                data << uint32(itr2->first);
-                                data << uint32(spellId);
+                                WorldPacket data = Skyfire::SpellBook::BuildSupercededSpellPacket({ { spellId, itr2->first } });
                                 GetSession()->SendPacket(&data);
                             }
 
@@ -3805,9 +3802,7 @@ bool Player::addSpell(uint32 spellId, bool active, bool learning, bool dependent
                         {
                             if (IsInWorld())                 // not send spell (re-/over-)learn packets at loading
                             {
-                                WorldPacket data(SMSG_SUPERCEDED_SPELL, 4 + 4);
-                                data << uint32(spellId);
-                                data << uint32(itr2->first);
+                                WorldPacket data = Skyfire::SpellBook::BuildSupercededSpellPacket({ { itr2->first, spellId } });
                                 GetSession()->SendPacket(&data);
                             }
 
@@ -4212,9 +4207,7 @@ void Player::removeSpell(uint32 spell_id, bool disabled, bool learn_low_rank)
                     if (addSpell(prev_id, true, false, prev_itr->second->dependent, prev_itr->second->disabled))
                     {
                         // downgrade spell ranks in spellbook and action bar
-                        WorldPacket data(SMSG_SUPERCEDED_SPELL, 4 + 4);
-                        data << uint32(spell_id);
-                        data << uint32(prev_id);
+                        WorldPacket data = Skyfire::SpellBook::BuildSupercededSpellPacket({ { spell_id, prev_id } });
                         GetSession()->SendPacket(&data);
                         prev_activate = true;
                     }
@@ -11665,8 +11658,10 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                         canTalk = false;
                     break;
                 case GOSSIP_OPTION_TAXIVENDOR:
-                    if (GetSession()->SendLearnNewTaxiNode(creature))
-                        return;
+                    if (!sObjectMgr->GetNearestTaxiNode(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ(), creature->GetMapId(), GetTeam()))
+                        canTalk = false;
+                    else
+                        GetSession()->SendLearnNewTaxiNode(creature);
                     break;
                 case GOSSIP_OPTION_BATTLEFIELD:
                     if (!creature->isCanInteractWithBattleMaster(this, false))
@@ -11697,7 +11692,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                         canTalk = false;
                     break;
                 default:
-                    SF_LOG_ERROR("sql.sql", "Creature entry %u has unknown gossip option %u for menu %u", creature->GetEntry(), itr->second.OptionType, itr->second.MenuId);
+                    SF_LOG_ERROR("sql.sql", "Creature entry %u has unknown gossip option %u for menu %u", creature->GetEntry(), itr->second.OptionType, itr->second.MenuID);
                     canTalk = false;
                     break;
             }
@@ -11724,7 +11719,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
             int32 locale = GetSession()->GetSessionDbLocaleIndex();
             if (locale >= 0)
             {
-                uint32 idxEntry = MAKE_PAIR32(menuId, itr->second.OptionIndex);
+                uint32 idxEntry = MAKE_PAIR32(menuId, itr->second.OptionID);
                 if (GossipMenuItemsLocale const* no = sObjectMgr->GetGossipMenuItemsLocale(idxEntry))
                 {
                     ObjectMgr::GetLocaleString(no->OptionText, locale, strOptionText);
@@ -11732,8 +11727,8 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                 }
             }
 
-            menu->GetGossipMenu().AddMenuItem(itr->second.OptionIndex, itr->second.OptionIcon, strOptionText, 0, itr->second.OptionType, strBoxText, itr->second.BoxMoney, itr->second.BoxCoded);
-            menu->GetGossipMenu().AddGossipMenuItemData(itr->second.OptionIndex, itr->second.ActionMenuId, itr->second.ActionPoiId);
+            menu->GetGossipMenu().AddMenuItem(itr->second.OptionID, itr->second.OptionIcon, strOptionText, 0, itr->second.OptionType, strBoxText, itr->second.BoxMoney, itr->second.BoxCoded);
+            menu->GetGossipMenu().AddGossipMenuItemData(itr->second.OptionID, itr->second.ActionMenuID, itr->second.ActionPoiID);
         }
     }
 }
