@@ -4,8 +4,11 @@
 */
 
 #include "InstanceScript.h"
+#include "LegacyTransportSupport.h"
 #include "MapManager.h"
 #include "MoveSpline.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
 #include "Transport.h"
 #include "TransportMgr.h"
 
@@ -27,6 +30,11 @@ TransportMgr::~TransportMgr() { }
 void TransportMgr::Unload()
 {
     _transportTemplates.clear();
+}
+
+uint32 TransportMgr::GetLocalTransportEntry(uint32 entry) const
+{
+    return LegacyTransport::GetClientEntryForDbEntry(entry);
 }
 
 void TransportMgr::LoadTransportTemplates()
@@ -325,6 +333,62 @@ void TransportMgr::AddPathNodeToTransport(uint32 transportEntry, uint32 timeSeg,
     animNode.Path[timeSeg] = node;
 }
 
+Transport* TransportMgr::CreateLocalTransport(uint32 guid, Map* map)
+{
+    GameObjectData const* data = sObjectMgr->GetGOData(guid);
+    if (!data)
+    {
+        SF_LOG_ERROR("entities.transport", "Local transport with guid %u will not be loaded, `gameobject` data is missing", guid);
+        return NULL;
+    }
+
+    uint32 const entry = GetLocalTransportEntry(data->id);
+    LegacyTransport::LegacyTransportSpawnDiagnostic diagnostic = { guid, data->id, entry, map->GetId(), map->GetSpawnMode(), data->posX, data->posY, data->posZ, data->orientation, 0, 0 };
+    if (!LegacyTransport::IsAllowedOnMap(data->id, map->GetId(), map->GetSpawnMode()))
+        return NULL;
+
+    if (TransportAnimation const* animationInfo = GetTransportAnimInfo(entry))
+    {
+        diagnostic.AnimTime = animationInfo->TotalTime;
+        diagnostic.AnimNodes = uint32(animationInfo->Path.size());
+        LegacyTransport::LogCreateAttempt(diagnostic);
+    }
+    else
+        LegacyTransport::LogMissingCreateAnimationData(guid, data->id, entry);
+
+    Transport* transport = new Transport();
+    if (!transport->CreateLocal(guid, entry, map, data->posX, data->posY, data->posZ, data->orientation,
+        data->rotation0, data->rotation1, data->rotation2, data->rotation3, data->animprogress))
+    {
+        LegacyTransport::LogCreateFailure(diagnostic);
+        delete transport;
+        return NULL;
+    }
+
+    ASSERT(transport->GetMap()->AddToMap<Transport>(transport));
+    diagnostic.X = transport->GetPositionX();
+    diagnostic.Y = transport->GetPositionY();
+    diagnostic.Z = transport->GetPositionZ();
+    diagnostic.O = transport->GetOrientation();
+    LegacyTransport::LogCreateSuccess(diagnostic, transport->GetGUID(), uint32(GUID_HIPART(transport->GetGUID())), uint32(GUID_LOPART(transport->GetGUID())),
+        transport->GetTimer(), transport->GetTransportPeriod(), uint32(transport->GetGoState()), uint32(transport->GetGoType()),
+        transport->GetUInt32Value(OBJECT_FIELD_DYNAMIC_FLAGS));
+    return transport;
+}
+
+Transport* TransportMgr::CreateLocalTransport(uint32 entry, Map* map, float x, float y, float z, float o, uint32 animprogress)
+{
+    Transport* transport = new Transport();
+    if (!transport->CreateLocal(0, entry, map, x, y, z, o, 0.0f, 0.0f, 0.0f, 1.0f, animprogress))
+    {
+        delete transport;
+        return NULL;
+    }
+
+    ASSERT(transport->GetMap()->AddToMap<Transport>(transport));
+    return transport;
+}
+
 Transport* TransportMgr::CreateTransport(uint32 entry, uint32 guid /*= 0*/, Map* map /*= NULL*/)
 {
     // instance case, execute GetGameObjectEntry hook
@@ -425,6 +489,20 @@ void TransportMgr::CreateInstanceTransports(Map* map)
     // create transports
     for (std::set<uint32>::const_iterator itr = mapTransports->second.begin(); itr != mapTransports->second.end(); ++itr)
         CreateTransport(*itr, 0, map);
+}
+
+void TransportMgr::SpawnLocalTransports(Map* map)
+{
+    TransportInstanceMap::const_iterator itr = _localTransportSpawns.find(MAKE_PAIR32(map->GetId(), map->GetSpawnMode()));
+    if (itr == _localTransportSpawns.end())
+    {
+        LegacyTransport::LogNoRegisteredSpawns(map->GetId(), map->GetSpawnMode());
+        return;
+    }
+
+    LegacyTransport::LogSpawnCount(uint32(itr->second.size()), map->GetId(), map->GetSpawnMode());
+    for (std::set<uint32>::const_iterator guidItr = itr->second.begin(); guidItr != itr->second.end(); ++guidItr)
+        CreateLocalTransport(*guidItr, map);
 }
 
 TransportAnimationEntry const* TransportAnimation::GetAnimNode(uint32 time) const

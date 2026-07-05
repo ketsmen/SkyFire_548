@@ -648,6 +648,7 @@ public:
     uint32 GetDBTableGUIDLow() const { return m_DBTableGuid; }
 
     void UpdateRotationFields(float rotation2 = 0.0f, float rotation3 = 0.0f);
+    void UpdateWorldRotationField();
 
     // overwrite WorldObject function for proper name localization
     std::string const& GetNameForLocaleIdx(LocaleConstant locale_idx) const OVERRIDE;
@@ -822,8 +823,8 @@ public:
     GameObjectModel* m_model;
     void GetRespawnPosition(float& x, float& y, float& z, float* ori = NULL) const;
 
-    Transport* ToTransport() { if (GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport*>(this); else return NULL; }
-    Transport const* ToTransport() const { if (GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport const*>(this); else return NULL; }
+    Transport* ToTransport() { if (GetGOInfo()->type == GAMEOBJECT_TYPE_TRANSPORT || GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport*>(this); else return NULL; }
+    Transport const* ToTransport() const { if (GetGOInfo()->type == GAMEOBJECT_TYPE_TRANSPORT || GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport const*>(this); else return NULL; }
 
     float GetStationaryX() const OVERRIDE { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.GetPositionX(); return GetPositionX(); }
     float GetStationaryY() const OVERRIDE { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.GetPositionY(); return GetPositionY(); }

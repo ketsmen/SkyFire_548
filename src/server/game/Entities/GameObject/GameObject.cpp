@@ -2035,7 +2035,7 @@ std::string const& GameObject::GetNameForLocaleIdx(LocaleConstant loc_idx) const
     return GetName();
 }
 
-void GameObject::UpdateRotationFields(float rotation2 /*=0.0f*/, float rotation3 /*=0.0f*/)
+void GameObject::UpdateWorldRotationField()
 {
     static double const atan_pow = atan(pow(2.0f, -20.0f));
 
@@ -2054,9 +2054,17 @@ void GameObject::UpdateRotationFields(float rotation2 /*=0.0f*/, float rotation3
     //rotation |= (i_rot3 >> 42) & 0x7FFFFC0000000000;
 
     m_rotation = rotation;
+}
+
+void GameObject::UpdateRotationFields(float rotation2 /*=0.0f*/, float rotation3 /*=0.0f*/)
+{
+    UpdateWorldRotationField();
 
     if (rotation2 == 0.0f && rotation3 == 0.0f)
     {
+        double f_rot1 = std::sin(GetOrientation() / 2.0f);
+        double f_rot2 = std::cos(GetOrientation() / 2.0f);
+
         rotation2 = (float)f_rot1;
         rotation3 = (float)f_rot2;
     }

@@ -14,12 +14,15 @@ struct CreatureData;
 
 class Transport : public GameObject, public TransportBase
 {
+    friend Transport* TransportMgr::CreateLocalTransport(uint32, Map*);
+    friend Transport* TransportMgr::CreateLocalTransport(uint32, Map*, float, float, float, float, uint32);
     friend Transport* TransportMgr::CreateTransport(uint32, uint32, Map*);
 
     Transport();
 public:
     ~Transport();
 
+    bool CreateLocal(uint32 guidlow, uint32 entry, Map* map, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress);
     bool Create(uint32 guidlow, uint32 entry, uint32 mapid, float x, float y, float z, float ang, uint32 animprogress);
     void Update(uint32 diff);
 

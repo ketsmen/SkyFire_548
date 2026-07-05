@@ -104,6 +104,21 @@ public:
     // creates all transports for instance
     void CreateInstanceTransports(Map* map);
 
+    // Spawns all local map transports from gameobject data.
+    void SpawnLocalTransports(Map* map);
+
+    Transport* CreateLocalTransport(uint32 guid, Map* map);
+    Transport* CreateLocalTransport(uint32 entry, Map* map, float x, float y, float z, float o, uint32 animprogress);
+
+    uint32 GetLocalTransportEntry(uint32 entry) const;
+
+    void AddLocalTransportSpawn(uint16 mapId, uint32 spawnMask, uint32 guid)
+    {
+        for (uint8 i = 0; spawnMask != 0; i++, spawnMask >>= 1)
+            if (spawnMask & 1)
+                _localTransportSpawns[MAKE_PAIR32(mapId, i)].insert(guid);
+    }
+
     TransportTemplate const* GetTransportTemplate(uint32 entry) const
     {
         TransportTemplates::const_iterator itr = _transportTemplates.find(entry);
@@ -144,6 +159,8 @@ private:
     TransportInstanceMap _instanceTransports;
 
     TransportAnimationContainer _transportAnimations;
+
+    TransportInstanceMap _localTransportSpawns;
 };
 
 #define sTransportMgr Skyfire::Singleton<TransportMgr, Skyfire::Mutex>::instance()

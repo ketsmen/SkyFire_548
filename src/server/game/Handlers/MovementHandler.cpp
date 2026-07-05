@@ -583,6 +583,16 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvPacket)
         return;
     }
 
+    if (Transport* transport = mover->GetTransport())
+    {
+        movementInfo.pos.Relocate(movementInfo.transport.pos);
+        transport->CalculatePassengerPosition(
+            movementInfo.pos.m_positionX,
+            movementInfo.pos.m_positionY,
+            movementInfo.pos.m_positionZ,
+            &movementInfo.pos.m_orientation);
+    }
+
     mover->UpdatePosition(movementInfo.pos);
 
     if (mover->GetUInt32Value(UNIT_FIELD_NPC_EMOTESTATE) == 10)

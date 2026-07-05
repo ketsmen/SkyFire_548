@@ -57,7 +57,8 @@ Map::~Map()
         ++itr;
 
         // Destroy local transports
-        if (transport->GetTransportTemplate()->inInstance)
+        TransportTemplate const* transportTemplate = transport->GetTransportTemplate();
+        if (!transportTemplate || transportTemplate->inInstance)
         {
             transport->RemoveFromWorld();
             delete transport;
@@ -473,10 +474,10 @@ bool Map::AddPlayerToMap(Player* player)
     player->SetMap(this);
     player->AddToWorld();
 
+    player->m_clientGUIDs.clear();
     SendInitSelf(player);
     SendInitTransports(player);
 
-    player->m_clientGUIDs.clear();
     player->UpdateObjectVisibility(false);
     player->UpdatePhasing();
     sScriptMgr->OnPlayerEnterMap(this, player);
@@ -565,6 +566,23 @@ bool Map::AddToMap(Transport* obj)
 
     obj->AddToWorld();
     _transports.insert(obj);
+
+    if (!GetPlayers().isEmpty())
+    {
+        for (Map::PlayerList::const_iterator itr = GetPlayers().begin(); itr != GetPlayers().end(); ++itr)
+        {
+            Player* player = itr->GetSource();
+            if (player->GetTransport() == obj || !player->IsInWorld())
+                continue;
+
+            UpdateData data(GetId());
+            obj->BuildCreateUpdateBlockForPlayer(&data, player);
+            WorldPacket packet;
+            data.BuildPacket(&packet);
+            player->SendDirectMessage(&packet);
+            player->m_clientGUIDs.insert(obj->GetGUID());
+        }
+    }
 
     return true;
 }
@@ -2321,8 +2339,13 @@ void Map::SendInitTransports(Player* player)
     // Hack to send out transports
     UpdateData transData(player->GetMapId());
     for (TransportsContainer::const_iterator i = _transports.begin(); i != _transports.end(); ++i)
+    {
         if (*i != player->GetTransport())
+        {
             (*i)->BuildCreateUpdateBlockForPlayer(&transData, player);
+            player->m_clientGUIDs.insert((*i)->GetGUID());
+        }
+    }
 
     WorldPacket packet;
     transData.BuildPacket(&packet);
@@ -2340,6 +2363,12 @@ void Map::SendRemoveTransports(Player* player)
     WorldPacket packet;
     transData.BuildPacket(&packet);
     player->GetSession()->SendPacket(&packet);
+}
+
+void Map::PreserveTransportVisibility(std::set<uint64>& guids) const
+{
+    for (TransportsContainer::const_iterator itr = _transports.begin(); itr != _transports.end(); ++itr)
+        guids.erase((*itr)->GetGUID());
 }
 
 inline void Map::setNGrid(NGridType* grid, uint32 x, uint32 y)
@@ -3149,8 +3178,12 @@ GameObject* Map::GetGameObject(uint64 guid)
 
 Transport* Map::GetTransport(uint64 guid)
 {
-    if (GUID_HIPART(guid) != HIGHGUID_MO_TRANSPORT)
+    if (GUID_HIPART(guid) != HIGHGUID_MO_TRANSPORT && GUID_HIPART(guid) != HIGHGUID_TRANSPORT)
         return NULL;
+
+    for (TransportsContainer::const_iterator itr = _transports.begin(); itr != _transports.end(); ++itr)
+        if ((*itr)->GetGUID() == guid)
+            return *itr;
 
     GameObject* go = GetGameObject(guid);
     return go ? go->ToTransport() : NULL;

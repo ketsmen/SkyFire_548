@@ -35,6 +35,11 @@ if(ELUNA)
 endif()
 file(GLOB_RECURSE sources_Mails Mails/*.cpp Mails/*.h)
 file(GLOB_RECURSE sources_Maps Maps/*.cpp Maps/*.h)
+list(APPEND sources_Maps
+  Maps/LegacyTransportSupport.cpp
+  Maps/LegacyTransportSupport.h
+)
+list(REMOVE_DUPLICATES sources_Maps)
 file(GLOB_RECURSE sources_Miscellaneous Miscellaneous/*.cpp Miscellaneous/*.h)
 file(GLOB_RECURSE sources_Movement Movement/*.cpp Movement/*.h)
 file(GLOB_RECURSE sources_OutdoorPvP OutdoorPvP/*.cpp OutdoorPvP/*.h)

@@ -51,6 +51,7 @@ TypeID GuidHigh2TypeId(uint32 guid_hi)
         case HIGHGUID_PET:          return TypeID::TYPEID_UNIT;
         case HIGHGUID_PLAYER:       return TypeID::TYPEID_PLAYER;
         case HIGHGUID_GAMEOBJECT:   return TypeID::TYPEID_GAMEOBJECT;
+        case HIGHGUID_TRANSPORT:    return TypeID::TYPEID_GAMEOBJECT;
         case HIGHGUID_DYNAMICOBJECT:return TypeID::TYPEID_DYNAMICOBJECT;
         case HIGHGUID_CORPSE:       return TypeID::TYPEID_CORPSE;
         case HIGHGUID_AREATRIGGER:  return TypeID::TYPEID_AREATRIGGER;
@@ -761,13 +762,13 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint16 flags) const
     if (flags & UPDATEFLAG_STATIONARY_POSITION)
     {
         WorldObject const* self = static_cast<WorldObject const*>(this);
-        *data << float(self->GetPositionY());
+        *data << float(self->GetStationaryY());
         if (Unit const* unit = ToUnit())
             *data << float(unit->GetPositionZMinusOffset());
         else
-            *data << float(self->GetPositionZ());
-        *data << float(Position::NormalizeOrientation(self->GetOrientation()));
-        *data << float(self->GetPositionX());
+            *data << float(self->GetStationaryZ());
+        *data << float(Position::NormalizeOrientation(self->GetStationaryO()));
+        *data << float(self->GetStationaryX());
     }
 
     // 676 {}
@@ -787,7 +788,6 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint16 flags) const
     {
         GameObject const* go = ToGameObject();
 
-        // Legacy type-11 transports send path progress in dynamic flags; this field must remain a clock.
         if (go && go->ToTransport())
             *data << uint32(go->GetGOValue()->Transport.PathProgress);
         else

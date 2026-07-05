@@ -482,6 +482,7 @@ public:
 
     void SendInitTransports(Player* player);
     void SendRemoveTransports(Player* player);
+    void PreserveTransportVisibility(std::set<uint64>& guids) const;
 
 private:
     void LoadMapAndVMap(int gx, int gy);

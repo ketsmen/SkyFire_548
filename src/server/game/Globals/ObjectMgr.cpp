@@ -21,6 +21,7 @@
 #include "GuildMgr.h"
 #include "InstanceSaveMgr.h"
 #include "Language.h"
+#include "LegacyTransportSupport.h"
 #include "LFGMgr.h"
 #include "Log.h"
 #include "MapManager.h"
@@ -36,6 +37,7 @@
 #include "SpellMgr.h"
 #include "SpellScript.h"
 #include "Transport.h"
+#include "TransportMgr.h"
 #include "UpdateMask.h"
 #include "Util.h"
 #include "Vehicle.h"
@@ -2030,7 +2032,22 @@ void ObjectMgr::LoadGameobjects()
             continue;
         }
 
-        if (gameEvent == 0 && PoolId == 0)                      // if not this is to be managed by GameEvent System or Pool system
+        if (gInfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+        {
+            uint32 const transportEntry = sTransportMgr->GetLocalTransportEntry(gInfo->entry);
+            uint32 const allowedSpawnMask = LegacyTransport::GetAllowedSpawnMask(data.id, data.mapid, data.spawnMask);
+            if (allowedSpawnMask)
+            {
+                if (TransportAnimation const* animationInfo = sTransportMgr->GetTransportAnimInfo(transportEntry))
+                {
+                    LegacyTransport::LogRegisteredSpawn({ guid, data.id, transportEntry, data.mapid, allowedSpawnMask, data.posX, data.posY, data.posZ, data.orientation, animationInfo->TotalTime, uint32(animationInfo->Path.size()) });
+                    sTransportMgr->AddLocalTransportSpawn(data.mapid, allowedSpawnMask, guid);
+                }
+                else
+                    LegacyTransport::LogMissingAnimationData(guid, data.id, transportEntry);
+            }
+        }
+        else if (gameEvent == 0 && PoolId == 0)                      // if not this is to be managed by GameEvent System or Pool system
             AddGameobjectToGrid(guid, &data);
         ++count;
     } while (result->NextRow());

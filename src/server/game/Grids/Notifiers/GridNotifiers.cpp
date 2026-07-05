@@ -21,6 +21,8 @@ void VisibleNotifier::SendToSelf()
 {
     // at this moment i_clientGUIDs have guids that not iterate at grid level checks
     // but exist one case when this possible and object not out of range: transports
+    i_player.GetMap()->PreserveTransportVisibility(vis_guids);
+
     if (Transport* transport = i_player.GetTransport())
         for (std::set<WorldObject*>::const_iterator itr = transport->GetPassengers().begin(); itr != transport->GetPassengers().end(); ++itr)
         {

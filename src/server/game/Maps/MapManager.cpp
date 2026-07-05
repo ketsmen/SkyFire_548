@@ -21,6 +21,7 @@
 #include "Player.h"
 #include "RuntimeMetrics.h"
 #include "Transport.h"
+#include "TransportMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -108,7 +109,10 @@ Map* MapManager::CreateBaseMap(uint32 id)
         i_maps[entry->MapID] = map;
 
         if (!entry->Instanceable())
+        {
             map->LoadRespawnTimes();
+            sTransportMgr->SpawnLocalTransports(map);
+        }
     }
 
     ASSERT(map);

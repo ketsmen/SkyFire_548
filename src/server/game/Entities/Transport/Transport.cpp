@@ -8,6 +8,7 @@
 #include "Common.h"
 #include "DBCStores.h"
 #include "GameObjectAI.h"
+#include "GameObjectTransportTiming.h"
 #include "MapManager.h"
 #include "MapReference.h"
 #include "ObjectMgr.h"
@@ -18,11 +19,12 @@
 #include "Vehicle.h"
 #include "World.h"
 #include "WorldPacket.h"
+#include <G3D/Quat.h>
 
 Transport::Transport() : GameObject(),
 _transportInfo(NULL), _isMoving(true), _pendingStop(false), _triggeredArrivalEvent(false), _triggeredDepartureEvent(false)
 {
-    m_updateFlag = UPDATEFLAG_TRANSPORT | UPDATEFLAG_STATIONARY_POSITION | UPDATEFLAG_ROTATION;
+    m_updateFlag = UPDATEFLAG_TRANSPORT | UPDATEFLAG_LOWGUID | UPDATEFLAG_STATIONARY_POSITION | UPDATEFLAG_ROTATION;
 }
 
 Transport::~Transport()
@@ -86,6 +88,85 @@ bool Transport::Create(uint32 guidlow, uint32 entry, uint32 mapid, float x, floa
     return true;
 }
 
+bool Transport::CreateLocal(uint32 guidlow, uint32 entry, Map* map, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress)
+{
+    Relocate(x, y, z, ang);
+    m_stationaryPosition.Relocate(x, y, z, ang);
+
+    if (!IsPositionValid())
+    {
+        SF_LOG_ERROR("entities.transport", "Transport (Entry: %u) not created. Suggested coordinates isn't valid (X: %f Y: %f)", entry, x, y);
+        return false;
+    }
+
+    SetMap(map);
+
+    Object::_Create(guidlow ? guidlow : sObjectMgr->GenerateLowGuid(HIGHGUID_MO_TRANSPORT), 0, HIGHGUID_MO_TRANSPORT);
+
+    GameObjectTemplate const* goinfo = sObjectMgr->GetGameObjectTemplate(entry);
+    if (!goinfo)
+    {
+        SF_LOG_ERROR("entities.transport", "Transport not created: entry in `gameobject_template` not found, entry: %u map: %u  (X: %f Y: %f Z: %f) ang: %f", entry, map->GetId(), x, y, z, ang);
+        return false;
+    }
+
+    if (goinfo->type != GAMEOBJECT_TYPE_TRANSPORT)
+    {
+        SF_LOG_ERROR("entities.transport", "Transport %u (name: %s) has unsupported local transport type %u.", entry, goinfo->name.c_str(), goinfo->type);
+        return false;
+    }
+
+    m_goInfo = goinfo;
+    m_goValue.Transport.AnimationInfo = sTransportMgr->GetTransportAnimInfo(entry);
+    if (!m_goValue.Transport.AnimationInfo)
+    {
+        SF_LOG_ERROR("entities.transport", "Transport %u (name: %s) will not be created, missing data in TransportAnimation.dbc", entry, goinfo->name.c_str());
+        return false;
+    }
+
+    _triggeredArrivalEvent = false;
+    _triggeredDepartureEvent = false;
+
+    uint32 flags = goinfo->flags;
+    switch (entry)
+    {
+        case 218203:
+        case 218204:
+        case 218205:
+        case 218206:
+        case 218207:
+        case 218208:
+            flags |= GO_FLAG_TRANSPORT | GO_FLAG_NODESPAWN;
+            break;
+        default:
+            break;
+    }
+
+    SetObjectScale(goinfo->size);
+    SetUInt32Value(GAMEOBJECT_FIELD_FACTION_TEMPLATE, goinfo->faction);
+    SetUInt32Value(GAMEOBJECT_FIELD_FLAGS, flags);
+    SetEntry(goinfo->entry);
+    SetDisplayId(goinfo->displayId);
+    SetGoType(GAMEOBJECT_TYPE_TRANSPORT);
+    SetName(goinfo->name);
+
+    SetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 0, rotation0);
+    SetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 1, rotation1);
+    UpdateRotationFields(rotation2, rotation3);
+
+    InitializeLegacyTransport();
+    GOState const initialTransportState = GOState(Skyfire::GameObjects::GetInitialLegacyTransportState(
+        goinfo->transport.startOpen != 0, !m_transportPauseTimes.empty()));
+    SetByteValue(GAMEOBJECT_FIELD_PERCENT_HEALTH, 0, GetGOStateValue(initialTransportState));
+    SetLegacyTransportStopped(!m_transportPauseTimes.empty());
+    SetGoAnimProgress(animprogress);
+
+    m_model = CreateModel();
+    LastUsedScriptID = GetGOInfo()->ScriptId;
+    AIM_Initialize();
+    return true;
+}
+
 void Transport::Update(uint32 diff)
 {
     uint32 const positionUpdateDelay = 200;
@@ -94,6 +175,57 @@ void Transport::Update(uint32 diff)
         AI()->UpdateAI(diff);
     else if (!AIM_Initialize())
         SF_LOG_ERROR("entities.transport", "Could not initialize GameObjectAI for Transport");
+
+    if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+    {
+        UpdateLegacyTransportPathProgress();
+
+        uint32 const period = GetPeriod();
+        TransportAnimation const* animation = GetGOValue()->Transport.AnimationInfo;
+        if (period && animation && !animation->Path.empty())
+        {
+            uint32 const timer = GetTimer() % period;
+            TransportPathContainer::const_iterator nextItr = animation->Path.upper_bound(timer);
+            if (nextItr == animation->Path.end())
+                nextItr = animation->Path.begin();
+
+            TransportPathContainer::const_iterator prevItr = nextItr;
+            if (prevItr == animation->Path.begin())
+                prevItr = animation->Path.end();
+            --prevItr;
+
+            TransportAnimationEntry const* prev = prevItr->second;
+            TransportAnimationEntry const* next = nextItr->second;
+
+            float segmentPct = 0.0f;
+            if (prev != next)
+            {
+                uint32 const prevTime = prev->TimeSeg;
+                uint32 const nextTime = next->TimeSeg;
+                uint32 const segmentLength = nextTime > prevTime ? nextTime - prevTime : period - prevTime + nextTime;
+                uint32 const segmentProgress = timer >= prevTime ? timer - prevTime : period - prevTime + timer;
+
+                if (segmentLength)
+                    segmentPct = float(segmentProgress) / float(segmentLength);
+            }
+
+            G3D::Vector3 offset(prev->X, prev->Y, prev->Z);
+            if (prev != next)
+                offset = offset.lerp(G3D::Vector3(next->X, next->Y, next->Z), segmentPct);
+
+            G3D::Quat parentRotation(
+                GetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 0),
+                GetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 1),
+                GetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 2),
+                GetFloatValue(GAMEOBJECT_FIELD_PARENT_ROTATION + 3));
+
+            G3D::Vector3 pos = G3D::Vector3(GetStationaryX(), GetStationaryY(), GetStationaryZ()) + parentRotation.toRotationMatrix() * offset;
+            UpdatePosition(pos.x, pos.y, pos.z, GetStationaryO());
+        }
+
+        sScriptMgr->OnTransportUpdate(this, diff);
+        return;
+    }
 
     if (GetKeyFrames().size() <= 1)
         return;
@@ -186,6 +318,13 @@ void Transport::AddPassenger(WorldObject* passenger)
 
     if (_passengers.insert(passenger).second)
     {
+        passenger->SetTransport(this);
+        passenger->m_movementInfo.transport.guid = GetGUID();
+
+        if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+            if (Unit* unit = passenger->ToUnit())
+                unit->AddUnitState(UNIT_STATE_IGNORE_PATHFINDING);
+
         SF_LOG_DEBUG("entities.transport", "Object %s boarded transport %s.", passenger->GetName().c_str(), GetName().c_str());
 
         if (Player* plr = passenger->ToPlayer())
@@ -197,6 +336,13 @@ void Transport::RemovePassenger(WorldObject* passenger)
 {
     if (_passengers.erase(passenger) || _staticPassengers.erase(passenger)) // static passenger can remove itself in case of grid unload
     {
+        passenger->m_movementInfo.transport.Reset();
+        passenger->SetTransport(NULL);
+
+        if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+            if (Unit* unit = passenger->ToUnit())
+                unit->ClearUnitState(UNIT_STATE_IGNORE_PATHFINDING);
+
         SF_LOG_DEBUG("entities.transport", "Object %s removed from transport %s.", passenger->GetName().c_str(), GetName().c_str());
 
         if (Player* plr = passenger->ToPlayer())
@@ -295,9 +441,16 @@ void Transport::UpdatePosition(float x, float y, float z, float o)
     bool newActive = GetMap()->IsGridLoaded(x, y);
 
     Relocate(x, y, z, o);
+    if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+        UpdateWorldRotationField();
+    else
+        UpdateRotationFields(std::sin(o / 2.0f), std::cos(o / 2.0f));
     UpdateModelPosition();
 
     UpdatePassengerPositions(_passengers);
+
+    if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+        return;
 
     /* There are four possible scenarios that trigger loading/unloading passengers:
       1. transport moves from inactive to active grid
@@ -346,6 +499,12 @@ void Transport::UnloadStaticPassengers()
 
 void Transport::EnableMovement(bool enabled)
 {
+    if (GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+    {
+        SetGoState(enabled ? GOState::GO_STATE_ACTIVE : GOState::GO_STATE_READY);
+        return;
+    }
+
     if (!GetGOInfo()->moTransport.canBeStopped)
         return;
 
@@ -555,7 +714,16 @@ void Transport::BuildUpdate(UpdateDataMapType& data_map)
         return;
 
     for (Map::PlayerList::const_iterator itr = players.begin(); itr != players.end(); ++itr)
-        BuildFieldsUpdate(itr->GetSource(), data_map);
+    {
+        Player* player = itr->GetSource();
+        if (!player->IsInWorld())
+            continue;
+
+        if (player->GetTransport() != this && !player->HaveAtClient(this))
+            continue;
+
+        BuildFieldsUpdate(player, data_map);
+    }
 
     ClearUpdateMask(true);
 }

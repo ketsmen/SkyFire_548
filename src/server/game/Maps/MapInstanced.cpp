@@ -11,6 +11,7 @@
 #include "MMapFactory.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "TransportMgr.h"
 #include "VMapFactory.h"
 #include "World.h"
 
@@ -208,6 +209,7 @@ InstanceMap* MapInstanced::CreateInstance(uint32 InstanceId, InstanceSave* save,
     map->CreateInstanceData(load_data);
 
     m_InstancedMaps[InstanceId] = map;
+    sTransportMgr->SpawnLocalTransports(map);
     return map;
 }
 
@@ -233,6 +235,7 @@ BattlegroundMap* MapInstanced::CreateBattleground(uint32 InstanceId, Battlegroun
     bg->SetBgMap(map);
 
     m_InstancedMaps[InstanceId] = map;
+    sTransportMgr->SpawnLocalTransports(map);
     return map;
 }
 
