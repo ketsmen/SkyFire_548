@@ -19,7 +19,8 @@ database setup and update tracking system can apply it.
 1. Add the test SQL file to the matching pending folder.
 2. Apply it manually to a test database.
 3. Verify server startup, affected commands, and any in-game behavior.
-4. Rename or adjust the file for the mainstream update sequence.
-5. Move the verified file into `sql/updates/<database>`.
+4. Name the file like `YYYY-MM-DD_<database>_00_description.sql`.
+5. Push the pending SQL file and let the promotion workflow move it into
+   `sql/updates/<database>`.
 6. Let the database setup system record it through `skyfire_db_updates` and
    `db_update`.

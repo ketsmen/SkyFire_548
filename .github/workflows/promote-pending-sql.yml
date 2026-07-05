@@ -1,0 +1,49 @@
+name: promote-pending-sql
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'sql/pending_updates/*.sql'
+      - 'sql/pending_updates/**/*.sql'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Promote pending SQL updates
+        shell: pwsh
+        run: ./tools/dev/promote_pending_updates.ps1 -Apply
+
+      - name: Commit promoted SQL updates
+        shell: pwsh
+        run: |
+          git add -A sql/pending_updates sql/updates
+
+          $changes = git status --porcelain
+          $status = $changes -join "`n"
+          Write-Host $status
+
+          if ([string]::IsNullOrWhiteSpace($status)) {
+            Write-Host "No promoted SQL changes to commit."
+            exit 0
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "SQL: Promote pending updates"
+          git push origin HEAD:${{ github.ref_name }}
