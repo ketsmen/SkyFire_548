@@ -918,6 +918,9 @@ uint32 WorldSession::getDialogStatus(Player* player, Object* questgiver, uint32 
 
 void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket*/)
 {
+    if (!_player || _player->IsInCinematic() || isLogingOut())
+        return;
+
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY");
 
     uint32 count = 0;
