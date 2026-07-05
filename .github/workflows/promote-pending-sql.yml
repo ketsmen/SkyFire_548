@@ -3,6 +3,7 @@ name: promote-pending-sql
 on:
   workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
       - 'sql/pending_updates/*.sql'
       - 'sql/pending_updates/**/*.sql'
@@ -17,7 +18,7 @@ concurrency:
 
 jobs:
   promote:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
 
     steps:
