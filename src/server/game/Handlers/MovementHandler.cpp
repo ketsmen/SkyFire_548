@@ -489,6 +489,9 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvPacket)
 
     Player* plrMover = mover->ToPlayer();
 
+    if (plrMover && plrMover->IsInCinematic())
+        return;
+
     // ignore, waiting processing in WorldSession::HandleMoveWorldportAckOpcode and WorldSession::HandleMoveTeleportAck
     if (ShouldIgnoreMovementWhileTeleporting(plrMover, recvPacket))
         return;
