@@ -1379,15 +1379,6 @@ void Player::Update(uint32 p_time)
         {
             if (time > cinematicSequence->Duration)
                 StopCinematic();
-            else if (startedAtClient)
-            {
-                Position newPos;
-                cinematicSequence->GetPositionAtTime(time, &newPos.m_positionX, &newPos.m_positionY, &newPos.m_positionZ);
-
-                Unit::UpdatePosition(newPos.m_positionX, newPos.m_positionY, newPos.m_positionZ, 0, true);
-                UpdateObjectVisibility();
-                SetFall(false);
-            }
         }
     }
 
@@ -6877,14 +6868,8 @@ void Player::StopCinematic()
 }
 void Player::SendCinematicStart(uint32 CinematicSequenceId)
 {
-    WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4 + 8 + 1);
+    WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4);
     data << uint32(CinematicSequenceId);
-
-    ObjectGuid conversationGuid;
-    data.WriteGuidMask(conversationGuid, 0, 1, 2, 3, 4, 5, 6, 7);
-    data.FlushBits();
-    data.WriteGuidBytes(conversationGuid, 0, 1, 2, 3, 4, 5, 6, 7);
-
     SendDirectMessage(&data);
 
     StopCinematic();
