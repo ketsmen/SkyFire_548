@@ -444,8 +444,8 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
             RewardChoiceItemDisplayId[i] = itemTemplate->DisplayInfoID;
     }
 
+    ObjectGuid DividerGUID = _session->GetPlayer()->GetDivider();
     ObjectGuid QuestGiverGUID = npcGUID;
-    ObjectGuid InformUnit = npcGUID;                             // quest ender guid?
 
     WorldPacket data(SMSG_QUESTGIVER_QUEST_DETAILS, 100);   // guess size
     data << uint32(quest->RewardItemIdCount[3]);
@@ -512,40 +512,40 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
     data << uint32(RewardChoiceItemDisplayId[1]);
     data << uint32(quest->GetQuestTurnInPortrait());
 
-    data.WriteGuidMask(QuestGiverGUID, 7);
-    data.WriteGuidMask(InformUnit, 1);
+    data.WriteGuidMask(DividerGUID, 7);
+    data.WriteGuidMask(QuestGiverGUID, 1);
 
     data.WriteBits(questTurnTargetName.size(), 8);
 
-    data.WriteGuidMask(InformUnit, 2);
+    data.WriteGuidMask(QuestGiverGUID, 2);
 
     data.WriteBits(questGiverTextWindow.size(), 10);
     data.WriteBit(displayPopup);
 
-    data.WriteGuidMask(QuestGiverGUID, 2);
+    data.WriteGuidMask(DividerGUID, 2);
 
     data.WriteBits(questTitle.size(), 9);
     data.WriteBits(QUEST_EMOTE_COUNT, 21);
 
-    data.WriteGuidMask(QuestGiverGUID, 0);
-    data.WriteGuidMask(InformUnit, 6, 5);
+    data.WriteGuidMask(DividerGUID, 0);
+    data.WriteGuidMask(QuestGiverGUID, 6, 5);
 
     data.WriteBits(questGiverTargetName.size(), 8);
 
-    data.WriteGuidMask(InformUnit, 3);
-    data.WriteGuidMask(QuestGiverGUID, 1);
-    data.WriteGuidMask(InformUnit, 0);
+    data.WriteGuidMask(QuestGiverGUID, 3);
+    data.WriteGuidMask(DividerGUID, 1);
+    data.WriteGuidMask(QuestGiverGUID, 0);
 
     data.WriteBit(0);                                       /// StartCheat
 
-    data.WriteGuidMask(InformUnit, 4);
-    data.WriteGuidMask(QuestGiverGUID, 3, 5, 4);
+    data.WriteGuidMask(QuestGiverGUID, 4);
+    data.WriteGuidMask(DividerGUID, 3, 5, 4);
 
     data.WriteBits(questTurnTextWindow.size(), 10);
     data.WriteBit(activateAccept);
 
-    data.WriteGuidMask(QuestGiverGUID, 6);
-    data.WriteGuidMask(InformUnit, 7);
+    data.WriteGuidMask(DividerGUID, 6);
+    data.WriteGuidMask(QuestGiverGUID, 7);
 
     data.WriteBits(questDetails.size(), 12);
     data.WriteBits(0, 22);                                  /// Learned Spells
@@ -554,17 +554,17 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
 
     data.FlushBits();
 
-    data.WriteGuidBytes(QuestGiverGUID, 0);
+    data.WriteGuidBytes(DividerGUID, 0);
 
     data.WriteString(questGiverTargetName);
     data.WriteString(questTurnTextWindow);
     data.WriteString(questTitle);
 
-    data.WriteGuidBytes(InformUnit, 6);
+    data.WriteGuidBytes(QuestGiverGUID, 6);
 
     data.WriteString(questObjectives);
 
-    data.WriteGuidBytes(QuestGiverGUID, 2);
+    data.WriteGuidBytes(DividerGUID, 2);
 
     data.WriteString(questGiverTextWindow);
 
@@ -573,8 +573,8 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
     data.WriteString(questTurnTargetName);
     data.WriteString(questDetails);
 
-    data.WriteGuidBytes(QuestGiverGUID, 5, 7);
-    data.WriteGuidBytes(InformUnit, 7, 3, 0);
+    data.WriteGuidBytes(DividerGUID, 5, 7);
+    data.WriteGuidBytes(QuestGiverGUID, 7, 3, 0);
 
     for (uint8 i = 0; i < QUEST_EMOTE_COUNT; i++)
     {
@@ -582,10 +582,10 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, uint64 npcGUID, 
         data << uint32(quest->DetailsEmote[i]);
     }
 
-    data.WriteGuidBytes(QuestGiverGUID, 4, 3);
-    data.WriteGuidBytes(InformUnit, 5, 1, 2);
-    data.WriteGuidBytes(QuestGiverGUID, 1, 6);
-    data.WriteGuidBytes(InformUnit, 4);
+    data.WriteGuidBytes(DividerGUID, 4, 3);
+    data.WriteGuidBytes(QuestGiverGUID, 5, 1, 2);
+    data.WriteGuidBytes(DividerGUID, 1, 6);
+    data.WriteGuidBytes(QuestGiverGUID, 4);
 
     /// Learned Spells (uint32 vector)
 
