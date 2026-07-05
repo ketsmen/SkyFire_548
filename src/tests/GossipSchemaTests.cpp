@@ -32,6 +32,7 @@ bool ExpectNotContains(std::string const& query, char const* unexpected)
 int main()
 {
     std::string const query = SkyFire::Gossip::GetGossipMenuOptionLoadQuery();
+    std::string const localeQuery = SkyFire::Gossip::GetGossipMenuOptionLocaleLoadQuery();
 
     bool passed = true;
     passed &= ExpectContains(query, "MenuID");
@@ -42,6 +43,13 @@ int main()
     passed &= ExpectContains(query, "FROM gossip_menu_option");
     passed &= ExpectNotContains(query, "gossip_menu_option_action");
     passed &= ExpectNotContains(query, "gossip_menu_option_box");
+    passed &= ExpectContains(localeQuery, "MenuID");
+    passed &= ExpectContains(localeQuery, "OptionID");
+    passed &= ExpectContains(localeQuery, "Locale");
+    passed &= ExpectContains(localeQuery, "OptionText");
+    passed &= ExpectContains(localeQuery, "BoxText");
+    passed &= ExpectContains(localeQuery, "FROM gossip_menu_option_locale");
+    passed &= ExpectNotContains(localeQuery, "locales_gossip_menu_option");
 
     return passed ? 0 : 1;
 }

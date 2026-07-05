@@ -9,6 +9,7 @@
 namespace SkyFire::Gossip
 {
 char const* GetGossipMenuOptionLoadQuery();
+char const* GetGossipMenuOptionLocaleLoadQuery();
 }
 
 #endif

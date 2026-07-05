@@ -14,4 +14,11 @@ char const* GetGossipMenuOptionLoadQuery()
         "SELECT MenuID, OptionID, OptionIcon, OptionText, OptionBroadcastTextID, OptionType, OptionNpcflag, ActionMenuID, ActionPoiID, BoxCoded, BoxMoney, BoxText, BoxBroadcastTextID "
         "FROM gossip_menu_option ORDER BY MenuID, OptionID";
 }
+
+char const* GetGossipMenuOptionLocaleLoadQuery()
+{
+    return
+        //      0       1         2       3           4
+        "SELECT MenuID, OptionID, Locale, OptionText, BoxText FROM gossip_menu_option_locale";
+}
 }

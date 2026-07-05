@@ -94,7 +94,7 @@ public:
             { "locales_creature",              rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_CRETURE,            true,  &HandleReloadLocalesCreatureCommand,            "", },
             { "locales_creature_text",         rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_CRETURE_TEXT,       true,  &HandleReloadLocalesCreatureTextCommand,        "", },
             { "locales_gameobject",            rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_GAMEOBJECT,         true,  &HandleReloadLocalesGameobjectCommand,          "", },
-            { "locales_gossip_menu_option",    rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_GOSSIP_MENU_OPTION, true,  &HandleReloadLocalesGossipMenuOptionCommand,    "", },
+            { "gossip_menu_option_locale",     rbac::RBAC_PERM_COMMAND_RELOAD_GOSSIP_MENU_OPTION_LOCALE,  true,  &HandleReloadLocalesGossipMenuOptionCommand,    "", },
             { "locales_item",                  rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_ITEM,               true,  &HandleReloadLocalesItemCommand,                "", },
             { "locales_npc_text",              rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_NPC_TEXT,           true,  &HandleReloadLocalesNpcTextCommand,             "", },
             { "locales_page_text",             rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_PAGE_TEXT,          true,  &HandleReloadLocalesPageTextCommand,            "", },
@@ -1114,9 +1114,9 @@ public:
 
     static bool HandleReloadLocalesGossipMenuOptionCommand(ChatHandler* handler, const char* /*args*/)
     {
-        SF_LOG_INFO("misc", "Re-Loading Locales Gossip Menu Option ... ");
+        SF_LOG_INFO("misc", "Re-Loading Gossip Menu Option Locale ... ");
         sObjectMgr->LoadGossipMenuItemsLocales();
-        handler->SendGlobalGMSysMessage("DB table `locales_gossip_menu_option` reloaded.");
+        handler->SendGlobalGMSysMessage("DB table `gossip_menu_option_locale` reloaded.");
         return true;
     }
 
