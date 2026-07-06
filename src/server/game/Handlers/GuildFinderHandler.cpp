@@ -24,25 +24,13 @@ void WorldSession::HandleGuildFinderAddApplication(WorldPacket& recvPacket)
     recvPacket >> classRoles >> availability >> guildInterests;
 
     ObjectGuid guid;
-    guid[7] = recvPacket.ReadBit();
-    guid[5] = recvPacket.ReadBit();
-    guid[2] = recvPacket.ReadBit();
-    guid[6] = recvPacket.ReadBit();
-    guid[1] = recvPacket.ReadBit();
-    guid[0] = recvPacket.ReadBit();
+    recvPacket.ReadGuidMask(guid, 7, 5, 2, 6, 1, 0);
     uint16 commentLength = recvPacket.ReadBits(10);
-    guid[3] = recvPacket.ReadBit();
-    guid[4] = recvPacket.ReadBit();
+    recvPacket.ReadGuidMask(guid, 3, 4);
 
-    recvPacket.ReadByteSeq(guid[4]);
-    recvPacket.ReadByteSeq(guid[0]);
-    recvPacket.ReadByteSeq(guid[2]);
+    recvPacket.ReadGuidBytes(guid, 4, 0, 2);
     std::string comment = recvPacket.ReadString(commentLength);
-    recvPacket.ReadByteSeq(guid[6]);
-    recvPacket.ReadByteSeq(guid[1]);
-    recvPacket.ReadByteSeq(guid[5]);
-    recvPacket.ReadByteSeq(guid[7]);
-    recvPacket.ReadByteSeq(guid[3]);
+    recvPacket.ReadGuidBytes(guid, 6, 1, 5, 7, 3);
 
     uint32 guildLowGuid = GUID_LOPART(uint64(guid));
 
@@ -327,23 +315,8 @@ void WorldSession::HandleGuildFinderRemoveApplication(WorldPacket& recvPacket)
 
     ObjectGuid guildGuid;
 
-    guildGuid[7] = recvPacket.ReadBit();
-    guildGuid[5] = recvPacket.ReadBit();
-    guildGuid[4] = recvPacket.ReadBit();
-    guildGuid[1] = recvPacket.ReadBit();
-    guildGuid[6] = recvPacket.ReadBit();
-    guildGuid[3] = recvPacket.ReadBit();
-    guildGuid[2] = recvPacket.ReadBit();
-    guildGuid[0] = recvPacket.ReadBit();
-
-    recvPacket.ReadByteSeq(guildGuid[6]);
-    recvPacket.ReadByteSeq(guildGuid[3]);
-    recvPacket.ReadByteSeq(guildGuid[7]);
-    recvPacket.ReadByteSeq(guildGuid[1]);
-    recvPacket.ReadByteSeq(guildGuid[2]);
-    recvPacket.ReadByteSeq(guildGuid[0]);
-    recvPacket.ReadByteSeq(guildGuid[5]);
-    recvPacket.ReadByteSeq(guildGuid[4]);
+    recvPacket.ReadGuidMask(guildGuid, 7, 5, 4, 1, 6, 3, 2, 0);
+    recvPacket.ReadGuidBytes(guildGuid, 6, 3, 7, 1, 2, 0, 5, 4);
 
     if (!IS_GUILD_GUID(guildGuid))
         return;

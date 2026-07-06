@@ -25,25 +25,13 @@ void WorldSession::SendBfInvitePlayerToWar(uint64 guid, uint32 zoneId, uint32 pT
 
     WorldPacket data(SMSG_BATTLEFIELD_MGR_ENTRY_INVITE, 16);
 
-    data.WriteBit(guidBytes[5]);
-    data.WriteBit(guidBytes[3]);
-    data.WriteBit(guidBytes[7]);
-    data.WriteBit(guidBytes[2]);
-    data.WriteBit(guidBytes[6]);
-    data.WriteBit(guidBytes[4]);
-    data.WriteBit(guidBytes[1]);
-    data.WriteBit(guidBytes[0]);
+    data.WriteGuidMask(guidBytes, 5, 3, 7, 2, 6, 4, 1, 0);
 
-    data.WriteByteSeq(guidBytes[6]);
+    data.WriteGuidBytes(guidBytes, 6);
     data << uint32(zoneId);         // Zone Id
-    data.WriteByteSeq(guidBytes[1]);
-    data.WriteByteSeq(guidBytes[3]);
-    data.WriteByteSeq(guidBytes[4]);
-    data.WriteByteSeq(guidBytes[2]);
-    data.WriteByteSeq(guidBytes[0]);
+    data.WriteGuidBytes(guidBytes, 1, 3, 4, 2, 0);
     data << uint32(time(NULL) + pTime); // Invite lasts until
-    data.WriteByteSeq(guidBytes[7]);
-    data.WriteByteSeq(guidBytes[5]);
+    data.WriteGuidBytes(guidBytes, 7, 5);
 
     //Sending the packet to player
     SendPacket(&data);
@@ -175,26 +163,14 @@ void WorldSession::SendBfLeaveMessage(uint64 guid, BFLeaveReason reason)
     ObjectGuid guidBytes = guid;
 
     WorldPacket data(SMSG_BATTLEFIELD_MGR_EJECTED, 11);
-    data.WriteBit(guidBytes[5]);
+    data.WriteGuidMask(guidBytes, 5);
     data.WriteBit(0);               // Relocated
-    data.WriteBit(guidBytes[4]);
-    data.WriteBit(guidBytes[0]);
-    data.WriteBit(guidBytes[2]);
-    data.WriteBit(guidBytes[7]);
-    data.WriteBit(guidBytes[1]);
-    data.WriteBit(guidBytes[6]);
-    data.WriteBit(guidBytes[3]);
+    data.WriteGuidMask(guidBytes, 4, 0, 2, 7, 1, 6, 3);
 
-    data.WriteByteSeq(guidBytes[0]);
-    data.WriteByteSeq(guidBytes[2]);
-    data.WriteByteSeq(guidBytes[3]);
-    data.WriteByteSeq(guidBytes[4]);
-    data.WriteByteSeq(guidBytes[6]);
-    data.WriteByteSeq(guidBytes[5]);
+    data.WriteGuidBytes(guidBytes, 0, 2, 3, 4, 6, 5);
     data << uint8(2);               // BattleStatus
     data << uint8(reason);          // Reason
-    data.WriteByteSeq(guidBytes[7]);
-    data.WriteByteSeq(guidBytes[1]);
+    data.WriteGuidBytes(guidBytes, 7, 1);
     SendPacket(&data);
 }
 
@@ -204,24 +180,11 @@ void WorldSession::HandleBfQueueInviteResponse(WorldPacket& recvData)
     uint8 accepted;
     ObjectGuid guid;
 
-    guid[3] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 3, 6, 0, 2);
     accepted = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 1, 5, 7, 4);
 
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
+    recvData.ReadGuidBytes(guid, 4, 1, 2, 6, 0, 7, 5, 3);
 
     SF_LOG_ERROR("misc", "HandleQueueInviteResponse: GUID:" UI64FMTD " Accepted:%u", (uint64)guid, accepted);
 
@@ -239,24 +202,11 @@ void WorldSession::HandleBfEntryInviteResponse(WorldPacket& recvData)
     uint8 accepted;
     ObjectGuid guid;
 
-    guid[0] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 0, 7);
     accepted = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 4, 3, 1, 6, 2, 5);
 
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[0]);
+    recvData.ReadGuidBytes(guid, 1, 6, 2, 5, 3, 4, 7, 0);
 
     SF_LOG_ERROR("misc", "HandleBattlefieldInviteResponse: GUID:" UI64FMTD " Accepted:%u", (uint64)guid, accepted);
 
@@ -275,23 +225,8 @@ void WorldSession::HandleBfExitRequest(WorldPacket& recvData)
 {
     ObjectGuid guid;
 
-    guid[3] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[1]);
+    recvData.ReadGuidMask(guid, 3, 2, 4, 1, 7, 0, 5, 6);
+    recvData.ReadGuidBytes(guid, 5, 6, 2, 3, 0, 4, 7, 1);
 
     SF_LOG_ERROR("misc", "HandleBfExitRequest: GUID:" UI64FMTD " ", (uint64)guid);
 

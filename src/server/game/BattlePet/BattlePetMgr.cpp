@@ -386,23 +386,8 @@ void BattlePetMgr::SendBattlePetDeleted(uint64 id)
     ObjectGuid petEntry = id;
 
     WorldPacket data(SMSG_BATTLE_PET_DELETED, 1 + 8);
-    data.WriteBit(petEntry[0]);
-    data.WriteBit(petEntry[4]);
-    data.WriteBit(petEntry[7]);
-    data.WriteBit(petEntry[6]);
-    data.WriteBit(petEntry[1]);
-    data.WriteBit(petEntry[5]);
-    data.WriteBit(petEntry[2]);
-    data.WriteBit(petEntry[3]);
-
-    data.WriteByteSeq(petEntry[6]);
-    data.WriteByteSeq(petEntry[1]);
-    data.WriteByteSeq(petEntry[7]);
-    data.WriteByteSeq(petEntry[0]);
-    data.WriteByteSeq(petEntry[4]);
-    data.WriteByteSeq(petEntry[3]);
-    data.WriteByteSeq(petEntry[5]);
-    data.WriteByteSeq(petEntry[2]);
+    data.WriteGuidMask(petEntry, 0, 4, 7, 6, 1, 5, 2, 3);
+    data.WriteGuidBytes(petEntry, 6, 1, 7, 0, 4, 3, 5, 2);
 
     m_owner->GetSession()->SendPacket(&data);
 }

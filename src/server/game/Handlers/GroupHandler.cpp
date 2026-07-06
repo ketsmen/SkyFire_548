@@ -102,27 +102,17 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recvData)
     recvData.read_skip<uint8>();     // Unknown
     recvData.read_skip<uint32>();    // Always 0
 
-    crossRealmGuid[7] = recvData.ReadBit();
+    recvData.ReadGuidMask(crossRealmGuid, 7);
     uint8 realmLen = recvData.ReadBits(9);
-    crossRealmGuid[3] = recvData.ReadBit();
+    recvData.ReadGuidMask(crossRealmGuid, 3);
     uint8 nameLen = recvData.ReadBits(9);
-    crossRealmGuid[2] = recvData.ReadBit();
-    crossRealmGuid[5] = recvData.ReadBit();
-    crossRealmGuid[4] = recvData.ReadBit();
-    crossRealmGuid[0] = recvData.ReadBit();
-    crossRealmGuid[1] = recvData.ReadBit();
-    crossRealmGuid[6] = recvData.ReadBit();
+    recvData.ReadGuidMask(crossRealmGuid, 2, 5, 4, 0, 1, 6);
 
-    recvData.ReadByteSeq(crossRealmGuid[7]);
-    recvData.ReadByteSeq(crossRealmGuid[6]);
-    recvData.ReadByteSeq(crossRealmGuid[0]);
-    recvData.ReadByteSeq(crossRealmGuid[4]);
+    recvData.ReadGuidBytes(crossRealmGuid, 7, 6, 0, 4);
     std::string realmName = recvData.ReadString(realmLen);
-    recvData.ReadByteSeq(crossRealmGuid[1]);
-    recvData.ReadByteSeq(crossRealmGuid[2]);
-    recvData.ReadByteSeq(crossRealmGuid[3]);
+    recvData.ReadGuidBytes(crossRealmGuid, 1, 2, 3);
     std::string memberName = recvData.ReadString(nameLen);
-    recvData.ReadByteSeq(crossRealmGuid[5]);
+    recvData.ReadGuidBytes(crossRealmGuid, 5);
 
     if (realmName.empty())
     {
@@ -408,23 +398,8 @@ void WorldSession::HandleGroupSetLeaderOpcode(WorldPacket& recvData)
 
     recvData.read_skip<uint8>();
 
-    guid[1] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[3]);
+    recvData.ReadGuidMask(guid, 1, 7, 0, 2, 5, 3, 4, 6);
+    recvData.ReadGuidBytes(guid, 1, 5, 7, 6, 0, 2, 4, 3);
 
     Player* player = ObjectAccessor::FindPlayer(guid);
     Group* group = GetPlayer()->GetGroup();
@@ -450,23 +425,8 @@ void WorldSession::HandleGroupSetRolesOpcode(WorldPacket& recvData)
     recvData.read_skip<uint8>();
     recvData >> newRole;
 
-    targetGuid[2] = recvData.ReadBit();
-    targetGuid[0] = recvData.ReadBit();
-    targetGuid[7] = recvData.ReadBit();
-    targetGuid[4] = recvData.ReadBit();
-    targetGuid[1] = recvData.ReadBit();
-    targetGuid[3] = recvData.ReadBit();
-    targetGuid[6] = recvData.ReadBit();
-    targetGuid[5] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(targetGuid[1]);
-    recvData.ReadByteSeq(targetGuid[5]);
-    recvData.ReadByteSeq(targetGuid[2]);
-    recvData.ReadByteSeq(targetGuid[6]);
-    recvData.ReadByteSeq(targetGuid[7]);
-    recvData.ReadByteSeq(targetGuid[0]);
-    recvData.ReadByteSeq(targetGuid[4]);
-    recvData.ReadByteSeq(targetGuid[3]);
+    recvData.ReadGuidMask(targetGuid, 2, 0, 7, 4, 1, 3, 6, 5);
+    recvData.ReadGuidBytes(targetGuid, 1, 5, 2, 6, 7, 0, 4, 3);
 
     Player* tPlayer = ObjectAccessor::FindPlayer(targetGuid);
     Group* group = GetPlayer()->GetGroup();
@@ -480,41 +440,28 @@ void WorldSession::HandleGroupSetRolesOpcode(WorldPacket& recvData)
     ObjectGuid assignerGuid = GetPlayer()->GetGUID();
 
     WorldPacket data(SMSG_GROUP_SET_ROLE, 1 + 8 + 1 + 8 + 4 + 1 + 4);
-    data.WriteBit(assignerGuid[1]);
-    data.WriteBit(targetGuid[7]);
-    data.WriteBit(targetGuid[6]);
-    data.WriteBit(targetGuid[4]);
-    data.WriteBit(targetGuid[1]);
-    data.WriteBit(targetGuid[0]);
-    data.WriteBit(assignerGuid[0]);
-    data.WriteBit(assignerGuid[7]);
-    data.WriteBit(targetGuid[3]);
-    data.WriteBit(assignerGuid[6]);
-    data.WriteBit(targetGuid[2]);
-    data.WriteBit(assignerGuid[4]);
-    data.WriteBit(assignerGuid[5]);
-    data.WriteBit(assignerGuid[2]);
-    data.WriteBit(targetGuid[5]);
-    data.WriteBit(assignerGuid[3]);
+    data.WriteGuidMask(assignerGuid, 1);
+    data.WriteGuidMask(targetGuid, 7, 6, 4, 1, 0);
+    data.WriteGuidMask(assignerGuid, 0, 7);
+    data.WriteGuidMask(targetGuid, 3);
+    data.WriteGuidMask(assignerGuid, 6);
+    data.WriteGuidMask(targetGuid, 2);
+    data.WriteGuidMask(assignerGuid, 4, 5, 2);
+    data.WriteGuidMask(targetGuid, 5);
+    data.WriteGuidMask(assignerGuid, 3);
 
-    data.WriteByteSeq(assignerGuid[1]);
-    data.WriteByteSeq(assignerGuid[6]);
-    data.WriteByteSeq(assignerGuid[2]);
-    data.WriteByteSeq(targetGuid[3]);
+    data.WriteGuidBytes(assignerGuid, 1, 6, 2);
+    data.WriteGuidBytes(targetGuid, 3);
     data << uint32(group->GetMemberRole(targetGuid));
-    data.WriteByteSeq(assignerGuid[7]);
-    data.WriteByteSeq(targetGuid[5]);
-    data.WriteByteSeq(assignerGuid[3]);
-    data.WriteByteSeq(targetGuid[4]);
-    data.WriteByteSeq(targetGuid[7]);
-    data.WriteByteSeq(assignerGuid[5]);
-    data.WriteByteSeq(targetGuid[6]);
-    data.WriteByteSeq(targetGuid[2]);
-    data.WriteByteSeq(targetGuid[1]);
-    data.WriteByteSeq(targetGuid[0]);
-    data.WriteByteSeq(assignerGuid[4]);
+    data.WriteGuidBytes(assignerGuid, 7);
+    data.WriteGuidBytes(targetGuid, 5);
+    data.WriteGuidBytes(assignerGuid, 3);
+    data.WriteGuidBytes(targetGuid, 4, 7);
+    data.WriteGuidBytes(assignerGuid, 5);
+    data.WriteGuidBytes(targetGuid, 6, 2, 1, 0);
+    data.WriteGuidBytes(assignerGuid, 4);
     data << uint8(0);                           // unknown
-    data.WriteByteSeq(assignerGuid[0]);
+    data.WriteGuidBytes(assignerGuid, 0);
     data << uint32(newRole);
 
     group->BroadcastPacket(&data, false);
@@ -630,23 +577,8 @@ void WorldSession::HandleMinimapPingOpcode(WorldPacket& recvData)
     data << float(y);
     data << float(x);
 
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[4]);
-
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[4]);
+    data.WriteGuidMask(guid, 0, 5, 2, 7, 1, 3, 6, 4);
+    data.WriteGuidBytes(guid, 6, 5, 7, 2, 0, 3, 1, 4);
 
     GetPlayer()->GetGroup()->BroadcastPacket(&data, true, -1, GetPlayer()->GetGUID());
 }
@@ -677,23 +609,8 @@ void WorldSession::HandleRandomRollOpcode(WorldPacket& recvData)
     data << uint32(minimum);
     data << uint32(maximum);
 
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[3]);
-
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[7]);
+    data.WriteGuidMask(guid, 0, 6, 7, 1, 4, 5, 2, 3);
+    data.WriteGuidBytes(guid, 5, 4, 2, 0, 3, 1, 6, 7);
 
     if (GetPlayer()->GetGroup())
         GetPlayer()->GetGroup()->BroadcastPacket(&data, false);
@@ -725,23 +642,8 @@ void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recvData)
 
         ObjectGuid targetGuid;
 
-        targetGuid[3] = recvData.ReadBit();
-        targetGuid[2] = recvData.ReadBit();
-        targetGuid[1] = recvData.ReadBit();
-        targetGuid[5] = recvData.ReadBit();
-        targetGuid[0] = recvData.ReadBit();
-        targetGuid[6] = recvData.ReadBit();
-        targetGuid[7] = recvData.ReadBit();
-        targetGuid[4] = recvData.ReadBit();
-
-        recvData.ReadByteSeq(targetGuid[2]);
-        recvData.ReadByteSeq(targetGuid[3]);
-        recvData.ReadByteSeq(targetGuid[0]);
-        recvData.ReadByteSeq(targetGuid[7]);
-        recvData.ReadByteSeq(targetGuid[5]);
-        recvData.ReadByteSeq(targetGuid[1]);
-        recvData.ReadByteSeq(targetGuid[6]);
-        recvData.ReadByteSeq(targetGuid[4]);
+        recvData.ReadGuidMask(targetGuid, 3, 2, 1, 5, 0, 6, 7, 4);
+        recvData.ReadGuidBytes(targetGuid, 2, 3, 0, 7, 5, 1, 6, 4);
 
         group->SetTargetIcon(Symbol, _player->GetGUID(), targetGuid, Index);
     }
@@ -836,24 +738,11 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recvData)
     uint8 unk = 0;
     recvData >> unk;
 
-    guid[2] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 2, 0, 6, 3, 1);
     bool apply = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 4, 5, 7);
 
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidBytes(guid, 5, 1, 0, 7, 3, 6, 2, 4);
 
     group->SetGroupMemberFlag(guid, apply, GroupMemberFlags::MEMBER_FLAG_ASSISTANT);
 
@@ -1001,24 +890,11 @@ void WorldSession::HandleRaidReadyCheckConfirmOpcode(WorldPacket& recvData)
 
     recvData.read_skip<uint8>();
 
-    guid[2] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 2, 1, 0, 3, 6);
     bool status = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 7, 4, 5);
 
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[6]);
+    recvData.ReadGuidBytes(guid, 1, 0, 3, 2, 4, 5, 7, 6);
 
     ObjectGuid groupGuid = group->GetGUID();
     ObjectGuid playerGuid = GetPlayer()->GetGUID();
@@ -1369,23 +1245,8 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPacket& recvData)
 
     recvData.read_skip<uint8>(); // flags
 
-    guid[7] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
+    recvData.ReadGuidMask(guid, 7, 4, 0, 1, 3, 6, 2, 5);
+    recvData.ReadGuidBytes(guid, 3, 6, 5, 2, 1, 4, 0, 7);
 
     Player* player = HashMapHolder<Player>::Find(guid);
     if (!player)

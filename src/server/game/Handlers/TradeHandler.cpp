@@ -612,23 +612,8 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
 {
     ObjectGuid guid;
 
-    guid[5] = recvPacket.ReadBit();
-    guid[1] = recvPacket.ReadBit();
-    guid[4] = recvPacket.ReadBit();
-    guid[2] = recvPacket.ReadBit();
-    guid[3] = recvPacket.ReadBit();
-    guid[7] = recvPacket.ReadBit();
-    guid[0] = recvPacket.ReadBit();
-    guid[6] = recvPacket.ReadBit();
-
-    recvPacket.ReadByteSeq(guid[4]);
-    recvPacket.ReadByteSeq(guid[6]);
-    recvPacket.ReadByteSeq(guid[2]);
-    recvPacket.ReadByteSeq(guid[0]);
-    recvPacket.ReadByteSeq(guid[3]);
-    recvPacket.ReadByteSeq(guid[7]);
-    recvPacket.ReadByteSeq(guid[5]);
-    recvPacket.ReadByteSeq(guid[1]);
+    recvPacket.ReadGuidMask(guid, 5, 1, 4, 2, 3, 7, 0, 6);
+    recvPacket.ReadGuidBytes(guid, 4, 6, 2, 0, 3, 7, 5, 1);
 
     if (GetPlayer()->m_trade)
         return;
@@ -728,24 +713,8 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
     data.WriteBits(TRADE_STATUS_PROPOSED, 5);
 
     ObjectGuid playerGuid = _player->GetGUID();
-    // WTB StartBitStream...
-    data.WriteBit(playerGuid[6]);
-    data.WriteBit(playerGuid[2]);
-    data.WriteBit(playerGuid[1]);
-    data.WriteBit(playerGuid[4]);
-    data.WriteBit(playerGuid[7]);
-    data.WriteBit(playerGuid[3]);
-    data.WriteBit(playerGuid[0]);
-    data.WriteBit(playerGuid[5]);
-
-    data.WriteByteSeq(playerGuid[6]);
-    data.WriteByteSeq(playerGuid[2]);
-    data.WriteByteSeq(playerGuid[1]);
-    data.WriteByteSeq(playerGuid[7]);
-    data.WriteByteSeq(playerGuid[5]);
-    data.WriteByteSeq(playerGuid[4]);
-    data.WriteByteSeq(playerGuid[0]);
-    data.WriteByteSeq(playerGuid[3]);
+    data.WriteGuidMask(playerGuid, 6, 2, 1, 4, 7, 3, 0, 5);
+    data.WriteGuidBytes(playerGuid, 6, 2, 1, 7, 5, 4, 0, 3);
 
     pOther->GetSession()->SendPacket(&data);
 }

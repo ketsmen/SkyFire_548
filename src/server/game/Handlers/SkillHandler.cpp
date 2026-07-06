@@ -72,23 +72,8 @@ void WorldSession::HandleRespecWipeConfirmOpcode(WorldPacket& recvPacket)
     uint32 Cost = 0;
 
     recvPacket >> RespecType;
-    guid[7] = recvPacket.ReadBit();
-    guid[2] = recvPacket.ReadBit();
-    guid[6] = recvPacket.ReadBit();
-    guid[1] = recvPacket.ReadBit();
-    guid[4] = recvPacket.ReadBit();
-    guid[0] = recvPacket.ReadBit();
-    guid[3] = recvPacket.ReadBit();
-    guid[5] = recvPacket.ReadBit();
-
-    recvPacket.ReadByteSeq(guid[2]);
-    recvPacket.ReadByteSeq(guid[4]);
-    recvPacket.ReadByteSeq(guid[1]);
-    recvPacket.ReadByteSeq(guid[3]);
-    recvPacket.ReadByteSeq(guid[0]);
-    recvPacket.ReadByteSeq(guid[5]);
-    recvPacket.ReadByteSeq(guid[7]);
-    recvPacket.ReadByteSeq(guid[6]);
+    recvPacket.ReadGuidMask(guid, 7, 2, 6, 1, 4, 0, 3, 5);
+    recvPacket.ReadGuidBytes(guid, 2, 4, 1, 3, 0, 5, 7, 6);
 
     // remove fake death
     if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))

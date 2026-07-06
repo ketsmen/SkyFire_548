@@ -2238,24 +2238,11 @@ void Player::SendPushToPartyResponse(Player* player, uint8 msg)
         ObjectGuid guid = player->GetGUID();
 
         WorldPacket data(SMSG_QUEST_PUSH_RESULT, 1 + 8 + 1);
-        data.WriteBit(guid[3]);
-        data.WriteBit(guid[0]);
-        data.WriteBit(guid[1]);
-        data.WriteBit(guid[4]);
-        data.WriteBit(guid[7]);
-        data.WriteBit(guid[5]);
-        data.WriteBit(guid[6]);
-        data.WriteBit(guid[2]);
+        data.WriteGuidMask(guid, 3, 0, 1, 4, 7, 5, 6, 2);
 
-        data.WriteByteSeq(guid[4]);
+        data.WriteGuidBytes(guid, 4);
         data << uint8(msg);
-        data.WriteByteSeq(guid[1]);
-        data.WriteByteSeq(guid[5]);
-        data.WriteByteSeq(guid[3]);
-        data.WriteByteSeq(guid[7]);
-        data.WriteByteSeq(guid[6]);
-        data.WriteByteSeq(guid[2]);
-        data.WriteByteSeq(guid[0]);
+        data.WriteGuidBytes(guid, 1, 5, 3, 7, 6, 2, 0);
 
         GetSession()->SendPacket(&data);
 
@@ -2272,23 +2259,8 @@ void Player::SendQuestUpdateAddCredit(Quest const* quest, QuestObjective const* 
     data << uint16(objective->Amount);
     data << uint32(objective->ObjectId);
 
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[3]);
-
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[6]);
+    data.WriteGuidMask(guid, 0, 4, 2, 6, 1, 5, 7, 3);
+    data.WriteGuidBytes(guid, 2, 7, 3, 0, 4, 5, 1, 6);
 
     GetSession()->SendPacket(&data);
 

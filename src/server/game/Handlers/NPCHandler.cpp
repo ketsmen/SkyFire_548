@@ -42,23 +42,8 @@ void WorldSession::SendTabardVendorActivate(uint64 guid)
     ObjectGuid Guid = guid;
     WorldPacket data(SMSG_TABARD_VENDOR_ACTIVATE, 8);
 
-    data.WriteBit(Guid[1]);
-    data.WriteBit(Guid[5]);
-    data.WriteBit(Guid[0]);
-    data.WriteBit(Guid[7]);
-    data.WriteBit(Guid[4]);
-    data.WriteBit(Guid[6]);
-    data.WriteBit(Guid[3]);
-    data.WriteBit(Guid[2]);
-
-    data.WriteByteSeq(Guid[5]);
-    data.WriteByteSeq(Guid[4]);
-    data.WriteByteSeq(Guid[2]);
-    data.WriteByteSeq(Guid[3]);
-    data.WriteByteSeq(Guid[6]);
-    data.WriteByteSeq(Guid[0]);
-    data.WriteByteSeq(Guid[1]);
-    data.WriteByteSeq(Guid[7]);
+    data.WriteGuidMask(Guid, 1, 5, 0, 7, 4, 6, 3, 2);
+    data.WriteGuidBytes(Guid, 5, 4, 2, 3, 6, 0, 1, 7);
 
     SendPacket(&data);
 }
@@ -69,23 +54,8 @@ void WorldSession::HandleBankerActivateOpcode(WorldPacket& recvData)
 
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_BANKER_ACTIVATE");
 
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidMask(guid, 4, 5, 0, 6, 1, 2, 7, 3);
+    recvData.ReadGuidBytes(guid, 1, 7, 2, 5, 6, 3, 0, 4);
 
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_BANKER);
     if (!unit)
@@ -105,23 +75,8 @@ void WorldSession::SendShowBank(ObjectGuid guid)
 {
     WorldPacket data(SMSG_SHOW_BANK, 1 + 8);
 
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[0]);
-
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
+    data.WriteGuidMask(guid, 2, 4, 3, 6, 5, 1, 7, 0);
+    data.WriteGuidBytes(guid, 7, 0, 5, 3, 6, 1, 4, 2);
 
     SendPacket(&data);
 }
@@ -130,23 +85,8 @@ void WorldSession::HandleTrainerListOpcode(WorldPacket& recvData)
 {
     ObjectGuid guid;
 
-    guid[0] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidMask(guid, 0, 2, 7, 6, 1, 4, 5, 3);
+    recvData.ReadGuidBytes(guid, 3, 6, 7, 5, 1, 0, 2, 4);
 
     SendTrainerList(guid);
 }
@@ -191,22 +131,16 @@ void WorldSession::SendTrainerList(uint64 guid, const std::string& strTitle)
     ObjectGuid oGuid = guid;
 
     WorldPacket data(SMSG_TRAINER_LIST, 1 + 8 + 4 + (trainer_spells->spellList.size() * 30) + 4 + 4 + strTitle.size());
-    data.WriteBit(oGuid[4]);
-    data.WriteBit(oGuid[5]);
+    data.WriteGuidMask(oGuid, 4, 5);
 
     size_t count_pos = data.bitwpos();
     data.WriteBits(0, 19);                  // placeholder
 
     data.WriteBits(strTitle.size(), 11);
-    data.WriteBit(oGuid[6]);
-    data.WriteBit(oGuid[2]);
-    data.WriteBit(oGuid[7]);
-    data.WriteBit(oGuid[1]);
-    data.WriteBit(oGuid[3]);
-    data.WriteBit(oGuid[0]);
+    data.WriteGuidMask(oGuid, 6, 2, 7, 1, 3, 0);
     data.FlushBits();
 
-    data.WriteByteSeq(oGuid[4]);
+    data.WriteGuidBytes(oGuid, 4);
 
     // reputation discount
     float fDiscountMod = _player->GetReputationPriceDiscount(unit);
@@ -265,14 +199,9 @@ void WorldSession::SendTrainerList(uint64 guid, const std::string& strTitle)
     }
 
     data.WriteString(strTitle);
-    data.WriteByteSeq(oGuid[6]);
-    data.WriteByteSeq(oGuid[7]);
-    data.WriteByteSeq(oGuid[1]);
-    data.WriteByteSeq(oGuid[3]);
+    data.WriteGuidBytes(oGuid, 6, 7, 1, 3);
     data << uint32(1);                      // different value for each trainer, also found in CMSG_TRAINER_BUY_SPELL
-    data.WriteByteSeq(oGuid[5]);
-    data.WriteByteSeq(oGuid[0]);
-    data.WriteByteSeq(oGuid[2]);
+    data.WriteGuidBytes(oGuid, 5, 0, 2);
     data << uint32(trainer_spells->trainerType);
 
     data.PutBits(count_pos, count, 19);
@@ -287,23 +216,8 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recvData)
 
     recvData >> spellId >> trainerId;
 
-    guid[1] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[2]);
+    recvData.ReadGuidMask(guid, 1, 4, 0, 6, 3, 2, 5, 7);
+    recvData.ReadGuidBytes(guid, 3, 1, 4, 7, 0, 5, 6, 2);
 
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_TRAINER_BUY_SPELL NpcGUID=%u, learn spell id is: %u", uint32(GUID_LOPART(guid)), spellId);
 
@@ -365,24 +279,11 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recvData)
 void WorldSession::SendTrainerBuyFailed(ObjectGuid guid, uint32 spellId, uint32 reason)
 {
     WorldPacket data(SMSG_TRAINER_BUY_FAILED, 8 + 4 + 4);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[2]);
+    data.WriteGuidMask(guid, 3, 0, 4, 7, 6, 1, 5, 2);
 
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[4]);
+    data.WriteGuidBytes(guid, 1, 2, 0, 3, 4);
     data << uint32(reason);         // 1 == "Not enough money for trainer service." 0 == "Trainer service %d unavailable."
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[7]);
+    data.WriteGuidBytes(guid, 5, 6, 7);
     data << uint32(spellId);        // should be same as in packet from client
     SendPacket(&data);
 }
@@ -488,23 +389,8 @@ void WorldSession::HandleSpiritHealerActivateOpcode(WorldPacket& recvData)
 
     ObjectGuid UnitGUID;
 
-    UnitGUID[2] = recvData.ReadBit();
-    UnitGUID[7] = recvData.ReadBit();
-    UnitGUID[6] = recvData.ReadBit();
-    UnitGUID[0] = recvData.ReadBit();
-    UnitGUID[5] = recvData.ReadBit();
-    UnitGUID[4] = recvData.ReadBit();
-    UnitGUID[1] = recvData.ReadBit();
-    UnitGUID[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(UnitGUID[1]);
-    recvData.ReadByteSeq(UnitGUID[5]);
-    recvData.ReadByteSeq(UnitGUID[6]);
-    recvData.ReadByteSeq(UnitGUID[3]);
-    recvData.ReadByteSeq(UnitGUID[2]);
-    recvData.ReadByteSeq(UnitGUID[0]);
-    recvData.ReadByteSeq(UnitGUID[7]);
-    recvData.ReadByteSeq(UnitGUID[4]);
+    recvData.ReadGuidMask(UnitGUID, 2, 7, 6, 0, 5, 4, 1, 3);
+    recvData.ReadGuidBytes(UnitGUID, 1, 5, 6, 3, 2, 0, 7, 4);
 
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(UnitGUID, UNIT_NPC_FLAG_SPIRITHEALER);
     if (!unit)
@@ -557,23 +443,8 @@ void WorldSession::HandleBinderActivateOpcode(WorldPacket& recvData)
 {
     ObjectGuid npcGuid;
 
-    npcGuid[0] = recvData.ReadBit();
-    npcGuid[5] = recvData.ReadBit();
-    npcGuid[4] = recvData.ReadBit();
-    npcGuid[7] = recvData.ReadBit();
-    npcGuid[6] = recvData.ReadBit();
-    npcGuid[2] = recvData.ReadBit();
-    npcGuid[1] = recvData.ReadBit();
-    npcGuid[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(npcGuid[0]);
-    recvData.ReadByteSeq(npcGuid[4]);
-    recvData.ReadByteSeq(npcGuid[2]);
-    recvData.ReadByteSeq(npcGuid[3]);
-    recvData.ReadByteSeq(npcGuid[7]);
-    recvData.ReadByteSeq(npcGuid[1]);
-    recvData.ReadByteSeq(npcGuid[5]);
-    recvData.ReadByteSeq(npcGuid[6]);
+    recvData.ReadGuidMask(npcGuid, 0, 5, 4, 7, 6, 2, 1, 3);
+    recvData.ReadGuidBytes(npcGuid, 0, 4, 2, 3, 7, 1, 5, 6);
 
     if (!GetPlayer()->IsInWorld() || !GetPlayer()->IsAlive())
         return;
@@ -992,40 +863,27 @@ void WorldSession::HandleRepairItemOpcode(WorldPacket& recvData)
     ObjectGuid npcGuid, itemGuid;
     bool guildBank;                                         // new in 2.3.2, bool that means from guild bank money
 
-    itemGuid[2] = recvData.ReadBit();
-    itemGuid[5] = recvData.ReadBit();
-    npcGuid[3] = recvData.ReadBit();
+    recvData.ReadGuidMask(itemGuid, 2, 5);
+    recvData.ReadGuidMask(npcGuid, 3);
     guildBank = recvData.ReadBit();
-    npcGuid[7] = recvData.ReadBit();
-    itemGuid[4] = recvData.ReadBit();
-    npcGuid[2] = recvData.ReadBit();
-    itemGuid[0] = recvData.ReadBit();
-    itemGuid[3] = recvData.ReadBit();
-    npcGuid[6] = recvData.ReadBit();
-    npcGuid[1] = recvData.ReadBit();
-    npcGuid[4] = recvData.ReadBit();
-    itemGuid[6] = recvData.ReadBit();
-    npcGuid[5] = recvData.ReadBit();
-    npcGuid[0] = recvData.ReadBit();
-    itemGuid[7] = recvData.ReadBit();
-    itemGuid[1] = recvData.ReadBit();
+    recvData.ReadGuidMask(npcGuid, 7);
+    recvData.ReadGuidMask(itemGuid, 4);
+    recvData.ReadGuidMask(npcGuid, 2);
+    recvData.ReadGuidMask(itemGuid, 0, 3);
+    recvData.ReadGuidMask(npcGuid, 6, 1, 4);
+    recvData.ReadGuidMask(itemGuid, 6);
+    recvData.ReadGuidMask(npcGuid, 5, 0);
+    recvData.ReadGuidMask(itemGuid, 7, 1);
 
-    recvData.ReadByteSeq(itemGuid[2]);
-    recvData.ReadByteSeq(npcGuid[1]);
-    recvData.ReadByteSeq(itemGuid[1]);
-    recvData.ReadByteSeq(npcGuid[4]);
-    recvData.ReadByteSeq(npcGuid[7]);
-    recvData.ReadByteSeq(npcGuid[3]);
-    recvData.ReadByteSeq(npcGuid[2]);
-    recvData.ReadByteSeq(itemGuid[7]);
-    recvData.ReadByteSeq(npcGuid[5]);
-    recvData.ReadByteSeq(npcGuid[0]);
-    recvData.ReadByteSeq(itemGuid[5]);
-    recvData.ReadByteSeq(itemGuid[3]);
-    recvData.ReadByteSeq(itemGuid[4]);
-    recvData.ReadByteSeq(itemGuid[6]);
-    recvData.ReadByteSeq(npcGuid[6]);
-    recvData.ReadByteSeq(itemGuid[0]);
+    recvData.ReadGuidBytes(itemGuid, 2);
+    recvData.ReadGuidBytes(npcGuid, 1);
+    recvData.ReadGuidBytes(itemGuid, 1);
+    recvData.ReadGuidBytes(npcGuid, 4, 7, 3, 2);
+    recvData.ReadGuidBytes(itemGuid, 7);
+    recvData.ReadGuidBytes(npcGuid, 5, 0);
+    recvData.ReadGuidBytes(itemGuid, 5, 3, 4, 6);
+    recvData.ReadGuidBytes(npcGuid, 6);
+    recvData.ReadGuidBytes(itemGuid, 0);
 
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(npcGuid, UNIT_NPC_FLAG_REPAIR);
     if (!unit)

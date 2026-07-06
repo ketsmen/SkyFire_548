@@ -70,25 +70,13 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recvData)
     for (int i = 0; i < 2; i++) // blacklistedMapIds
         recvData.read_skip<uint32>();
 
-    guid[1] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 1, 7, 0, 3);
     asGroup = recvData.ReadBit();           // As Group
-    guid[4] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 4);
     hasRoleMask = !recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 6, 2, 5);
 
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[1]);
+    recvData.ReadGuidBytes(guid, 7, 2, 4, 5, 0, 6, 3, 1);
 
     if (hasRoleMask)
         recvData >> roleMask; // Need to set this as group role later
@@ -400,23 +388,8 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket& recvData)
     recvData >> id;
     recvData >> time;
 
-    guid[6] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[1]);
+    recvData.ReadGuidMask(guid, 6, 4, 2, 5, 0, 1, 7, 3);
+    recvData.ReadGuidBytes(guid, 2, 5, 3, 0, 7, 4, 6, 1);
 
     if (!_player->InBattlegroundQueue())
     {
@@ -761,23 +734,8 @@ void WorldSession::HandleReportPvPAFK(WorldPacket& recvData)
 {
     ObjectGuid playerGuid;
 
-    playerGuid[3] = recvData.ReadBit();
-    playerGuid[6] = recvData.ReadBit();
-    playerGuid[1] = recvData.ReadBit();
-    playerGuid[4] = recvData.ReadBit();
-    playerGuid[5] = recvData.ReadBit();
-    playerGuid[0] = recvData.ReadBit();
-    playerGuid[7] = recvData.ReadBit();
-    playerGuid[2] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(playerGuid[3]);
-    recvData.ReadByteSeq(playerGuid[0]);
-    recvData.ReadByteSeq(playerGuid[4]);
-    recvData.ReadByteSeq(playerGuid[1]);
-    recvData.ReadByteSeq(playerGuid[7]);
-    recvData.ReadByteSeq(playerGuid[6]);
-    recvData.ReadByteSeq(playerGuid[2]);
-    recvData.ReadByteSeq(playerGuid[5]);
+    recvData.ReadGuidMask(playerGuid, 3, 6, 1, 4, 5, 0, 7, 2);
+    recvData.ReadGuidBytes(playerGuid, 3, 0, 4, 1, 7, 6, 2, 5);
 
     Player* reportedPlayer = ObjectAccessor::FindPlayer(playerGuid);
 

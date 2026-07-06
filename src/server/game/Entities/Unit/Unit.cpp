@@ -3680,23 +3680,8 @@ void Unit::Dismount()
     ObjectGuid guid = GetGUID();
     WorldPacket data(SMSG_DISMOUNT, 8);
 
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[4]);
-
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[0]);
+    data.WriteGuidMask(guid, 6, 3, 0, 7, 1, 2, 5, 4);
+    data.WriteGuidBytes(guid, 3, 6, 7, 5, 1, 4, 2, 0);
 
     SendMessageToSet(&data, true);
 
@@ -5862,24 +5847,11 @@ void Unit::SendPetAIReaction(ObjectGuid UnitGUID) const
 
     WorldPacket data(SMSG_AI_REACTION, 8 + 4);
 
-    data.WriteBit(UnitGUID[5]);
-    data.WriteBit(UnitGUID[7]);
-    data.WriteBit(UnitGUID[0]);
-    data.WriteBit(UnitGUID[4]);
-    data.WriteBit(UnitGUID[6]);
-    data.WriteBit(UnitGUID[2]);
-    data.WriteBit(UnitGUID[3]);
-    data.WriteBit(UnitGUID[1]);
+    data.WriteGuidMask(UnitGUID, 5, 7, 0, 4, 6, 2, 3, 1);
 
-    data.WriteByteSeq(UnitGUID[4]);
-    data.WriteByteSeq(UnitGUID[6]);
-    data.WriteByteSeq(UnitGUID[5]);
+    data.WriteGuidBytes(UnitGUID, 4, 6, 5);
     data << uint32(AI_REACTION_HOSTILE);
-    data.WriteByteSeq(UnitGUID[7]);
-    data.WriteByteSeq(UnitGUID[1]);
-    data.WriteByteSeq(UnitGUID[2]);
-    data.WriteByteSeq(UnitGUID[0]);
-    data.WriteByteSeq(UnitGUID[3]);
+    data.WriteGuidBytes(UnitGUID, 7, 1, 2, 0, 3);
 
     owner->ToPlayer()->GetSession()->SendPacket(&data);
 }
@@ -6342,24 +6314,11 @@ void Unit::PlayOneShotAnimKit(uint32 id)
     ObjectGuid Guid;
     WorldPacket data(SMSG_PLAY_ONE_SHOT_ANIM_KIT, 7 + 2);
 
-    data.WriteBit(Guid[3]);
-    data.WriteBit(Guid[1]);
-    data.WriteBit(Guid[7]);
-    data.WriteBit(Guid[6]);
-    data.WriteBit(Guid[0]);
-    data.WriteBit(Guid[4]);
-    data.WriteBit(Guid[5]);
-    data.WriteBit(Guid[2]);
+    data.WriteGuidMask(Guid, 3, 1, 7, 6, 0, 4, 5, 2);
 
-    data.WriteByteSeq(Guid[3]);
-    data.WriteByteSeq(Guid[6]);
-    data.WriteByteSeq(Guid[1]);
-    data.WriteByteSeq(Guid[4]);
+    data.WriteGuidBytes(Guid, 3, 6, 1, 4);
     data << uint16(id);
-    data.WriteByteSeq(Guid[2]);
-    data.WriteByteSeq(Guid[7]);
-    data.WriteByteSeq(Guid[5]);
-    data.WriteByteSeq(Guid[0]);
+    data.WriteGuidBytes(Guid, 2, 7, 5, 0);
 
     SendMessageToSet(&data, true);
 }
@@ -6462,25 +6421,13 @@ void Unit::Kill(Unit* victim, bool durabilityLoss)
                 ObjectGuid creatureGuid = creature->GetGUID();
                 WorldPacket data2(SMSG_LOOT_LIST);
 
-                data2.WriteBit(creatureGuid[5]);
+                data2.WriteGuidMask(creatureGuid, 5);
                 data2.WriteBit(0);
-                data2.WriteBit(creatureGuid[1]);
+                data2.WriteGuidMask(creatureGuid, 1);
                 data2.WriteBit(0);
-                data2.WriteBit(creatureGuid[4]);
-                data2.WriteBit(creatureGuid[3]);
-                data2.WriteBit(creatureGuid[2]);
-                data2.WriteBit(creatureGuid[7]);
-                data2.WriteBit(creatureGuid[0]);
-                data2.WriteBit(creatureGuid[6]);
+                data2.WriteGuidMask(creatureGuid, 4, 3, 2, 7, 0, 6);
 
-                data2.WriteByteSeq(creatureGuid[5]);
-                data2.WriteByteSeq(creatureGuid[1]);
-                data2.WriteByteSeq(creatureGuid[6]);
-                data2.WriteByteSeq(creatureGuid[2]);
-                data2.WriteByteSeq(creatureGuid[3]);
-                data2.WriteByteSeq(creatureGuid[0]);
-                data2.WriteByteSeq(creatureGuid[7]);
-                data2.WriteByteSeq(creatureGuid[4]);
+                data2.WriteGuidBytes(creatureGuid, 5, 1, 6, 2, 3, 0, 7, 4);
 
                 player->SendMessageToSet(&data2, true);
             }
@@ -7416,25 +7363,13 @@ void Unit::SendPlaySpellVisualKit(uint32 SpellVisualId, uint32 Duration, int32 T
 
     WorldPacket data(SMSG_PLAY_SPELL_VISUAL_KIT, 4 + 4 + 4 + 8);
 
-    data.WriteBit(UnitGuid[4]);
-    data.WriteBit(UnitGuid[2]);
-    data.WriteBit(UnitGuid[6]);
-    data.WriteBit(UnitGuid[5]);
-    data.WriteBit(UnitGuid[1]);
-    data.WriteBit(UnitGuid[3]);
-    data.WriteBit(UnitGuid[0]);
-    data.WriteBit(UnitGuid[7]);
+    data.WriteGuidMask(UnitGuid, 4, 2, 6, 5, 1, 3, 0, 7);
 
-    data.WriteByteSeq(UnitGuid[5]);
-    data.WriteByteSeq(UnitGuid[7]);
+    data.WriteGuidBytes(UnitGuid, 5, 7);
     data << uint32(Type);
-    data.WriteByteSeq(UnitGuid[1]);
-    data.WriteByteSeq(UnitGuid[0]);
-    data.WriteByteSeq(UnitGuid[6]);
+    data.WriteGuidBytes(UnitGuid, 1, 0, 6);
     data << uint32(Duration);
-    data.WriteByteSeq(UnitGuid[4]);
-    data.WriteByteSeq(UnitGuid[2]);
-    data.WriteByteSeq(UnitGuid[3]);
+    data.WriteGuidBytes(UnitGuid, 4, 2, 3);
     data << uint32(SpellVisualId);
 
     SendMessageToSet(&data, true);
@@ -7636,23 +7571,8 @@ void Unit::SendMoveKnockBack(Player* player, float speedXY, float speedZ, float 
     data << uint32(0);
     data << float(vcos);
 
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[3]);
-
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[2]);
+    data.WriteGuidMask(guid, 2, 0, 7, 1, 4, 6, 5, 3);
+    data.WriteGuidBytes(guid, 6, 0, 7, 5, 4, 3, 1, 2);
 
     player->GetSession()->SendPacket(&data);
 }
@@ -8951,39 +8871,24 @@ void Unit::SendRemoveFromThreatListOpcode(HostileReference* pHostileReference)
 
     WorldPacket data(SMSG_THREAT_REMOVE, 1 + 1 + 8 + 8);
 
-    data.WriteBit(victimGUID[0]);
-    data.WriteBit(victimGUID[1]);
-    data.WriteBit(victimGUID[5]);
-    data.WriteBit(hostileGUID[4]);
-    data.WriteBit(hostileGUID[0]);
-    data.WriteBit(victimGUID[4]);
-    data.WriteBit(victimGUID[6]);
-    data.WriteBit(hostileGUID[7]);
-    data.WriteBit(hostileGUID[6]);
-    data.WriteBit(hostileGUID[3]);
-    data.WriteBit(victimGUID[2]);
-    data.WriteBit(hostileGUID[1]);
-    data.WriteBit(victimGUID[3]);
-    data.WriteBit(victimGUID[7]);
-    data.WriteBit(hostileGUID[5]);
-    data.WriteBit(hostileGUID[2]);
+    data.WriteGuidMask(victimGUID, 0, 1, 5);
+    data.WriteGuidMask(hostileGUID, 4, 0);
+    data.WriteGuidMask(victimGUID, 4, 6);
+    data.WriteGuidMask(hostileGUID, 7, 6, 3);
+    data.WriteGuidMask(victimGUID, 2);
+    data.WriteGuidMask(hostileGUID, 1);
+    data.WriteGuidMask(victimGUID, 3, 7);
+    data.WriteGuidMask(hostileGUID, 5, 2);
 
-    data.WriteByteSeq(hostileGUID[3]);
-    data.WriteByteSeq(hostileGUID[0]);
-    data.WriteByteSeq(hostileGUID[2]);
-    data.WriteByteSeq(victimGUID[5]);
-    data.WriteByteSeq(victimGUID[4]);
-    data.WriteByteSeq(victimGUID[7]);
-    data.WriteByteSeq(victimGUID[3]);
-    data.WriteByteSeq(victimGUID[0]);
-    data.WriteByteSeq(hostileGUID[4]);
-    data.WriteByteSeq(victimGUID[1]);
-    data.WriteByteSeq(hostileGUID[1]);
-    data.WriteByteSeq(victimGUID[6]);
-    data.WriteByteSeq(hostileGUID[7]);
-    data.WriteByteSeq(hostileGUID[6]);
-    data.WriteByteSeq(victimGUID[2]);
-    data.WriteByteSeq(hostileGUID[5]);
+    data.WriteGuidBytes(hostileGUID, 3, 0, 2);
+    data.WriteGuidBytes(victimGUID, 5, 4, 7, 3, 0);
+    data.WriteGuidBytes(hostileGUID, 4);
+    data.WriteGuidBytes(victimGUID, 1);
+    data.WriteGuidBytes(hostileGUID, 1);
+    data.WriteGuidBytes(victimGUID, 6);
+    data.WriteGuidBytes(hostileGUID, 7, 6);
+    data.WriteGuidBytes(victimGUID, 2);
+    data.WriteGuidBytes(hostileGUID, 5);
 
     SendMessageToSet(&data, false);
 }
@@ -9126,23 +9031,8 @@ void Unit::SendClearTarget()
     WorldPacket data(SMSG_BREAK_TARGET, 8);
     ObjectGuid UnitGUID = GetGUID();
 
-    data.WriteBit(UnitGUID[2]);
-    data.WriteBit(UnitGUID[3]);
-    data.WriteBit(UnitGUID[7]);
-    data.WriteBit(UnitGUID[5]);
-    data.WriteBit(UnitGUID[4]);
-    data.WriteBit(UnitGUID[6]);
-    data.WriteBit(UnitGUID[0]);
-    data.WriteBit(UnitGUID[1]);
-
-    data.WriteByteSeq(UnitGUID[2]);
-    data.WriteByteSeq(UnitGUID[1]);
-    data.WriteByteSeq(UnitGUID[3]);
-    data.WriteByteSeq(UnitGUID[0]);
-    data.WriteByteSeq(UnitGUID[7]);
-    data.WriteByteSeq(UnitGUID[4]);
-    data.WriteByteSeq(UnitGUID[6]);
-    data.WriteByteSeq(UnitGUID[5]);
+    data.WriteGuidMask(UnitGUID, 2, 3, 7, 5, 4, 6, 0, 1);
+    data.WriteGuidBytes(UnitGUID, 2, 1, 3, 0, 7, 4, 6, 5);
     SendMessageToSet(&data, false);
 }
 
@@ -9637,48 +9527,20 @@ void Unit::SendSetVehicleRecId(uint32 vehicleId)
         ObjectGuid moverGuid = GetGUID();
         uint32 index = m_movementCounter++;
         WorldPacket data(SMSG_MOVE_SET_VEHICLE_REC_ID, 8 + 4 + 4);
-        data.WriteBit(moverGuid[0]);
-        data.WriteBit(moverGuid[6]);
-        data.WriteBit(moverGuid[1]);
-        data.WriteBit(moverGuid[3]);
-        data.WriteBit(moverGuid[7]);
-        data.WriteBit(moverGuid[4]);
-        data.WriteBit(moverGuid[5]);
-        data.WriteBit(moverGuid[2]);
+        data.WriteGuidMask(moverGuid, 0, 6, 1, 3, 7, 4, 5, 2);
 
-        data.WriteByteSeq(moverGuid[6]);
-        data.WriteByteSeq(moverGuid[7]);
-        data.WriteByteSeq(moverGuid[0]);
-        data.WriteByteSeq(moverGuid[3]);
+        data.WriteGuidBytes(moverGuid, 6, 7, 0, 3);
         data << uint32(vehicleId);
         data << uint32(index);
-        data.WriteByteSeq(moverGuid[1]);
-        data.WriteByteSeq(moverGuid[5]);
-        data.WriteByteSeq(moverGuid[2]);
-        data.WriteByteSeq(moverGuid[4]);
+        data.WriteGuidBytes(moverGuid, 1, 5, 2, 4);
 
         player->SendDirectMessage(&data);
     }
 
     ObjectGuid vehicleGuid = GetGUID();
     WorldPacket data(SMSG_SET_VEHICLE_REC_ID, 8 + 4);
-    data.WriteBit(vehicleGuid[5]);
-    data.WriteBit(vehicleGuid[7]);
-    data.WriteBit(vehicleGuid[2]);
-    data.WriteBit(vehicleGuid[1]);
-    data.WriteBit(vehicleGuid[4]);
-    data.WriteBit(vehicleGuid[0]);
-    data.WriteBit(vehicleGuid[3]);
-    data.WriteBit(vehicleGuid[6]);
-
-    data.WriteByteSeq(vehicleGuid[5]);
-    data.WriteByteSeq(vehicleGuid[7]);
-    data.WriteByteSeq(vehicleGuid[4]);
-    data.WriteByteSeq(vehicleGuid[6]);
-    data.WriteByteSeq(vehicleGuid[2]);
-    data.WriteByteSeq(vehicleGuid[1]);
-    data.WriteByteSeq(vehicleGuid[3]);
-    data.WriteByteSeq(vehicleGuid[0]);
+    data.WriteGuidMask(vehicleGuid, 5, 7, 2, 1, 4, 0, 3, 6);
+    data.WriteGuidBytes(vehicleGuid, 5, 7, 4, 6, 2, 1, 3, 0);
     data << uint32(vehicleId);
 
     SendMessageToSet(&data, true);

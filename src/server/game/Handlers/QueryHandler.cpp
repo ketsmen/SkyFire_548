@@ -28,21 +28,9 @@ void WorldSession::SendNameQueryOpcode(ObjectGuid guid)
     CharacterNameData const* nameData = sWorld->GetCharacterNameData(GUID_LOPART(guid));
 
     WorldPacket data(SMSG_QUERY_PLAYER_NAME_RESPONSE, 500);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[1]);
+    data.WriteGuidMask(guid, 3, 6, 7, 2, 5, 4, 0, 1);
 
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[2]);
+    data.WriteGuidBytes(guid, 5, 4, 7, 6, 1, 2);
 
     data << uint8(!nameData);
 
@@ -56,8 +44,7 @@ void WorldSession::SendNameQueryOpcode(ObjectGuid guid)
         data << uint8(nameData->m_gender);
     }
 
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
+    data.WriteGuidBytes(guid, 0, 3);
 
     if (!nameData)
     {
@@ -124,25 +111,13 @@ void WorldSession::HandleNameQueryOpcode(WorldPacket& recvData)
     uint8 bit14, bit1C;
     uint32 unk, unk1;
 
-    guid[4] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 4);
     bit14 = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 6, 0, 7, 1);
     bit1C = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
+    recvData.ReadGuidMask(guid, 5, 2, 3);
 
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidBytes(guid, 7, 5, 1, 2, 6, 3, 0, 4);
 
     // virtual and native realm Addresses
 
@@ -294,23 +269,8 @@ void WorldSession::HandleGameObjectQueryOpcode(WorldPacket& recvData)
 
     recvData >> entry;
 
-    guid[5] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[0]);
+    recvData.ReadGuidMask(guid, 5, 3, 6, 2, 7, 1, 0, 4);
+    recvData.ReadGuidBytes(guid, 1, 5, 3, 4, 6, 2, 7, 0);
 
     const GameObjectTemplate* info = sObjectMgr->GetGameObjectTemplate(entry);
 
@@ -421,27 +381,17 @@ void WorldSession::HandleCorpseQueryOpcode(WorldPacket& /*recvData*/)
     ObjectGuid corpseGuid = corpse->GetGUID();
 
     WorldPacket data(SMSG_CORPSE_QUERY, 9 + 1 + (4 * 5));
-    data.WriteBit(corpseGuid[0]);
-    data.WriteBit(corpseGuid[3]);
-    data.WriteBit(corpseGuid[2]);
+    data.WriteGuidMask(corpseGuid, 0, 3, 2);
     data.WriteBit(1); // Corpse Found
-    data.WriteBit(corpseGuid[5]);
-    data.WriteBit(corpseGuid[4]);
-    data.WriteBit(corpseGuid[1]);
-    data.WriteBit(corpseGuid[7]);
-    data.WriteBit(corpseGuid[6]);
+    data.WriteGuidMask(corpseGuid, 5, 4, 1, 7, 6);
 
-    data.WriteByteSeq(corpseGuid[5]);
+    data.WriteGuidBytes(corpseGuid, 5);
     data << float(z);
-    data.WriteByteSeq(corpseGuid[1]);
+    data.WriteGuidBytes(corpseGuid, 1);
     data << uint32(corpseMapId);
-    data.WriteByteSeq(corpseGuid[6]);
-    data.WriteByteSeq(corpseGuid[4]);
+    data.WriteGuidBytes(corpseGuid, 6, 4);
     data << float(x);
-    data.WriteByteSeq(corpseGuid[3]);
-    data.WriteByteSeq(corpseGuid[7]);
-    data.WriteByteSeq(corpseGuid[2]);
-    data.WriteByteSeq(corpseGuid[0]);
+    data.WriteGuidBytes(corpseGuid, 3, 7, 2, 0);
     data << int32(mapId);
     data << float(y);
     SendPacket(&data);
@@ -512,23 +462,8 @@ void WorldSession::HandlePageTextQueryOpcode(WorldPacket& recvData)
 
     recvData >> pageID;
 
-    guid[2] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[2]);
+    recvData.ReadGuidMask(guid, 2, 1, 3, 7, 6, 4, 0, 5);
+    recvData.ReadGuidBytes(guid, 1, 6, 3, 5, 1, 7, 4, 2);
 
     while (pageID)
     {

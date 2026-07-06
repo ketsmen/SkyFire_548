@@ -4863,41 +4863,28 @@ void Spell::ExecuteLogEffectInterruptCast(uint8 /*effIndex*/, Unit* victim, uint
     ObjectGuid targetGuid = victim->GetGUID();
 
     WorldPacket data(SMSG_SPELLINTERRUPTLOG, 8 + 8 + 4 + 4);
-    data.WriteBit(targetGuid[7]);
-    data.WriteBit(targetGuid[2]);
-    data.WriteBit(targetGuid[4]);
-    data.WriteBit(targetGuid[6]);
-    data.WriteBit(casterGuid[0]);
-    data.WriteBit(casterGuid[2]);
-    data.WriteBit(casterGuid[5]);
-    data.WriteBit(casterGuid[1]);
-    data.WriteBit(casterGuid[4]);
-    data.WriteBit(targetGuid[0]);
-    data.WriteBit(targetGuid[3]);
-    data.WriteBit(casterGuid[7]);
-    data.WriteBit(casterGuid[6]);
-    data.WriteBit(targetGuid[1]);
-    data.WriteBit(casterGuid[3]);
-    data.WriteBit(targetGuid[5]);
+    data.WriteGuidMask(targetGuid, 7, 2, 4, 6);
+    data.WriteGuidMask(casterGuid, 0, 2, 5, 1, 4);
+    data.WriteGuidMask(targetGuid, 0, 3);
+    data.WriteGuidMask(casterGuid, 7, 6);
+    data.WriteGuidMask(targetGuid, 1);
+    data.WriteGuidMask(casterGuid, 3);
+    data.WriteGuidMask(targetGuid, 5);
 
-    data.WriteByteSeq(targetGuid[0]);
-    data.WriteByteSeq(casterGuid[2]);
+    data.WriteGuidBytes(targetGuid, 0);
+    data.WriteGuidBytes(casterGuid, 2);
     data << uint32(spellId);
-    data.WriteByteSeq(casterGuid[1]);
-    data.WriteByteSeq(targetGuid[2]);
-    data.WriteByteSeq(casterGuid[3]);
+    data.WriteGuidBytes(casterGuid, 1);
+    data.WriteGuidBytes(targetGuid, 2);
+    data.WriteGuidBytes(casterGuid, 3);
     data << uint32(m_spellInfo->Id);
-    data.WriteByteSeq(targetGuid[4]);
-    data.WriteByteSeq(casterGuid[4]);
-    data.WriteByteSeq(targetGuid[3]);
-    data.WriteByteSeq(targetGuid[1]);
-    data.WriteByteSeq(casterGuid[5]);
-    data.WriteByteSeq(casterGuid[6]);
-    data.WriteByteSeq(casterGuid[7]);
-    data.WriteByteSeq(targetGuid[5]);
-    data.WriteByteSeq(targetGuid[6]);
-    data.WriteByteSeq(casterGuid[0]);
-    data.WriteByteSeq(targetGuid[7]);
+    data.WriteGuidBytes(targetGuid, 4);
+    data.WriteGuidBytes(casterGuid, 4);
+    data.WriteGuidBytes(targetGuid, 3, 1);
+    data.WriteGuidBytes(casterGuid, 5, 6, 7);
+    data.WriteGuidBytes(targetGuid, 5, 6);
+    data.WriteGuidBytes(casterGuid, 0);
+    data.WriteGuidBytes(targetGuid, 7);
 
     m_caster->SendMessageToSet(&data, true);
 }
@@ -4952,56 +4939,31 @@ void Spell::SendInterrupted(uint8 result)
 
     WorldPacket data(SMSG_SPELL_FAILURE, (8 + 4 + 1));
 
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
+    data.WriteGuidMask(guid, 7, 3, 6, 2, 1, 5, 0, 4);
 
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
+    data.WriteGuidBytes(guid, 2, 6, 7, 0, 3, 1);
 
     data << uint8(m_cast_count);
     data << uint32(m_spellInfo->Id);
     data << uint8(result);                                  // problem
 
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[5]);
+    data.WriteGuidBytes(guid, 4, 5);
 
     m_caster->SendMessageToSet(&data, true);
 
     data.Initialize(SMSG_SPELL_FAILED_OTHER, 8 + 1 + 4 + 1);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[2]);
+    data.WriteGuidMask(guid, 7, 0, 5, 6, 1, 4, 3, 2);
 
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[1]);
+    data.WriteGuidBytes(guid, 0, 1);
 
     data << uint8(result);
 
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[6]);
+    data.WriteGuidBytes(guid, 7, 5, 6);
 
     data << uint32(m_spellInfo->Id);
     data << uint8(m_cast_count);
 
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[3]);
+    data.WriteGuidBytes(guid, 4, 2, 3);
 
     m_caster->SendMessageToSet(&data, true);
 }
@@ -7145,24 +7107,11 @@ void Spell::Delayed() // only called in DealDamage()
     ObjectGuid guid = m_caster->GetGUID();
 
     WorldPacket data(SMSG_SPELL_DELAYED, 8 + 4);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[5]);
+    data.WriteGuidMask(guid, 6, 7, 2, 0, 4, 3, 1, 5);
 
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[3]);
+    data.WriteGuidBytes(guid, 2, 6, 1, 7, 0, 5, 3);
     data << uint32(delaytime);
-    data.WriteByteSeq(guid[4]);
+    data.WriteGuidBytes(guid, 4);
     m_caster->SendMessageToSet(&data, true);
 }
 

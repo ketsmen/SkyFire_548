@@ -15,23 +15,8 @@ void WorldSession::HandleGrantLevel(WorldPacket& recvData)
 
     ObjectGuid guid;
 
-    guid[2] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[0]);
+    recvData.ReadGuidMask(guid, 2, 1, 5, 3, 7, 4, 0, 6);
+    recvData.ReadGuidBytes(guid, 1, 4, 2, 7, 5, 3, 6, 0);
 
     Player* target = ObjectAccessor::GetObjectInWorld(guid, _player);
 
@@ -66,23 +51,8 @@ void WorldSession::HandleGrantLevel(WorldPacket& recvData)
 
     WorldPacket data2(SMSG_PROPOSE_LEVEL_GRANT, 8);
 
-    data2.WriteBit(guid[6]);
-    data2.WriteBit(guid[7]);
-    data2.WriteBit(guid[2]);
-    data2.WriteBit(guid[5]);
-    data2.WriteBit(guid[3]);
-    data2.WriteBit(guid[0]);
-    data2.WriteBit(guid[1]);
-    data2.WriteBit(guid[4]);
-
-    data2.WriteByteSeq(guid[2]);
-    data2.WriteByteSeq(guid[5]);
-    data2.WriteByteSeq(guid[6]);
-    data2.WriteByteSeq(guid[7]);
-    data2.WriteByteSeq(guid[1]);
-    data2.WriteByteSeq(guid[4]);
-    data2.WriteByteSeq(guid[3]);
-    data2.WriteByteSeq(guid[0]);
+    data2.WriteGuidMask(guid, 6, 7, 2, 5, 3, 0, 1, 4);
+    data2.WriteGuidBytes(guid, 2, 5, 6, 7, 1, 4, 3, 0);
 
     target->GetSession()->SendPacket(&data2);
 }
@@ -93,23 +63,8 @@ void WorldSession::HandleAcceptGrantLevel(WorldPacket& recvData)
 
     ObjectGuid guid;
 
-    guid[2] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[6]);
+    recvData.ReadGuidMask(guid, 2, 7, 5, 4, 3, 0, 1, 6);
+    recvData.ReadGuidBytes(guid, 5, 3, 2, 7, 4, 1, 0, 6);
 
     Player* other = ObjectAccessor::GetObjectInWorld(guid, _player);
     if (!(other && other->GetSession()))

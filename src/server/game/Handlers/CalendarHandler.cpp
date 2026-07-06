@@ -631,23 +631,8 @@ void WorldSession::HandleCalendarEventRemoveInvite(WorldPacket& recvData)
 
     recvData >> inviteId >> senderId >> eventId;
 
-    invitee[6] = recvData.ReadBit();
-    invitee[3] = recvData.ReadBit();
-    invitee[2] = recvData.ReadBit();
-    invitee[4] = recvData.ReadBit();
-    invitee[5] = recvData.ReadBit();
-    invitee[7] = recvData.ReadBit();
-    invitee[0] = recvData.ReadBit();
-    invitee[1] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(invitee[0]);
-    recvData.ReadByteSeq(invitee[4]);
-    recvData.ReadByteSeq(invitee[7]);
-    recvData.ReadByteSeq(invitee[3]);
-    recvData.ReadByteSeq(invitee[5]);
-    recvData.ReadByteSeq(invitee[1]);
-    recvData.ReadByteSeq(invitee[2]);
-    recvData.ReadByteSeq(invitee[6]);
+    recvData.ReadGuidMask(invitee, 6, 3, 2, 4, 5, 7, 0, 1);
+    recvData.ReadGuidBytes(invitee, 0, 4, 7, 3, 5, 1, 2, 6);
 
     SF_LOG_DEBUG("network", "CMSG_CALENDAR_EVENT_REMOVE_INVITE ["
         UI64FMTD "] EventId [" UI64FMTD "], senderId ["
@@ -679,23 +664,8 @@ void WorldSession::HandleCalendarEventStatus(WorldPacket& recvData)
 
     recvData >> senderId >> eventId >> inviteId >> status;
 
-    invitee[4] = recvData.ReadBit();
-    invitee[3] = recvData.ReadBit();
-    invitee[7] = recvData.ReadBit();
-    invitee[6] = recvData.ReadBit();
-    invitee[2] = recvData.ReadBit();
-    invitee[0] = recvData.ReadBit();
-    invitee[5] = recvData.ReadBit();
-    invitee[1] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(invitee[7]);
-    recvData.ReadByteSeq(invitee[5]);
-    recvData.ReadByteSeq(invitee[2]);
-    recvData.ReadByteSeq(invitee[1]);
-    recvData.ReadByteSeq(invitee[4]);
-    recvData.ReadByteSeq(invitee[6]);
-    recvData.ReadByteSeq(invitee[0]);
-    recvData.ReadByteSeq(invitee[3]);
+    recvData.ReadGuidMask(invitee, 4, 3, 7, 6, 2, 0, 5, 1);
+    recvData.ReadGuidBytes(invitee, 7, 5, 2, 1, 4, 6, 0, 3);
 
     SF_LOG_DEBUG("network", "CMSG_CALENDAR_EVENT_STATUS [" UI64FMTD"] EventId ["
         UI64FMTD "] senderId [" UI64FMTD "], Invitee ([" UI64FMTD "] id: ["
@@ -730,23 +700,8 @@ void WorldSession::HandleCalendarEventModeratorStatus(WorldPacket& recvData)
 
     recvData >> rank >> eventId >> senderId >> inviteId;
 
-    invitee[6] = recvData.ReadBit();
-    invitee[5] = recvData.ReadBit();
-    invitee[1] = recvData.ReadBit();
-    invitee[3] = recvData.ReadBit();
-    invitee[4] = recvData.ReadBit();
-    invitee[7] = recvData.ReadBit();
-    invitee[0] = recvData.ReadBit();
-    invitee[2] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(invitee[7]);
-    recvData.ReadByteSeq(invitee[5]);
-    recvData.ReadByteSeq(invitee[0]);
-    recvData.ReadByteSeq(invitee[4]);
-    recvData.ReadByteSeq(invitee[1]);
-    recvData.ReadByteSeq(invitee[3]);
-    recvData.ReadByteSeq(invitee[2]);
-    recvData.ReadByteSeq(invitee[6]);
+    recvData.ReadGuidMask(invitee, 6, 5, 1, 3, 4, 7, 0, 2);
+    recvData.ReadGuidBytes(invitee, 7, 5, 0, 4, 1, 3, 2, 6);
 
     SF_LOG_DEBUG("network", "CMSG_CALENDAR_EVENT_MODERATOR_STATUS [" UI64FMTD "] EventId ["
         UI64FMTD "] senderId [" UI64FMTD "], Invitee ([" UI64FMTD "] id: ["
@@ -781,23 +736,8 @@ void WorldSession::HandleCalendarComplain(WorldPacket& recvData)
     uint64 inviteId;
 
     recvData >> inviteId >> eventId;
-    complainGUID[4] = recvData.ReadBit();
-    complainGUID[6] = recvData.ReadBit();
-    complainGUID[2] = recvData.ReadBit();
-    complainGUID[7] = recvData.ReadBit();
-    complainGUID[1] = recvData.ReadBit();
-    complainGUID[5] = recvData.ReadBit();
-    complainGUID[3] = recvData.ReadBit();
-    complainGUID[0] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(complainGUID[6]);
-    recvData.ReadByteSeq(complainGUID[7]);
-    recvData.ReadByteSeq(complainGUID[1]);
-    recvData.ReadByteSeq(complainGUID[0]);
-    recvData.ReadByteSeq(complainGUID[4]);
-    recvData.ReadByteSeq(complainGUID[2]);
-    recvData.ReadByteSeq(complainGUID[3]);
-    recvData.ReadByteSeq(complainGUID[5]);
+    recvData.ReadGuidMask(complainGUID, 4, 6, 2, 7, 1, 5, 3, 0);
+    recvData.ReadGuidBytes(complainGUID, 6, 7, 1, 0, 4, 2, 3, 5);
 
     SF_LOG_DEBUG("network", "CMSG_CALENDAR_COMPLAIN [" UI64FMTD "] EventId ["
         UI64FMTD "] guid [" UI64FMTD "] InviteId [" UI64FMTD "]", guid, eventId, (uint64)complainGUID, inviteId);

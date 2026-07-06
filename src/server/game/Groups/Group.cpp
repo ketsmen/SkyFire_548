@@ -1279,7 +1279,7 @@ void Group::MasterLoot(Loot* /*loot*/, WorldObject* pLootedObject)
     ObjectGuid lootedGuid = pLootedObject->GetGUID();
     WorldPacket data(SMSG_LOOT_MASTER_LIST);
 
-    data.WriteBit(lootedGuid[1]);
+    data.WriteGuidMask(lootedGuid, 1);
     data.WriteBits(0, 24);
 
     for (GroupReference* itr = GetFirstMember(); itr != NULL; itr = itr->next())
@@ -1291,28 +1291,14 @@ void Group::MasterLoot(Loot* /*loot*/, WorldObject* pLootedObject)
         if (looter->IsWithinDistInMap(pLootedObject, sWorld->GetFloatConfig(WorldFloatConfigs::CONFIG_GROUP_XP_DISTANCE), false))
         {
             ObjectGuid looterGuid = looter->GetGUID();
-            data.WriteBit(looterGuid[4]);
-            data.WriteBit(looterGuid[1]);
-            data.WriteBit(looterGuid[2]);
-            data.WriteBit(looterGuid[5]);
-            data.WriteBit(looterGuid[3]);
-            data.WriteBit(looterGuid[7]);
-            data.WriteBit(looterGuid[0]);
-            data.WriteBit(looterGuid[6]);
+            data.WriteGuidMask(looterGuid, 4, 1, 2, 5, 3, 7, 0, 6);
             ++realCount;
         }
     }
 
-    data.WriteBit(lootedGuid[2]);
-    data.WriteBit(lootedGuid[0]);
-    data.WriteBit(lootedGuid[6]);
-    data.WriteBit(lootedGuid[7]);
-    data.WriteBit(lootedGuid[3]);
-    data.WriteBit(lootedGuid[4]);
+    data.WriteGuidMask(lootedGuid, 2, 0, 6, 7, 3, 4);
 
-    data.WriteByteSeq(lootedGuid[3]);
-    data.WriteByteSeq(lootedGuid[0]);
-    data.WriteByteSeq(lootedGuid[2]);
+    data.WriteGuidBytes(lootedGuid, 3, 0, 2);
 
     for (GroupReference* itr = GetFirstMember(); itr != NULL; itr = itr->next())
     {
@@ -1323,22 +1309,11 @@ void Group::MasterLoot(Loot* /*loot*/, WorldObject* pLootedObject)
         if (looter->IsWithinDistInMap(pLootedObject, sWorld->GetFloatConfig(WorldFloatConfigs::CONFIG_GROUP_XP_DISTANCE), false))
         {
             ObjectGuid looterGuid = looter->GetGUID();
-            data.WriteByteSeq(looterGuid[1]);
-            data.WriteByteSeq(looterGuid[3]);
-            data.WriteByteSeq(looterGuid[7]);
-            data.WriteByteSeq(looterGuid[2]);
-            data.WriteByteSeq(looterGuid[0]);
-            data.WriteByteSeq(looterGuid[6]);
-            data.WriteByteSeq(looterGuid[4]);
-            data.WriteByteSeq(looterGuid[5]);
+            data.WriteGuidBytes(looterGuid, 1, 3, 7, 2, 0, 6, 4, 5);
         }
     }
 
-    data.WriteByteSeq(lootedGuid[7]);
-    data.WriteByteSeq(lootedGuid[1]);
-    data.WriteByteSeq(lootedGuid[6]);
-    data.WriteByteSeq(lootedGuid[4]);
-    data.WriteByteSeq(lootedGuid[5]);
+    data.WriteGuidBytes(lootedGuid, 7, 1, 6, 4, 5);
 
     for (GroupReference* itr = GetFirstMember(); itr != NULL; itr = itr->next())
     {
@@ -1555,45 +1530,28 @@ void Group::SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid, u
 
     WorldPacket data(SMSG_RAID_TARGET_UPDATE_SINGLE, 8 + 1 + 8 + 1);
 
-    data.WriteBit(whoGuid[6]);
-    data.WriteBit(targetGuid[4]);
-    data.WriteBit(whoGuid[0]);
-    data.WriteBit(whoGuid[7]);
-    data.WriteBit(targetGuid[6]);
-    data.WriteBit(whoGuid[5]);
-    data.WriteBit(whoGuid[3]);
-    data.WriteBit(whoGuid[4]);
-    data.WriteBit(targetGuid[7]);
-    data.WriteBit(targetGuid[2]);
-    data.WriteBit(targetGuid[5]);
-    data.WriteBit(targetGuid[1]);
-    data.WriteBit(whoGuid[2]);
-    data.WriteBit(whoGuid[1]);
-    data.WriteBit(targetGuid[0]);
-    data.WriteBit(targetGuid[3]);
+    data.WriteGuidMask(whoGuid, 6);
+    data.WriteGuidMask(targetGuid, 4);
+    data.WriteGuidMask(whoGuid, 0, 7);
+    data.WriteGuidMask(targetGuid, 6);
+    data.WriteGuidMask(whoGuid, 5, 3, 4);
+    data.WriteGuidMask(targetGuid, 7, 2, 5, 1);
+    data.WriteGuidMask(whoGuid, 2, 1);
+    data.WriteGuidMask(targetGuid, 0, 3);
 
-    data.WriteByteSeq(targetGuid[1]);
+    data.WriteGuidBytes(targetGuid, 1);
 
     data << uint8(id);
 
-    data.WriteByteSeq(whoGuid[0]);
-    data.WriteByteSeq(whoGuid[5]);
-    data.WriteByteSeq(whoGuid[3]);
-    data.WriteByteSeq(targetGuid[7]);
-    data.WriteByteSeq(targetGuid[6]);
-    data.WriteByteSeq(whoGuid[1]);
-    data.WriteByteSeq(targetGuid[2]);
-    data.WriteByteSeq(targetGuid[4]);
-    data.WriteByteSeq(targetGuid[0]);
-    data.WriteByteSeq(targetGuid[3]);
-    data.WriteByteSeq(targetGuid[5]);
-    data.WriteByteSeq(whoGuid[6]);
+    data.WriteGuidBytes(whoGuid, 0, 5, 3);
+    data.WriteGuidBytes(targetGuid, 7, 6);
+    data.WriteGuidBytes(whoGuid, 1);
+    data.WriteGuidBytes(targetGuid, 2, 4, 0, 3, 5);
+    data.WriteGuidBytes(whoGuid, 6);
 
     data << uint8(Index);
 
-    data.WriteByteSeq(whoGuid[4]);
-    data.WriteByteSeq(whoGuid[2]);
-    data.WriteByteSeq(whoGuid[7]);
+    data.WriteGuidBytes(whoGuid, 4, 2, 7);
 
     BroadcastPacket(&data, true);
 }
@@ -1614,24 +1572,11 @@ void Group::SendTargetIconList(WorldSession* session)
 
         ObjectGuid guid = m_targetIcons[i];
 
-        data.WriteBit(guid[2]);
-        data.WriteBit(guid[1]);
-        data.WriteBit(guid[3]);
-        data.WriteBit(guid[7]);
-        data.WriteBit(guid[6]);
-        data.WriteBit(guid[4]);
-        data.WriteBit(guid[0]);
-        data.WriteBit(guid[5]);
+        data.WriteGuidMask(guid, 2, 1, 3, 7, 6, 4, 0, 5);
 
-        data.WriteByteSeq(guid[4]);
-        data.WriteByteSeq(guid[7]);
-        data.WriteByteSeq(guid[1]);
-        data.WriteByteSeq(guid[0]);
-        data.WriteByteSeq(guid[6]);
-        data.WriteByteSeq(guid[5]);
-        data.WriteByteSeq(guid[3]);
+        data.WriteGuidBytes(guid, 4, 7, 1, 0, 6, 5, 3);
         data << uint8(i);
-        data.WriteByteSeq(guid[2]);
+        data.WriteGuidBytes(guid, 2);
     }
 
     data << uint8(Index);
@@ -1910,24 +1855,11 @@ void Group::SendReadyCheckCompleted()
     ObjectGuid guid = m_guid;
 
     WorldPacket data(SMSG_RAID_READY_CHECK_COMPLETED, 1 + 8 + 1);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
+    data.WriteGuidMask(guid, 4, 2, 5, 7, 1, 0, 3, 6);
 
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[5]);
+    data.WriteGuidBytes(guid, 6, 0, 3, 1, 5);
     data << uint8(0);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[4]);
+    data.WriteGuidBytes(guid, 7, 2, 4);
 
     BroadcastPacket(&data, false);
 }

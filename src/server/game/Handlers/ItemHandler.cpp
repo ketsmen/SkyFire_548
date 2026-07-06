@@ -649,23 +649,8 @@ void WorldSession::HandleListInventoryOpcode(WorldPacket& recvData)
 {
     ObjectGuid guid;
 
-    guid[6] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[2]);
+    recvData.ReadGuidMask(guid, 6, 7, 3, 1, 2, 0, 4, 5);
+    recvData.ReadGuidBytes(guid, 0, 7, 1, 6, 4, 3, 5, 2);
 
     if (!GetPlayer()->IsAlive())
         return;
@@ -904,23 +889,8 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPacket& recvData)
 
     ObjectGuid guid;
 
-    guid[7] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidMask(guid, 7, 6, 1, 3, 2, 0, 4, 5);
+    recvData.ReadGuidBytes(guid, 3, 5, 1, 6, 7, 2, 0, 4);
 
     // cheating protection
     /* not critical if "cheated", and check skip allow by slots in bank windows open by .bank command.
@@ -1275,18 +1245,9 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)
         gem_guids[i][5] = recvData.ReadBit();
 
-    item_guid[5] = recvData.ReadBit();
-    item_guid[0] = recvData.ReadBit();
-    item_guid[6] = recvData.ReadBit();
-    item_guid[2] = recvData.ReadBit();
-    item_guid[3] = recvData.ReadBit();
-    item_guid[4] = recvData.ReadBit();
-    item_guid[7] = recvData.ReadBit();
-    item_guid[1] = recvData.ReadBit();
+    recvData.ReadGuidMask(item_guid, 5, 0, 6, 2, 3, 4, 7, 1);
 
-    recvData.ReadByteSeq(item_guid[7]);
-    recvData.ReadByteSeq(item_guid[2]);
-    recvData.ReadByteSeq(item_guid[6]);
+    recvData.ReadGuidBytes(item_guid, 7, 2, 6);
 
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)
         recvData.ReadByteSeq(gem_guids[i][6]);
@@ -1305,11 +1266,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)
         recvData.ReadByteSeq(gem_guids[i][5]);
 
-    recvData.ReadByteSeq(item_guid[4]);
-    recvData.ReadByteSeq(item_guid[3]);
-    recvData.ReadByteSeq(item_guid[1]);
-    recvData.ReadByteSeq(item_guid[5]);
-    recvData.ReadByteSeq(item_guid[0]);
+    recvData.ReadGuidBytes(item_guid, 4, 3, 1, 5, 0);
 
     if (!item_guid)
         return;
@@ -1834,23 +1791,8 @@ void WorldSession::HandleReforgeItemOpcode(WorldPacket& recvData)
 
     recvData >> reforgeEntry >> bag >> slot;
 
-    guid[1] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[5]);
+    recvData.ReadGuidMask(guid, 1, 0, 5, 3, 4, 2, 7, 6);
+    recvData.ReadGuidBytes(guid, 4, 6, 3, 1, 2, 7, 0, 5);
 
     if (!player->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_REFORGER))
     {
@@ -1926,23 +1868,8 @@ void WorldSession::SendItemExpirePurchaseRefund(ObjectGuid itemGuid)
 {
     WorldPacket data(SMSG_ITEM_EXPIRE_PURCHASE_REFUND, 8);
 
-    data.WriteBit(itemGuid[7]);
-    data.WriteBit(itemGuid[4]);
-    data.WriteBit(itemGuid[2]);
-    data.WriteBit(itemGuid[6]);
-    data.WriteBit(itemGuid[5]);
-    data.WriteBit(itemGuid[3]);
-    data.WriteBit(itemGuid[1]);
-    data.WriteBit(itemGuid[0]);
-
-    data.WriteByteSeq(itemGuid[4]);
-    data.WriteByteSeq(itemGuid[0]);
-    data.WriteByteSeq(itemGuid[6]);
-    data.WriteByteSeq(itemGuid[7]);
-    data.WriteByteSeq(itemGuid[1]);
-    data.WriteByteSeq(itemGuid[2]);
-    data.WriteByteSeq(itemGuid[3]);
-    data.WriteByteSeq(itemGuid[5]);
+    data.WriteGuidMask(itemGuid, 7, 4, 2, 6, 5, 3, 1, 0);
+    data.WriteGuidBytes(itemGuid, 4, 0, 6, 7, 1, 2, 3, 5);
 
     SendPacket(&data);
 }

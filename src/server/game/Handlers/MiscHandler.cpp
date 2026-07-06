@@ -335,23 +335,8 @@ void ReadReclaimCorpseRequest(WorldPacket& recvData)
 {
     ObjectGuid guid;
 
-    guid[1] = recvData.ReadBit();
-    guid[5] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[4]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[3]);
+    recvData.ReadGuidMask(guid, 1, 5, 7, 2, 6, 3, 0, 4);
+    recvData.ReadGuidBytes(guid, 2, 5, 4, 6, 1, 0, 7, 3);
 }
 
 ResurrectResponseRequest ReadResurrectResponseRequest(WorldPacket& recvData)
@@ -411,23 +396,8 @@ void ReadMoveTimeSkippedRequest(WorldPacket& recvData)
     ObjectGuid guid;
     recvData.read_skip<uint32>(); // time skipped
 
-    guid[5] = recvData.ReadBit();
-    guid[0] = recvData.ReadBit();
-    guid[7] = recvData.ReadBit();
-    guid[4] = recvData.ReadBit();
-    guid[1] = recvData.ReadBit();
-    guid[2] = recvData.ReadBit();
-    guid[6] = recvData.ReadBit();
-    guid[3] = recvData.ReadBit();
-
-    recvData.ReadByteSeq(guid[7]);
-    recvData.ReadByteSeq(guid[2]);
-    recvData.ReadByteSeq(guid[0]);
-    recvData.ReadByteSeq(guid[6]);
-    recvData.ReadByteSeq(guid[1]);
-    recvData.ReadByteSeq(guid[5]);
-    recvData.ReadByteSeq(guid[3]);
-    recvData.ReadByteSeq(guid[4]);
+    recvData.ReadGuidMask(guid, 5, 0, 7, 4, 1, 2, 6, 3);
+    recvData.ReadGuidBytes(guid, 7, 2, 0, 6, 1, 5, 3, 4);
 }
 
 GuidRequest ReadInspectRequest(WorldPacket& recvData)
@@ -1730,26 +1700,13 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recvData)
     ObjectGuid guid;
 
     data.WriteBits(request.value, 3); // type (0-7)
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[6]);
+    data.WriteGuidMask(guid, 5, 1, 3, 7, 0, 4, 2, 6);
 
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[5]);
+    data.WriteGuidBytes(guid, 3, 1, 5);
     data << uint32(size);         // decompressed length
     data << uint32(destSize);
     data.append(dest);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[2]);
+    data.WriteGuidBytes(guid, 7, 4, 0, 6, 2);
     data << uint32(adata->Time); // unix time
 
     SendPacket(&data);
@@ -1928,23 +1885,8 @@ void WorldSession::HandleInspectHonorStatsOpcode(WorldPacket& recvData)
     data << uint16(player->GetUInt16Value(PLAYER_FIELD_YESTERDAY_HONORABLE_KILLS, 0));  // today kills
     data << uint8(0);                                               // rank
 
-    data.WriteBit(playerGuid[2]);
-    data.WriteBit(playerGuid[1]);
-    data.WriteBit(playerGuid[6]);
-    data.WriteBit(playerGuid[4]);
-    data.WriteBit(playerGuid[5]);
-    data.WriteBit(playerGuid[3]);
-    data.WriteBit(playerGuid[7]);
-    data.WriteBit(playerGuid[0]);
-
-    data.WriteByteSeq(playerGuid[1]);
-    data.WriteByteSeq(playerGuid[3]);
-    data.WriteByteSeq(playerGuid[6]);
-    data.WriteByteSeq(playerGuid[7]);
-    data.WriteByteSeq(playerGuid[2]);
-    data.WriteByteSeq(playerGuid[4]);
-    data.WriteByteSeq(playerGuid[5]);
-    data.WriteByteSeq(playerGuid[0]);
+    data.WriteGuidMask(playerGuid, 2, 1, 6, 4, 5, 3, 7, 0);
+    data.WriteGuidBytes(playerGuid, 1, 3, 6, 7, 2, 4, 5, 0);
 
     SendPacket(&data);
 }
@@ -2381,32 +2323,21 @@ void WorldSession::SendSetPhaseShift(std::set<uint32> const& phaseIds, std::set<
     ObjectGuid guid = _player->GetGUID();
 
     WorldPacket data(SMSG_PHASE_SHIFT_CHANGE, 1 + 8 + 2 * phaseIds.size() + 4 + 2 * worldMapAreas.size() + 2 * terrainswaps.size() + 4);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[5]);
+    data.WriteGuidMask(guid, 0, 3, 1, 4, 6, 2, 7, 5);
 
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[2]);
+    data.WriteGuidBytes(guid, 4, 3, 2);
 
     data << uint32(phaseIds.size()) * 2;        // Phase.dbc ids
     for (std::set<uint32>::const_iterator itr = phaseIds.begin(); itr != phaseIds.end(); ++itr)
         data << uint16(*itr);
 
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[6]);
+    data.WriteGuidBytes(guid, 0, 6);
 
     data << uint32(0);                          // Inactive terrain swaps
     //for (uint8 i = 0; i < inactiveSwapsCount; ++i)
     //    data << uint16(0);
 
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[7]);
+    data.WriteGuidBytes(guid, 1, 7);
 
     data << uint32(worldMapAreas.size()) * 2;     // WorldMapArea.dbc id (controls map display)
     for (std::set<uint32>::const_iterator itr = worldMapAreas.begin(); itr != worldMapAreas.end(); ++itr)
@@ -2416,7 +2347,7 @@ void WorldSession::SendSetPhaseShift(std::set<uint32> const& phaseIds, std::set<
     for (std::set<uint32>::const_iterator itr = terrainswaps.begin(); itr != terrainswaps.end(); ++itr)
         data << uint16(*itr);
 
-    data.WriteByteSeq(guid[5]);
+    data.WriteGuidBytes(guid, 5);
 
     data << uint32(phaseIds.size() ? 0 : 8);  // flags (not phasemask)
 

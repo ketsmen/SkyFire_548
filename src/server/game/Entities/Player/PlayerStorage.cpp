@@ -3274,40 +3274,25 @@ void Player::SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2, uint
 
     if (msg != EQUIP_ERR_OK)
     {
-        data.WriteBit(pItemGuid2[4]);
-        data.WriteBit(pItemGuid[3]);
-        data.WriteBit(pItemGuid2[6]);
-        data.WriteBit(pItemGuid2[2]);
-        data.WriteBit(pItemGuid[4]);
-        data.WriteBit(pItemGuid2[5]);
-        data.WriteBit(pItemGuid[1]);
-        data.WriteBit(pItemGuid[6]);
-        data.WriteBit(pItemGuid2[0]);
-        data.WriteBit(pItemGuid2[3]);
-        data.WriteBit(pItemGuid2[1]);
-        data.WriteBit(pItemGuid[2]);
-        data.WriteBit(pItemGuid[0]);
-        data.WriteBit(pItemGuid[5]);
-        data.WriteBit(pItemGuid[7]);
-        data.WriteBit(pItemGuid2[7]);
+        data.WriteGuidMask(pItemGuid2, 4);
+        data.WriteGuidMask(pItemGuid, 3);
+        data.WriteGuidMask(pItemGuid2, 6, 2);
+        data.WriteGuidMask(pItemGuid, 4);
+        data.WriteGuidMask(pItemGuid2, 5);
+        data.WriteGuidMask(pItemGuid, 1, 6);
+        data.WriteGuidMask(pItemGuid2, 0, 3, 1);
+        data.WriteGuidMask(pItemGuid, 2, 0, 5, 7);
+        data.WriteGuidMask(pItemGuid2, 7);
 
-        data.WriteByteSeq(pItemGuid2[0]);
+        data.WriteGuidBytes(pItemGuid2, 0);
         data << uint8(0);                       // bag type subclass, used with EQUIP_ERR_EVENT_AUTOEQUIP_BIND_CONFIRM and EQUIP_ERR_ITEM_DOESNT_GO_INTO_BAG2
-        data.WriteByteSeq(pItemGuid2[6]);
-        data.WriteByteSeq(pItemGuid[4]);
-        data.WriteByteSeq(pItemGuid[0]);
-        data.WriteByteSeq(pItemGuid[7]);
-        data.WriteByteSeq(pItemGuid[3]);
-        data.WriteByteSeq(pItemGuid2[1]);
-        data.WriteByteSeq(pItemGuid2[5]);
-        data.WriteByteSeq(pItemGuid[5]);
-        data.WriteByteSeq(pItemGuid2[7]);
-        data.WriteByteSeq(pItemGuid2[2]);
-        data.WriteByteSeq(pItemGuid[1]);
-        data.WriteByteSeq(pItemGuid[6]);
-        data.WriteByteSeq(pItemGuid[2]);
-        data.WriteByteSeq(pItemGuid2[3]);
-        data.WriteByteSeq(pItemGuid2[4]);
+        data.WriteGuidBytes(pItemGuid2, 6);
+        data.WriteGuidBytes(pItemGuid, 4, 0, 7, 3);
+        data.WriteGuidBytes(pItemGuid2, 1, 5);
+        data.WriteGuidBytes(pItemGuid, 5);
+        data.WriteGuidBytes(pItemGuid2, 7, 2);
+        data.WriteGuidBytes(pItemGuid, 1, 6, 2);
+        data.WriteGuidBytes(pItemGuid2, 3, 4);
         data << uint8(msg);
 
         if (msg == EQUIP_ERR_ITEM_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS

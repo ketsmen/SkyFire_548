@@ -1822,24 +1822,11 @@ void WorldSession::HandleMirrorImageDataRequest(WorldPacket& recvData)
     else
     {
         WorldPacket data(SMSG_MIRROR_IMAGE_CREATURE_DATA, 8 + 4);
-        data.WriteBit(guid[0]);
-        data.WriteBit(guid[1]);
-        data.WriteBit(guid[3]);
-        data.WriteBit(guid[5]);
-        data.WriteBit(guid[7]);
-        data.WriteBit(guid[6]);
-        data.WriteBit(guid[4]);
-        data.WriteBit(guid[2]);
+        data.WriteGuidMask(guid, 0, 1, 3, 5, 7, 6, 4, 2);
 
-        data.WriteByteSeq(guid[0]);
-        data.WriteByteSeq(guid[3]);
-        data.WriteByteSeq(guid[6]);
-        data.WriteByteSeq(guid[5]);
-        data.WriteByteSeq(guid[7]);
+        data.WriteGuidBytes(guid, 0, 3, 6, 5, 7);
         data << uint32(creator->GetDisplayId());
-        data.WriteByteSeq(guid[4]);
-        data.WriteByteSeq(guid[2]);
-        data.WriteByteSeq(guid[1]);
+        data.WriteGuidBytes(guid, 4, 2, 1);
 
         SendPacket(&data);
     }

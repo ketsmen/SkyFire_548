@@ -5108,23 +5108,8 @@ void Player::BuildPlayerRepop()
 {
     ObjectGuid guid;
     WorldPacket data(SMSG_PRE_RESURRECT, 8);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[4]);
-
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[3]);
+    data.WriteGuidMask(guid, 1, 7, 5, 2, 6, 0, 3, 4);
+    data.WriteGuidBytes(guid, 5, 1, 7, 0, 6, 4, 2, 3);
     GetSession()->SendPacket(&data);
 
     if (getRace() == RACE_NIGHTELF)
@@ -9191,39 +9176,28 @@ void Player::SendLootRelease(ObjectGuid guid)
     ObjectGuid lootGuid = guid;
 
     WorldPacket data(SMSG_LOOT_RELEASE_RESPONSE, 20);
-    data.WriteBit(lootGuid[0]);
-    data.WriteBit(lootGuid[7]);
-    data.WriteBit(lootGuid[5]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(lootGuid[4]);
-    data.WriteBit(lootGuid[6]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(lootGuid[2]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(lootGuid[3]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(lootGuid[1]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[7]);
+    data.WriteGuidMask(lootGuid, 0, 7, 5);
+    data.WriteGuidMask(guid, 0);
+    data.WriteGuidMask(lootGuid, 4, 6);
+    data.WriteGuidMask(guid, 1);
+    data.WriteGuidMask(lootGuid, 2);
+    data.WriteGuidMask(guid, 5);
+    data.WriteGuidMask(lootGuid, 3);
+    data.WriteGuidMask(guid, 3, 2, 4);
+    data.WriteGuidMask(lootGuid, 1);
+    data.WriteGuidMask(guid, 6, 7);
 
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(lootGuid[1]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(lootGuid[5]);
-    data.WriteByteSeq(lootGuid[7]);
-    data.WriteByteSeq(lootGuid[3]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(lootGuid[2]);
-    data.WriteByteSeq(lootGuid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(lootGuid[6]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(lootGuid[4]);
-    data.WriteByteSeq(guid[7]);
+    data.WriteGuidBytes(guid, 1);
+    data.WriteGuidBytes(lootGuid, 1);
+    data.WriteGuidBytes(guid, 2, 5);
+    data.WriteGuidBytes(lootGuid, 5, 7, 3);
+    data.WriteGuidBytes(guid, 0);
+    data.WriteGuidBytes(lootGuid, 2, 0);
+    data.WriteGuidBytes(guid, 3, 6);
+    data.WriteGuidBytes(lootGuid, 6);
+    data.WriteGuidBytes(guid, 4);
+    data.WriteGuidBytes(lootGuid, 4);
+    data.WriteGuidBytes(guid, 7);
     SendDirectMessage(&data);
 }
 
@@ -9565,23 +9539,8 @@ void Player::SendLoot(uint64 guid, LootType loot_type, bool isAoE)
 void Player::SendNotifyLootMoneyRemoved(ObjectGuid guid)
 {
     WorldPacket data(SMSG_LOOT_CLEAR_MONEY, 9);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[7]);
-
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[6]);
+    data.WriteGuidMask(guid, 6, 0, 4, 1, 3, 5, 2, 7);
+    data.WriteGuidBytes(guid, 0, 4, 2, 7, 1, 5, 3, 6);
 
     GetSession()->SendPacket(&data);
 }
@@ -10315,24 +10274,11 @@ void Player::SendTalentWipeConfirm(ObjectGuid guid, bool resetType)
         Cost = sWorld->GetBoolConfig(WorldBoolConfigs::CONFIG_NO_RESET_TALENT_COST) ? 0 : GetNextResetSpecializationCost();
 
     WorldPacket data(SMSG_RESPEC_WIPE_CONFIRM, 8 + 1 + 4);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[6]);
+    data.WriteGuidMask(guid, 5, 7, 3, 2, 1, 0, 4, 6);
 
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[0]);
+    data.WriteGuidBytes(guid, 1, 0);
     data << uint8(resetType);  // 0 = talent, 1 = specialization
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[4]);
+    data.WriteGuidBytes(guid, 7, 3, 2, 5, 6, 4);
     data << uint32(Cost);
 
     GetSession()->SendPacket(&data);
@@ -15370,23 +15316,8 @@ void Player::SendAutoRepeatCancel(Unit* target)
     WorldPacket data(SMSG_CANCEL_AUTO_REPEAT, 8);
     ObjectGuid Guid = target->GetGUID();
 
-    data.WriteBit(Guid[1]);
-    data.WriteBit(Guid[3]);
-    data.WriteBit(Guid[0]);
-    data.WriteBit(Guid[4]);
-    data.WriteBit(Guid[6]);
-    data.WriteBit(Guid[7]);
-    data.WriteBit(Guid[5]);
-    data.WriteBit(Guid[2]);
-
-    data.WriteByteSeq(Guid[7]);
-    data.WriteByteSeq(Guid[6]);
-    data.WriteByteSeq(Guid[2]);
-    data.WriteByteSeq(Guid[5]);
-    data.WriteByteSeq(Guid[0]);
-    data.WriteByteSeq(Guid[4]);
-    data.WriteByteSeq(Guid[1]);
-    data.WriteByteSeq(Guid[3]);
+    data.WriteGuidMask(Guid, 1, 3, 0, 4, 6, 7, 5, 2);
+    data.WriteGuidBytes(Guid, 7, 6, 2, 5, 0, 4, 1, 3);
     GetSession()->SendPacket(&data);
 }
 
@@ -16902,25 +16833,13 @@ inline bool Player::_StoreOrEquipNewItem(uint32 vendorslot, uint32 item, uint8 c
         ObjectGuid vGuid = pVendor->GetGUID();
 
         WorldPacket data(SMSG_BUY_ITEM, 1 + 8 + 4 + 4 + 4);
-        data.WriteBit(vGuid[3]);
-        data.WriteBit(vGuid[4]);
-        data.WriteBit(vGuid[7]);
-        data.WriteBit(vGuid[6]);
-        data.WriteBit(vGuid[0]);
-        data.WriteBit(vGuid[2]);
-        data.WriteBit(vGuid[1]);
-        data.WriteBit(vGuid[5]);
+        data.WriteGuidMask(vGuid, 3, 4, 7, 6, 0, 2, 1, 5);
 
-        data.WriteByteSeq(vGuid[6]);
-        data.WriteByteSeq(vGuid[7]);
+        data.WriteGuidBytes(vGuid, 6, 7);
         data << uint32(count);
-        data.WriteByteSeq(vGuid[1]);
-        data.WriteByteSeq(vGuid[3]);
-        data.WriteByteSeq(vGuid[5]);
-        data.WriteByteSeq(vGuid[2]);
+        data.WriteGuidBytes(vGuid, 1, 3, 5, 2);
         data << int32(crItem->maxcount > 0 ? new_count : 0xFFFFFFFF);
-        data.WriteByteSeq(vGuid[0]);
-        data.WriteByteSeq(vGuid[4]);
+        data.WriteGuidBytes(vGuid, 0, 4);
         data << uint32(vendorslot + 1);                   // numbered from 1 at client
 
         GetSession()->SendPacket(&data);
@@ -19694,24 +19613,11 @@ void Player::SetClientControl(Unit* target, uint8 allowMove)
     ObjectGuid guid = target->GetGUID();
 
     WorldPacket data(SMSG_CLIENT_CONTROL_UPDATE, 9 + 1);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[7]);
+    data.WriteGuidMask(guid, 2, 7);
     data.WriteBit(allowMove);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[6]);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
+    data.WriteGuidMask(guid, 0, 3, 6, 5, 1, 4);
 
-    data.WriteByteSeq(guid[1]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[0]);
+    data.WriteGuidBytes(guid, 1, 5, 7, 4, 2, 6, 3, 0);
     GetSession()->SendPacket(&data);
 
     if (target == this && allowMove == 1)
@@ -19727,23 +19633,8 @@ void Player::SetMover(Unit* target)
     ObjectGuid guid = target->GetGUID();
 
     WorldPacket data(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
-    data.WriteBit(guid[5]);
-    data.WriteBit(guid[1]);
-    data.WriteBit(guid[4]);
-    data.WriteBit(guid[2]);
-    data.WriteBit(guid[3]);
-    data.WriteBit(guid[7]);
-    data.WriteBit(guid[0]);
-    data.WriteBit(guid[6]);
-
-    data.WriteByteSeq(guid[4]);
-    data.WriteByteSeq(guid[6]);
-    data.WriteByteSeq(guid[2]);
-    data.WriteByteSeq(guid[0]);
-    data.WriteByteSeq(guid[3]);
-    data.WriteByteSeq(guid[7]);
-    data.WriteByteSeq(guid[5]);
-    data.WriteByteSeq(guid[1]);
+    data.WriteGuidMask(guid, 5, 1, 4, 2, 3, 7, 0, 6);
+    data.WriteGuidBytes(guid, 4, 6, 2, 0, 3, 7, 5, 1);
 
     SendDirectMessage(&data);
 }
