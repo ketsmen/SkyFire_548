@@ -34,7 +34,7 @@ jobs:
       - name: Open promoted SQL pull request
         shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMATION_PAT }}
         run: |
           $branchName = "automation/promote-pending-sql-${{ github.run_id }}"
 
@@ -56,7 +56,7 @@ jobs:
           git push origin HEAD:refs/heads/$branchName
 
           $headers = @{
-            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Authorization = "Bearer $env:GH_TOKEN"
             Accept = "application/vnd.github+json"
             "X-GitHub-Api-Version" = "2022-11-28"
           }
