@@ -31,6 +31,7 @@ namespace LegacyTransport
     uint32 GetClientEntryForDbEntry(uint32 dbEntry);
     uint32 GetAllowedSpawnMask(uint32 dbEntry, uint32 mapId, uint32 spawnMask);
     bool IsAllowedOnMap(uint32 dbEntry, uint32 mapId, uint32 spawnMode);
+    bool ShouldPreservePassengerGameObjectVisibility(uint32 clientEntry);
 
     void LogRegisteredSpawn(LegacyTransportSpawnDiagnostic const& diagnostic);
     void LogMissingAnimationData(uint32 dbGuid, uint32 dbEntry, uint32 clientEntry);

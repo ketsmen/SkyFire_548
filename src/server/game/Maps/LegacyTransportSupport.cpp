@@ -91,6 +91,11 @@ namespace LegacyTransport
         return IsDeeprunSubwayMap(mapId, spawnMode);
     }
 
+    bool ShouldPreservePassengerGameObjectVisibility(uint32 clientEntry)
+    {
+        return IsDeeprunSubwayClientEntry(clientEntry);
+    }
+
     void LogRegisteredSpawn(LegacyTransportSpawnDiagnostic const&) { }
     void LogMissingAnimationData(uint32, uint32, uint32) { }
     void LogCreateAttempt(LegacyTransportSpawnDiagnostic const&) { }

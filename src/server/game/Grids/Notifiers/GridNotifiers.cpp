@@ -7,6 +7,7 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Item.h"
+#include "LegacyTransportSupport.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "SpellInfo.h"
@@ -24,6 +25,16 @@ void VisibleNotifier::SendToSelf()
     i_player.GetMap()->PreserveTransportVisibility(vis_guids);
 
     if (Transport* transport = i_player.GetTransport())
+    {
+        if (LegacyTransport::ShouldPreservePassengerGameObjectVisibility(transport->GetEntry()))
+            for (Player::ClientGUIDs::iterator itr = vis_guids.begin(); itr != vis_guids.end();)
+            {
+                if (IS_GAMEOBJECT_GUID(*itr))
+                    vis_guids.erase(itr++);
+                else
+                    ++itr;
+            }
+
         for (std::set<WorldObject*>::const_iterator itr = transport->GetPassengers().begin(); itr != transport->GetPassengers().end(); ++itr)
         {
             if (vis_guids.find((*itr)->GetGUID()) != vis_guids.end())
@@ -48,6 +59,7 @@ void VisibleNotifier::SendToSelf()
                 }
             }
         }
+    }
 
     for (Player::ClientGUIDs::const_iterator it = vis_guids.begin(); it != vis_guids.end(); ++it)
     {

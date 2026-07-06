@@ -438,6 +438,7 @@ add_executable(game_domain_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Spells/SpellTargeting.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Diagnostics/RuntimeMetrics.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Maps/MapLifecycle.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/Maps/LegacyTransportSupport.cpp
   ${CMAKE_SOURCE_DIR}/src/server/game/Globals/ObjectAccessorLifecycle.cpp
   ${CMAKE_SOURCE_DIR}/src/server/worldserver/WorldThread/WorldShutdownLifecycle.cpp
   GameDomainTestSupport.cpp

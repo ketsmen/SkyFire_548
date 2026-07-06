@@ -7,6 +7,7 @@
 #include "CurrencyFormulas.h"
 #include "DBCEnums.h"
 #include "GridDefines.h"
+#include "LegacyTransportSupport.h"
 #include "MapLifecycle.h"
 #include "ObjectAccessorLifecycle.h"
 #include "PlayerRestState.h"
@@ -1677,6 +1678,22 @@ namespace
         return passed;
     }
 
+    bool TestLegacyTransportVisibilityPreservationRules()
+    {
+        bool passed = true;
+
+        passed &= Expect(LegacyTransport::ShouldPreservePassengerGameObjectVisibility(218203),
+            "Deeprun Tram client entry 218203 should preserve station gameobjects while riding");
+        passed &= Expect(LegacyTransport::ShouldPreservePassengerGameObjectVisibility(218208),
+            "Deeprun Tram client entry 218208 should preserve station gameobjects while riding");
+        passed &= Expect(!LegacyTransport::ShouldPreservePassengerGameObjectVisibility(176080),
+            "Database-only Deeprun Tram entry should not be used for passenger visibility preservation");
+        passed &= Expect(!LegacyTransport::ShouldPreservePassengerGameObjectVisibility(1),
+            "Unrelated transports should not preserve passenger gameobject visibility");
+
+        return passed;
+    }
+
 }
 
 int main()
@@ -1705,6 +1722,7 @@ int main()
     passed &= TestWorldShutdownLifecycleRules();
     passed &= TestRuntimeMetricsRules();
     passed &= TestInnAreaBoundsRules();
+    passed &= TestLegacyTransportVisibilityPreservationRules();
 
     return passed ? 0 : 1;
 }
