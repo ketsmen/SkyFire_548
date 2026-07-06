@@ -6,10 +6,25 @@
 #include <iostream>
 #include <thread>
 
+#ifdef _WIN32
+    #include "direct.h"
+#else
+    #include <sys/stat.h>
+#endif
+
 #include "PathCommon.h"
 #include "MapBuilder.h"
 
 using namespace MMAP;
+
+void CreateDir(std::string const& path)
+{
+#ifdef _WIN32
+    _mkdir(path.c_str());
+#else
+    mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO); // 0777
+#endif
+}
 
 bool checkDirectories(bool debugOutput)
 {
@@ -31,8 +46,14 @@ bool checkDirectories(bool debugOutput)
     dirFiles.clear();
     if (getDirContents(dirFiles, "mmaps") == LISTFILE_DIRECTORY_NOT_FOUND)
     {
-        printf("'mmaps' directory does not exist\n");
-        return false;
+        CreateDir("./mmaps/");
+
+        dirFiles.clear();
+        if (getDirContents(dirFiles, "mmaps") == LISTFILE_DIRECTORY_NOT_FOUND)
+        {
+            printf("'mmaps' directory does not exist and could not be created\n");
+            return false;
+        }
     }
 
     dirFiles.clear();
