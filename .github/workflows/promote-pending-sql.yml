@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,19 +25,18 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
+          token: ${{ secrets.AUTOMATION_PAT || github.token }}
 
-      - name: Promote pending SQL updates
+      - name: Import and commit pending SQL
+        id: import-pending
         shell: pwsh
-        run: ./tools/dev/promote_pending_updates.ps1 -Apply
-
-      - name: Open promoted SQL pull request
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.AUTOMATION_PAT }}
         run: |
-          $branchName = "automation/promote-pending-sql-${{ github.run_id }}"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git switch -c $branchName
+          git pull --rebase origin "${{ github.ref_name }}"
+
+          ./tools/dev/promote_pending_updates.ps1 -Apply
           git add -A sql/pending_updates sql/updates
 
           $changes = git status --porcelain
@@ -46,30 +44,15 @@ jobs:
           Write-Host $status
 
           if ([string]::IsNullOrWhiteSpace($status)) {
-            Write-Host "No promoted SQL changes to commit."
+            Write-Host "No pending SQL changes to commit."
+            "has_changes=false" >> $env:GITHUB_OUTPUT
             exit 0
           }
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "SQL: Promote pending updates"
-          git push origin HEAD:refs/heads/$branchName
+          git commit -m "SQL: Promote pending updates" -m "Referenced commit(s): $env:GITHUB_SHA"
+          "has_changes=true" >> $env:GITHUB_OUTPUT
 
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = "application/vnd.github+json"
-            "X-GitHub-Api-Version" = "2022-11-28"
-          }
-          $body = @{
-            title = "SQL: Promote pending updates"
-            head = $branchName
-            base = "${{ github.ref_name }}"
-            body = "Automated promotion from sql/pending_updates into sql/updates."
-          } | ConvertTo-Json
-
-          Invoke-RestMethod `
-            -Method Post `
-            -Uri "https://api.github.com/repos/${{ github.repository }}/pulls" `
-            -Headers $headers `
-            -Body $body `
-            -ContentType "application/json"
+      - name: Push promoted SQL
+        if: steps.import-pending.outputs.has_changes == 'true'
+        shell: pwsh
+        run: git push origin HEAD:${{ github.ref_name }}
