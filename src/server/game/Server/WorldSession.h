@@ -279,6 +279,7 @@ public:
 
     void SendAuthResponse(ResponseCodes code, bool queued, uint32 queuePos = 0);
     void SendClientCacheVersion(uint32 version);
+    void SendFeatureSystemStatusGlueScreen();
 
     rbac::RBACData* GetRBACData();
     bool HasPermission(uint32 permissionId);

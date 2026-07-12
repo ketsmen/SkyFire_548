@@ -274,6 +274,7 @@ void World::AddSession_(WorldSession* s)
     }
 
     s->SendAuthResponse(ResponseCodes::AUTH_OK, false);
+    s->SendFeatureSystemStatusGlueScreen();
     s->SendAddonsInfo();
     s->SendClientCacheVersion(sWorld->getIntConfig(WorldIntConfigs::CONFIG_CLIENTCACHE_VERSION));
     if (s->HasBoost())
@@ -372,6 +373,7 @@ bool World::RemoveQueuedPlayer(WorldSession* sess)
         pop_sess->SetInQueue(false);
         pop_sess->ResetTimeOutTime();
         pop_sess->SendAuthWaitQue(0);
+        pop_sess->SendFeatureSystemStatusGlueScreen();
         pop_sess->SendAddonsInfo();
 
         pop_sess->SendClientCacheVersion(sWorld->getIntConfig(WorldIntConfigs::CONFIG_CLIENTCACHE_VERSION));
