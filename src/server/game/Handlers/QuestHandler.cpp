@@ -822,6 +822,14 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
 
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY");
 
+    SendQuestgiverStatusMultiple();
+}
+
+void WorldSession::SendQuestgiverStatusMultiple()
+{
+    if (!_player || isLogingOut())
+        return;
+
     uint32 count = 0;
     ByteBuffer byteData;
 

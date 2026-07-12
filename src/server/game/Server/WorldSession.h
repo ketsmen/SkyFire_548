@@ -793,6 +793,7 @@ public:                                                 // opcodes handlers
 
     void HandleQuestgiverStatusQueryOpcode(WorldPacket& recvPacket);
     void HandleQuestgiverStatusMultipleQuery(WorldPacket& recvPacket);
+    void SendQuestgiverStatusMultiple();
     void HandleQuestgiverHelloOpcode(WorldPacket& recvPacket);
     void HandleQuestgiverAcceptQuestOpcode(WorldPacket& recvPacket);
     void HandleQuestgiverQueryQuestOpcode(WorldPacket& recvPacket);

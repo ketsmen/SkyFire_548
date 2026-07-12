@@ -726,6 +726,7 @@ Player::Player(WorldSession* session) : Unit(true)
     cinematicSequence = NULL;
     inCinematic = false;
     cinematicClientStartTime = 0;
+    cinematicVisibilityTimer = 0;
 
     memset(_voidStorageItems, 0, VOID_STORAGE_MAX_SLOT * sizeof(VoidStorageItem*));
     memset(_CUFProfiles, 0, MAX_CUF_PROFILES * sizeof(CUFProfile*));
@@ -1379,6 +1380,13 @@ void Player::Update(uint32 p_time)
         {
             if (time > cinematicSequence->Duration)
                 StopCinematic();
+            else if (cinematicVisibilityTimer <= p_time)
+            {
+                UpdateCinematicVisibility();
+                cinematicVisibilityTimer = 500;
+            }
+            else
+                cinematicVisibilityTimer -= p_time;
         }
     }
 
@@ -6862,16 +6870,50 @@ void Player::StopCinematic()
         cinematicSequence = NULL;
         inCinematic = false;
         cinematicClientStartTime = 0;
+        cinematicVisibilityTimer = 0;
 
         Unit::UpdatePosition(cinematicStartX, cinematicStartY, cinematicStartZ, cinematicStartO, true);
+        UpdateObjectVisibility(true);
 
         getHostileRefManager().setOnlineOfflineState(true);
 
         SetFall(true);
 
         RemoveAura(60190);
+
+        if (GetSession())
+            GetSession()->SendQuestgiverStatusMultiple();
     }
 }
+
+bool Player::GetCinematicPosition(float& x, float& y, float& z) const
+{
+    if (!cinematicSequence || !inCinematic)
+        return false;
+
+    uint32 const now = getMSTime();
+    if (now <= cinematicClientStartTime)
+        return false;
+
+    uint32 time = now - cinematicClientStartTime;
+    if (time > cinematicSequence->Duration)
+        time = cinematicSequence->Duration;
+
+    cinematicSequence->GetPositionAtTime(time, &x, &y, &z);
+    return Skyfire::IsValidMapCoord(x, y, z);
+}
+
+void Player::UpdateCinematicVisibility()
+{
+    float x, y, z;
+    if (!GetCinematicPosition(x, y, z))
+        return;
+
+    Skyfire::VisibleNotifier notifier(*this);
+    GetMap()->VisitAll(x, y, GetSightRange(), notifier);
+    notifier.SendToSelf();
+}
+
 void Player::SendCinematicStart(uint32 CinematicSequenceId)
 {
     WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4);
@@ -6885,6 +6927,7 @@ void Player::SendCinematicStart(uint32 CinematicSequenceId)
     if (cinematicSequence)
     {
         cinematicClientStartTime = (getMSTime() - GetSession()->GetLatency()) + 1500;
+        cinematicVisibilityTimer = 0;
         inCinematic = true;
 
         cinematicStartX = m_positionX;
