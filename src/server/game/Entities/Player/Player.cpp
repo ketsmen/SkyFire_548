@@ -3523,6 +3523,7 @@ void Player::SendInitialSpells()
     }
     */
     GetSession()->SendPacket(&data);
+    SendSpellCooldowns();
 
     SF_LOG_DEBUG("network", "CHARACTER: Sent Initial Spells");
 }
@@ -4004,6 +4005,9 @@ void Player::learnSpell(uint32 spell_id, bool dependent)
 
         GetSession()->SendPacket(&data);
     }
+
+    if (spell_id == SPELL_BATTLE_PET_TRAINING_PASSIVE && !HasSpell(SPELL_TRACK_PETS))
+        learnSpell(SPELL_TRACK_PETS, true);
 
     // learn all disabled higher ranks and required spells (recursive)
     if (disabled)
@@ -8952,7 +8956,8 @@ void Player::CastItemUseSpell(Item* item, SpellCastTargets const& targets, uint8
             if (itr->first != item->GetEntry())
                 continue;
 
-            m_battlePetMgr->Create(itr->second);
+            if (m_battlePetMgr->Create(itr->second))
+                m_battlePetMgr->SaveToDb();
             learning_spell_id = 0;
 
             break;
@@ -17496,6 +17501,68 @@ void Player::ModifySpellCooldown(uint32 spellId, int32 cooldown)
     SF_LOG_DEBUG("misc", "ModifySpellCooldown:: Player: %s (GUID: %u) Spell: %u cooldown: %u", GetName().c_str(), GetGUIDLow(), spellId, GetSpellCooldownDelay(spellId));
 }
 
+void Player::SendSpellCooldown(uint32 spellId, uint32 cooldown)
+{
+    if (!cooldown)
+        return;
+
+    ObjectGuid guid = GetGUID();
+    WorldPacket data(SMSG_SPELL_COOLDOWN, 9 + 3 + 8);
+    data.WriteGuidMask(guid, 0, 6);
+    data.WriteBit(1); // Missing flags
+    data.WriteGuidMask(guid, 7, 3, 1, 5);
+    data.WriteBits(1, 21);
+    data.WriteGuidMask(guid, 2, 4);
+    data.FlushBits();
+
+    data << uint32(spellId);
+    data << uint32(cooldown);
+    data.WriteGuidBytes(guid, 5, 3, 7, 4, 1, 0, 2, 6);
+    SendDirectMessage(&data);
+}
+
+void Player::SendSpellCooldowns()
+{
+    if (m_spellCooldowns.empty())
+        return;
+
+    time_t const curTime = time(NULL);
+    std::vector<std::pair<uint32, uint32>> activeCooldowns;
+    activeCooldowns.reserve(m_spellCooldowns.size());
+
+    for (SpellCooldowns::const_iterator itr = m_spellCooldowns.begin(); itr != m_spellCooldowns.end(); ++itr)
+    {
+        if (itr->second.end <= curTime)
+            continue;
+
+        if (!sSpellMgr->GetSpellInfo(itr->first))
+            continue;
+
+        activeCooldowns.push_back(std::make_pair(itr->first, uint32((itr->second.end - curTime) * IN_MILLISECONDS)));
+    }
+
+    if (activeCooldowns.empty())
+        return;
+
+    ObjectGuid guid = GetGUID();
+    WorldPacket data(SMSG_SPELL_COOLDOWN, 9 + 3 + activeCooldowns.size() * 8);
+    data.WriteGuidMask(guid, 0, 6);
+    data.WriteBit(1); // Missing flags
+    data.WriteGuidMask(guid, 7, 3, 1, 5);
+    data.WriteBits(activeCooldowns.size(), 21);
+    data.WriteGuidMask(guid, 2, 4);
+    data.FlushBits();
+
+    for (std::vector<std::pair<uint32, uint32>>::const_iterator itr = activeCooldowns.begin(); itr != activeCooldowns.end(); ++itr)
+    {
+        data << uint32(itr->first);
+        data << uint32(itr->second);
+    }
+
+    data.WriteGuidBytes(guid, 5, 3, 7, 4, 1, 0, 2, 6);
+    SendDirectMessage(&data);
+}
+
 void Player::SendCooldownEvent(SpellInfo const* spellInfo, uint32 itemId /*= 0*/, Spell* spell /*= NULL*/, bool setCooldown /*= true*/)
 {
     // start cooldowns at server side, if any
@@ -17948,6 +18015,17 @@ inline void BeforeVisibilityDestroy<Creature>(Creature* t, Player* p)
 
 void Player::UpdateVisibilityOf(WorldObject* target)
 {
+    if (GetBattlePetMgr()->ShouldHideActivePetBattleWorldObject(target->GetGUID()))
+    {
+        if (HaveAtClient(target))
+        {
+            target->DestroyForPlayer(this);
+            m_clientGUIDs.erase(target->GetGUID());
+        }
+
+        return;
+    }
+
     if (HaveAtClient(target))
     {
         if (!CanSeeOrDetect(target, false, true))
@@ -18037,6 +18115,17 @@ void Player::SendInitialVisiblePackets(Unit* target)
 template<class T>
 void Player::UpdateVisibilityOf(T* target, UpdateData& data, std::set<Unit*>& visibleNow)
 {
+    if (GetBattlePetMgr()->ShouldHideActivePetBattleWorldObject(target->GetGUID()))
+    {
+        if (HaveAtClient(target))
+        {
+            target->BuildOutOfRangeUpdateBlock(&data);
+            m_clientGUIDs.erase(target->GetGUID());
+        }
+
+        return;
+    }
+
     if (HaveAtClient(target))
     {
         if (!CanSeeOrDetect(target, false, true))

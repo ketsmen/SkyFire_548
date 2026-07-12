@@ -11,7 +11,7 @@
 // x - skip<uint32>, X - skip<uint8>, s - char*, f - float, i - uint32, b - uint8, d - index (not included)
 // n - index (included), l - bool, p - field present in sql dbc, a - field absent in sql dbc
 
-char const Achievementfmt[] = "niixsxxixixxiii";
+char const Achievementfmt[] = "niixsxiixixxiii";
 //const std::string CustomAchievementfmt = "pppaaaapapaappa";
 //const std::string CustomAchievementIndex = "ID";
 //char const AchievementCriteriafmt[] = "niiiixiiiisiiiiixxiiiii";
@@ -56,6 +56,7 @@ char const GemPropertiesEntryfmt[] = "dixxix";
 char const GlyphPropertiesfmt[] = "diix";
 char const GlyphSlotfmt[] = "nix";
 char const GtBarberShopCostBasefmt[] = "xf";
+char const GtBattlePetXpfmt[] = "xf";
 char const GtCombatRatingsfmt[] = "xf";
 char const GtOCTHpPerStaminafmt[] = "df";
 char const GtChanceToMeleeCritBasefmt[] = "xf";

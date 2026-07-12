@@ -163,6 +163,78 @@ struct RulesetRaidLootUpgradeEntry
     //uint32 Unk4;                                          // 4
 };
 */
+
+#define MAX_BATTLE_PET_EFFECT_PROPERTIES 6
+
+struct BattlePetAbilityEntry
+{
+    uint32 AbilityId;                                       // 0 - battle pet ability id
+    int32 FamilyId;                                         // 1 - battle pet family id or -1 for aura
+    //uint32 IconId;                                        // 2 - icon id
+    uint32 Cooldown;                                        // 3 - cooldown in turns
+    uint32 AuraAbilityId;                                   // 4 - linked aura ability id
+    uint32 AuraDuration;                                    // 5 - aura duration in turns
+    //LocalizedString* Name;                                // 6 - name text
+    //LocalizedString* Description;                         // 7 - description text
+};
+
+struct BattlePetAbilityEffectEntry
+{
+    uint32 Id;                                              // 0
+    uint32 TurnEntryId;                                     // 1 - BattlePetAbilityTurn.db2
+    //uint32 Unk1;                                          // 2
+    //uint32 Unk2;                                          // 3
+    uint32 PropertiesId;                                    // 4 - BattlePetEffectProperties.db2
+    uint32 EffectIndex;                                     // 5
+    uint32 PropertyValues[MAX_BATTLE_PET_EFFECT_PROPERTIES];// 6-11
+};
+
+struct BattlePetAbilityStateEntry
+{
+    uint32 Id;                                              // 0
+    uint32 AbilityId;                                       // 1 - battle pet ability id (BattlePetAbility.db2)
+    uint32 StateId;                                         // 2 - battle pet state id (BattlePetState.db2)
+    uint32 Value;                                           // 3 - value for state
+};
+
+struct BattlePetAbilityTurnEntry
+{
+    uint32 Id;                                              // 0
+    uint32 AbilityId;                                       // 1 - battle pet ability id
+    //uint32 StateId;                                       // 2
+    uint32 TurnIndex;                                       // 3
+    //uint32 Unk1;                                          // 4
+    //uint32 ProcIndex;                                     // 5
+};
+
+struct BattlePetBreedQualityEntry
+{
+    uint32 Id;                                              // 0
+    uint32 Quality;                                         // 1 - ItemQualities
+    float QualityModifier;                                  // 2
+};
+
+struct BattlePetEffectPropertiesEntry
+{
+    uint32 Id;                                              // 0
+    //uint32 Flags;                                         // 1
+    LocalizedString* PropertyDescriptions[MAX_BATTLE_PET_EFFECT_PROPERTIES]; // 2-7
+    //uint32 Unk1;                                          // 8
+    //uint32 Unk2;                                          // 9
+    //uint32 Unk3;                                          // 10
+    //uint32 Unk4;                                          // 11
+    //uint32 Unk5;                                          // 12
+    //uint32 Unk6;                                          // 13
+};
+
+struct BattlePetStateEntry
+{
+    uint32 StateId;                                         // 0 - battle pet state id
+    //uint32 Unk1;                                          // 1
+    LocalizedString* Name;                                  // 2 - name text
+    uint32 Flags;                                           // 3
+};
+
 struct SceneScriptPackageEntry
 {
     uint32 ID;                                              // 0
@@ -214,7 +286,7 @@ struct BattlePetSpeciesEntry
     uint32 NpcId;                                           // 1 - npc id
     //uint32 IconId;                                        // 2 - icon id
     uint32 SpellId;                                         // 3 - summon spell id (Spell.dbc)
-    //uint32 FamilyId;                                      // 4 - battle pet family id
+    uint32 FamilyId;                                        // 4 - battle pet family id
     //int32 Unk1;                                           // 5
     uint32 Flags;                                           // 6 - flags (see BattlePetSpeciesFlags enum)
     //LocalizedString* Description;                         // 7 - description text, contains method to obtain and cost
@@ -228,16 +300,15 @@ struct BattlePetSpeciesStateEntry
     uint32 StateId;                                         // 2 - battle pet state id (BattlePetState.db2)
     int32 Modifier;                                         // 3 - modifier value for state
 };
-/*
 struct BattlePetSpeciesXAbilityEntry
 {
-    uint32 Id;                                              // 0
     uint32 SpeciesId;                                       // 1 - battle pet species id (BattlePetSpecies.db2)
     uint32 AbilityId;                                       // 2 - battle pet ability id (BattlePetAbility.db2)
     uint32 RequiredLevel;                                   // 3 - required level to use this ability
     uint32 SlotId;                                          // 4 - ability slot id (0-2)
 };
 
+/*
 struct BattlePetStateEntry
 {
     uint32 StateId;                                         // 0 - battle pet state id

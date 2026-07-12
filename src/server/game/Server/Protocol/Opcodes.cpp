@@ -89,8 +89,10 @@ void OpcodeTable::InitializeClientTable()
     DEFINE_OPCODE_HANDLER(CMSG_BATTLEMASTER_JOIN_ARENA,                      0x02D2, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlemasterJoinArena               ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_CHAR_BOOST,                            0x08E3, STATUS_AUTHED,    PROCESS_THREADUNSAFE, &WorldSession::HandleBattleCharBoost                     ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_DELETE_PET,                        0x18B6, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetDelete                     ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_LEARN,                             0x1540, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetLearn                      ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_MODIFY_NAME,                       0x1887, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetModifyName                 ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_QUERY_NAME,                        0x1CE0, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetQueryName                  ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_REQUEST_JOURNAL,                   0x0A23, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetRequestJournal             ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_SET_BATTLE_SLOT,                   0x0163, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetSetBattleSlot              ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_SET_FLAGS,                         0x17AC, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetSetFlags                   ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_BATTLE_PET_SUMMON_COMPANION,                  0x1896, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetSummonCompanion            ); // 5.4.8 18414
@@ -341,8 +343,15 @@ void OpcodeTable::InitializeClientTable()
     DEFINE_OPCODE_HANDLER(CMSG_PETITION_SIGN,                                0x06DA, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetitionSignOpcode                  ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_ABANDON,                                  0x07D0, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetAbandon                          ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_ACTION,                                   0x025B, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetAction                           ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_FINAL_NOTIFY,                      0x1063, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetFinalNotify                ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_INPUT,                             0x17BA, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetInput                      ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH_RESULT,        0x19C2, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetBattleQueueProposeMatchResult   ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_QUIT_NOTIFY,                       0x1C45, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetQuitNotify                 ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_REQUEST_PVP,                       0x02C7, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetBattleRequestPvp                 ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_REQUEST_UPDATE,                    0x0377, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetRequestUpdate              ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_SET_FRONT_PET,                     0x1A07, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetInputFirstPet              ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_START_PVP_MATCHMAKING,             0x06D4, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetBattleStartPvpMatchmaking        ); // 5.4.8 18414
-    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_STOP_PVP_MATCHMAKING,              0x08C1, STATUS_UNHANDLED, PROCESS_THREADUNSAFE, &WorldSession::HandlePetBattleStopPvpMatchmaking         ); // 5.4.8 18414
+    DEFINE_OPCODE_HANDLER(CMSG_PET_BATTLE_STOP_PVP_MATCHMAKING,              0x08C1, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetBattleStopPvpMatchmaking         ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_CANCEL_AURA,                              0x12DA, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetCancelAuraOpcode                 ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_CAST_SPELL,                               0x044D, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetCastSpellOpcode                  ); // 5.4.8 18414
     DEFINE_OPCODE_HANDLER(CMSG_PET_NAME_QUERY,                               0x1C62, STATUS_LOGGEDIN,  PROCESS_THREADUNSAFE, &WorldSession::HandlePetNameQuery                        ); // 5.4.8 18414

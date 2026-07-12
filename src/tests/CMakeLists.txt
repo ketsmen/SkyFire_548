@@ -415,6 +415,31 @@ target_include_directories(spell_book_packet_tests PRIVATE
 
 add_test(NAME spell_book_packet_tests COMMAND spell_book_packet_tests)
 
+add_executable(battle_pet_packet_tests
+  ${CMAKE_SOURCE_DIR}/src/server/game/BattlePet/BattlePet.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/game/BattlePet/BattlePetPackets.cpp
+  GameDomainTestSupport.cpp
+  BattlePetPacketTests.cpp
+)
+
+target_include_directories(battle_pet_packet_tests PRIVATE
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/dep/g3dlite/include
+  ${CMAKE_SOURCE_DIR}/src/server/shared
+  ${CMAKE_SOURCE_DIR}/src/server/shared/DataStores
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Debugging
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Logging
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Packets
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Platform
+  ${CMAKE_SOURCE_DIR}/src/server/shared/Utilities
+  ${CMAKE_SOURCE_DIR}/src/server/game/BattlePet
+  ${CMAKE_SOURCE_DIR}/src/server/game/DataStores
+  ${CMAKE_SOURCE_DIR}/src/server/game/Server
+  ${CMAKE_SOURCE_DIR}/src/server/game/Server/Protocol
+)
+
+add_test(NAME battle_pet_packet_tests COMMAND battle_pet_packet_tests)
+
 add_executable(gossip_schema_tests
   ${CMAKE_SOURCE_DIR}/src/server/game/Globals/GossipSchema.cpp
   GossipSchemaTests.cpp

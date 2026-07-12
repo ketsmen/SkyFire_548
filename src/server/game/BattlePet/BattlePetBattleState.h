@@ -1,0 +1,478 @@
+/*
+* This file is part of Project SkyFire https://www.projectskyfire.org.
+* See LICENSE.md file for Copyright information
+*/
+
+#ifndef BATTLE_PET_BATTLE_STATE_H
+#define BATTLE_PET_BATTLE_STATE_H
+
+#include "BattlePet.h"
+#include "Common.h"
+
+enum PetBattleWinner
+{
+    PET_BATTLE_WINNER_NONE = 0,
+    PET_BATTLE_WINNER_ALLY = 1,
+    PET_BATTLE_WINNER_ENEMY = 2
+};
+
+enum PetBattleTrapStatus
+{
+    PET_BATTLE_TRAP_STATUS_ACTIVE = 1,
+    PET_BATTLE_TRAP_STATUS_UNAVAILABLE = 2,
+    PET_BATTLE_TRAP_STATUS_DEAD_PET = 3,
+    PET_BATTLE_TRAP_STATUS_HEALTH_TOO_HIGH = 4,
+    PET_BATTLE_TRAP_STATUS_JOURNAL_FULL = 5,
+    PET_BATTLE_TRAP_STATUS_NOT_CAPTURABLE = 6,
+    PET_BATTLE_TRAP_STATUS_NPC_PET = 7,
+    PET_BATTLE_TRAP_STATUS_ALREADY_TRAPPED = 8
+};
+
+enum ActivePetBattleTurnEffect
+{
+    ACTIVE_PET_BATTLE_TURN_EFFECT_NONE = 0,
+    ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE = 1,
+    ACTIVE_PET_BATTLE_TURN_EFFECT_SWAP = 2
+};
+
+struct ActivePetBattleTurn
+{
+    bool Accepted = false;
+    bool HasRoundResult = false;
+    bool HasFinalRound = false;
+    bool TargetDied = false;
+    bool Abandoned = false;
+    bool Captured = false;
+    bool RequiresFrontPet = false;
+    uint8 EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_NONE;
+    uint8 CasterPet = 0;
+    uint8 TargetPet = 0;
+    uint8 Winner = PET_BATTLE_WINNER_NONE;
+    uint32 RoundID = 0;
+    uint32 RemainingHealth = 0;
+};
+
+struct ActivePetBattlePetState
+{
+    uint64 PetID = 0;
+    uint32 MaxHealth = 0;
+    uint32 Health = 0;
+};
+
+struct ActivePetBattle
+{
+    static constexpr uint8 BATTLE_PET_MAX_ACTIVE_TEAM_PETS = 3;
+
+    bool IsActive() const { return EnemyGUID != 0; }
+    bool IsFinished() const { return Finished; }
+    bool IsPvP() const { return PvPBattle; }
+    bool IsMatchmaking() const { return Source == BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING; }
+    BattlePetAchievementSource GetAchievementSource() const { return Source; }
+    bool CanAcceptInput(uint32 roundId) const { return CanAcceptRound(roundId); }
+    bool CanTrap(bool canStoreBattlePet = true, bool enemyTameable = true) const
+    {
+        return GetTrapStatus(canStoreBattlePet, enemyTameable) == PET_BATTLE_TRAP_STATUS_ACTIVE;
+    }
+
+    bool SelectAllyFrontPet(uint8 frontPet)
+    {
+        if (!IsActive() || IsFinished() || !IsAllyPetAlive(frontPet))
+            return false;
+
+        AllyFrontPet = frontPet;
+        WaitingForAllyFrontPet = false;
+        SyncActiveAllyPet();
+        return true;
+    }
+
+    void StartWild(uint64 enemyGuid, uint64 allyPetId, uint32 allyMaxHealth, uint32 allyHealth,
+        uint64 enemyPetId, uint32 enemyMaxHealth, uint32 enemyHealth,
+        uint16 enemySpecies = 0, uint8 enemyLevel = 0, uint8 enemyQuality = 0,
+        uint8 enemyBreed = 0, uint8 allyFrontPet = 0)
+    {
+        *this = ActivePetBattle();
+
+        PvPBattle = false;
+        Source = BATTLE_PET_ACHIEVEMENT_SOURCE_WILD;
+        EnemyGUID = enemyGuid;
+        EnemyPetID = enemyPetId;
+        EnemyMaxHealth = enemyMaxHealth;
+        EnemyHealth = NormalizeHealth(enemyHealth, enemyMaxHealth);
+        EnemySpecies = enemySpecies;
+        EnemyLevel = enemyLevel;
+        EnemyQuality = enemyQuality;
+        EnemyBreed = enemyBreed;
+        AllyFrontPet = IsValidAllyPetIndex(allyFrontPet) ? allyFrontPet : 0;
+        SetAllyPet(AllyFrontPet, allyPetId, allyMaxHealth, allyHealth);
+    }
+
+    void StartPvp(uint64 opponentGuid, uint64 allyPetId, uint32 allyMaxHealth, uint32 allyHealth,
+        uint64 enemyPetId, uint32 enemyMaxHealth, uint32 enemyHealth,
+        uint16 enemySpecies = 0, uint8 enemyLevel = 0, uint8 enemyQuality = 0,
+        uint8 allyFrontPet = 0, uint8 enemyFrontPet = 3,
+        BattlePetAchievementSource source = BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL)
+    {
+        *this = ActivePetBattle();
+
+        PvPBattle = true;
+        Source = source == BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING
+            ? BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING
+            : BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL;
+        EnemyGUID = opponentGuid;
+        EnemyPetID = enemyPetId;
+        EnemyMaxHealth = enemyMaxHealth;
+        EnemyHealth = NormalizeHealth(enemyHealth, enemyMaxHealth);
+        EnemySpecies = enemySpecies;
+        EnemyLevel = enemyLevel;
+        EnemyQuality = enemyQuality;
+        AllyFrontPet = IsValidAllyPetIndex(allyFrontPet) ? allyFrontPet : 0;
+        EnemyFrontPet = enemyFrontPet;
+        SetAllyPet(AllyFrontPet, allyPetId, allyMaxHealth, allyHealth);
+    }
+
+    uint32 ApplyAllyDamage(uint32 damage)
+    {
+        if (!IsAllyPetAlive(AllyFrontPet))
+            return AllyHealth;
+
+        if (damage >= AllyTeam[AllyFrontPet].Health)
+            AllyTeam[AllyFrontPet].Health = 0;
+        else
+            AllyTeam[AllyFrontPet].Health -= damage;
+
+        uint32 const remainingHealth = AllyTeam[AllyFrontPet].Health;
+        if (!remainingHealth)
+        {
+            if (HasAliveAllyPetOtherThan(AllyFrontPet))
+                WaitingForAllyFrontPet = true;
+            else
+                Finish(PET_BATTLE_WINNER_ENEMY);
+        }
+
+        SyncActiveAllyPet();
+        return remainingHealth;
+    }
+
+    uint32 ApplyEnemyDamage(uint32 damage)
+    {
+        return ApplyDamage(EnemyHealth, damage, PET_BATTLE_WINNER_ALLY);
+    }
+
+    ActivePetBattleTurn ApplyAbilityRound(uint32 roundId, uint32 damage)
+    {
+        ActivePetBattleTurn turn = CreateTurn(roundId);
+        if (!CanAcceptRound(roundId))
+            return turn;
+
+        if (WaitingForAllyFrontPet)
+            return turn;
+
+        turn.Accepted = true;
+        turn.HasRoundResult = true;
+        turn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+        turn.CasterPet = AllyFrontPet;
+        turn.TargetPet = EnemyFrontPet;
+        turn.RemainingHealth = ApplyEnemyDamage(damage);
+        turn.TargetDied = turn.RemainingHealth == 0;
+        turn.HasFinalRound = IsFinished();
+        turn.Winner = Winner;
+
+        AdvanceRound();
+        return turn;
+    }
+
+    ActivePetBattleTurn ApplyEnemyAbilityRound(uint32 roundId, uint32 damage)
+    {
+        ActivePetBattleTurn turn = CreateTurn(roundId);
+        if (!CanAcceptRound(roundId))
+            return turn;
+
+        if (WaitingForAllyFrontPet)
+            return turn;
+
+        turn.Accepted = true;
+        turn.HasRoundResult = true;
+        turn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+        turn.CasterPet = EnemyFrontPet;
+        turn.TargetPet = AllyFrontPet;
+        turn.RemainingHealth = ApplyAllyDamage(damage);
+        turn.TargetDied = turn.RemainingHealth == 0;
+        turn.RequiresFrontPet = turn.TargetDied && WaitingForAllyFrontPet;
+        turn.HasFinalRound = IsFinished();
+        turn.Winner = Winner;
+
+        AdvanceRound();
+        return turn;
+    }
+
+    bool ApplyAbilityExchange(uint32 roundId, uint32 allyDamage, uint32 enemyDamage,
+        ActivePetBattleTurn& allyTurn, ActivePetBattleTurn& enemyTurn)
+    {
+        allyTurn = CreateTurn(roundId);
+        enemyTurn = CreateTurn(roundId);
+
+        if (!CanAcceptRound(roundId))
+            return false;
+
+        if (WaitingForAllyFrontPet)
+            return false;
+
+        allyTurn.Accepted = true;
+        allyTurn.HasRoundResult = true;
+        allyTurn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+        allyTurn.CasterPet = AllyFrontPet;
+        allyTurn.TargetPet = EnemyFrontPet;
+        allyTurn.RemainingHealth = ApplyEnemyDamage(allyDamage);
+        allyTurn.TargetDied = allyTurn.RemainingHealth == 0;
+        allyTurn.HasFinalRound = IsFinished();
+        allyTurn.Winner = Winner;
+
+        if (!IsFinished())
+        {
+            enemyTurn.Accepted = true;
+            enemyTurn.HasRoundResult = true;
+            enemyTurn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+            enemyTurn.CasterPet = EnemyFrontPet;
+            enemyTurn.TargetPet = AllyFrontPet;
+            enemyTurn.RemainingHealth = ApplyAllyDamage(enemyDamage);
+            enemyTurn.TargetDied = enemyTurn.RemainingHealth == 0;
+            enemyTurn.RequiresFrontPet = enemyTurn.TargetDied && WaitingForAllyFrontPet;
+            enemyTurn.HasFinalRound = IsFinished();
+            enemyTurn.Winner = Winner;
+        }
+
+        AdvanceRound();
+        return true;
+    }
+
+    ActivePetBattleTurn ApplySwapRound(uint32 roundId, uint8 newFrontPet)
+    {
+        ActivePetBattleTurn turn = CreateTurn(roundId);
+        if (!CanAcceptRound(roundId))
+            return turn;
+
+        if (!IsAllyPetAlive(newFrontPet))
+            return turn;
+
+        turn.Accepted = true;
+        turn.HasRoundResult = true;
+        turn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_SWAP;
+        turn.CasterPet = AllyFrontPet;
+        turn.TargetPet = newFrontPet;
+
+        AllyFrontPet = newFrontPet;
+        SyncActiveAllyPet();
+        AdvanceRound();
+        return turn;
+    }
+
+    ActivePetBattleTurn ApplyForfeit(uint32 roundId)
+    {
+        ActivePetBattleTurn turn = CreateTurn(roundId);
+        if (!CanAcceptRound(roundId))
+            return turn;
+
+        Finish(PET_BATTLE_WINNER_ENEMY);
+
+        turn.Accepted = true;
+        turn.HasFinalRound = true;
+        turn.Abandoned = true;
+        turn.Winner = Winner;
+        return turn;
+    }
+
+    ActivePetBattleTurn ApplyTrapRound(uint32 roundId)
+    {
+        ActivePetBattleTurn turn = CreateTurn(roundId);
+        if (!CanAcceptRound(roundId))
+            return turn;
+
+        if (WaitingForAllyFrontPet)
+            return turn;
+
+        if (!CanTrap())
+            return turn;
+
+        Finish(PET_BATTLE_WINNER_ALLY);
+        Captured = true;
+
+        turn.Accepted = true;
+        turn.HasFinalRound = true;
+        turn.Captured = true;
+        turn.Winner = Winner;
+        return turn;
+    }
+
+    uint8 GetTrapStatus(bool canStoreBattlePet = true, bool enemyTameable = true) const
+    {
+        if (!IsActive() || !enemyTameable)
+            return PET_BATTLE_TRAP_STATUS_NOT_CAPTURABLE;
+
+        if (Captured)
+            return PET_BATTLE_TRAP_STATUS_ALREADY_TRAPPED;
+
+        if (!AllyHealth || !EnemyHealth)
+            return PET_BATTLE_TRAP_STATUS_DEAD_PET;
+
+        if (!canStoreBattlePet)
+            return PET_BATTLE_TRAP_STATUS_JOURNAL_FULL;
+
+        if (!IsEnemyHealthTrapEligible())
+            return PET_BATTLE_TRAP_STATUS_HEALTH_TOO_HIGH;
+
+        return PET_BATTLE_TRAP_STATUS_ACTIVE;
+    }
+
+    void AdvanceRound()
+    {
+        if (IsActive() && !Finished)
+            ++RoundID;
+    }
+
+    void Finish(uint8 winner)
+    {
+        Finished = true;
+        Winner = winner;
+    }
+
+    bool SetAllyPet(uint8 petIndex, uint64 petId, uint32 maxHealth, uint32 health)
+    {
+        if (!IsValidAllyPetIndex(petIndex) || !petId || !maxHealth)
+            return false;
+
+        AllyTeam[petIndex].PetID = petId;
+        AllyTeam[petIndex].MaxHealth = maxHealth;
+        AllyTeam[petIndex].Health = NormalizeHealth(health, maxHealth);
+
+        if (petIndex == AllyFrontPet)
+            SyncActiveAllyPet();
+
+        return true;
+    }
+
+    bool HasAllyPet(uint8 petIndex) const
+    {
+        return IsValidAllyPetIndex(petIndex) && AllyTeam[petIndex].PetID != 0;
+    }
+
+    bool IsAllyPetAlive(uint8 petIndex) const
+    {
+        return HasAllyPet(petIndex) && AllyTeam[petIndex].Health != 0;
+    }
+
+    bool GetAllyPetHealth(uint64 petId, uint32& health) const
+    {
+        if (!petId)
+            return false;
+
+        for (uint8 i = 0; i < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++i)
+        {
+            if (AllyTeam[i].PetID != petId)
+                continue;
+
+            health = AllyTeam[i].Health;
+            return true;
+        }
+
+        return false;
+    }
+
+    uint64 EnemyGUID = 0;
+    uint64 AllyPetID = 0;
+    uint64 EnemyPetID = 0;
+    uint16 EnemySpecies = 0;
+    uint32 RoundID = 0;
+    uint32 AllyMaxHealth = 0;
+    uint32 AllyHealth = 0;
+    uint32 EnemyMaxHealth = 0;
+    uint32 EnemyHealth = 0;
+    bool Finished = false;
+    bool Captured = false;
+    bool PvPBattle = false;
+    BattlePetAchievementSource Source = BATTLE_PET_ACHIEVEMENT_SOURCE_WILD;
+    bool RewardsApplied = false;
+    bool AchievementsApplied = false;
+    uint8 EnemyLevel = 0;
+    uint8 EnemyQuality = 0;
+    uint8 EnemyBreed = 0;
+    uint8 Winner = PET_BATTLE_WINNER_NONE;
+    uint8 AllyFrontPet = 0;
+    uint8 EnemyFrontPet = 3;
+    bool WaitingForAllyFrontPet = false;
+    ActivePetBattlePetState AllyTeam[BATTLE_PET_MAX_ACTIVE_TEAM_PETS];
+
+private:
+    bool CanAcceptRound(uint32 roundId) const
+    {
+        return IsActive() && !Finished && roundId == RoundID;
+    }
+
+    ActivePetBattleTurn CreateTurn(uint32 roundId) const
+    {
+        ActivePetBattleTurn turn;
+        turn.RoundID = roundId;
+        turn.Winner = Winner;
+        return turn;
+    }
+
+    static uint32 NormalizeHealth(uint32 health, uint32 maxHealth)
+    {
+        return maxHealth && health > maxHealth ? maxHealth : health;
+    }
+
+    bool IsEnemyHealthTrapEligible() const
+    {
+        if (!EnemyMaxHealth)
+            return false;
+
+        return uint64(EnemyHealth) * 100 <= uint64(EnemyMaxHealth) * 20;
+    }
+
+    static bool IsValidAllyPetIndex(uint8 petIndex)
+    {
+        return petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS;
+    }
+
+    bool HasAliveAllyPetOtherThan(uint8 petIndex) const
+    {
+        for (uint8 i = 0; i < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++i)
+            if (i != petIndex && IsAllyPetAlive(i))
+                return true;
+
+        return false;
+    }
+
+    void SyncActiveAllyPet()
+    {
+        if (!HasAllyPet(AllyFrontPet))
+        {
+            AllyPetID = 0;
+            AllyMaxHealth = 0;
+            AllyHealth = 0;
+            return;
+        }
+
+        ActivePetBattlePetState const& activePet = AllyTeam[AllyFrontPet];
+        AllyPetID = activePet.PetID;
+        AllyMaxHealth = activePet.MaxHealth;
+        AllyHealth = activePet.Health;
+    }
+
+    uint32 ApplyDamage(uint32& health, uint32 damage, uint8 winner)
+    {
+        if (!IsActive() || Finished)
+            return health;
+
+        if (damage >= health)
+        {
+            health = 0;
+            Finish(winner);
+        }
+        else
+            health -= damage;
+
+        return health;
+    }
+};
+
+#endif // BATTLE_PET_BATTLE_STATE_H

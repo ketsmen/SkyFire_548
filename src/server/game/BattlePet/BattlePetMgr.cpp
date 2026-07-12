@@ -4,16 +4,68 @@
 */
 
 #include "BattlePetMgr.h"
+#include "BattlePetPackets.h"
 #include "ByteBuffer.h"
 #include "Common.h"
+#include "Creature.h"
 #include "DatabaseEnv.h"
+#include "DB2Stores.h"
 #include "DB2Enums.h"
+#include "DBCEnums.h"
+#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Player.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+
+#include <algorithm>
+#include <set>
+#include <vector>
+
+namespace
+{
+    CreatureTemplate const* GetBattlePetCreatureTemplate(BattlePet const* battlePet)
+    {
+        if (!battlePet)
+            return NULL;
+
+        BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(battlePet->GetSpecies());
+        if (!speciesEntry)
+            return NULL;
+
+        return sObjectMgr->GetCreatureTemplate(speciesEntry->NpcId);
+    }
+
+    bool BattlePetNameMatches(std::string const& left, std::string const& right)
+    {
+        return !left.empty() && !right.empty() && !stricmp(left.c_str(), right.c_str());
+    }
+
+    uint32 BattlePetSpeciesNpcId(uint16 speciesId)
+    {
+        BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
+        return speciesEntry ? speciesEntry->NpcId : 0;
+    }
+
+    uint32 BattlePetSpeciesFamilyMask(uint16 speciesId)
+    {
+        BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
+        if (!speciesEntry || speciesEntry->FamilyId >= 32)
+            return 0;
+
+        return uint32(1) << speciesEntry->FamilyId;
+    }
+
+    uint8 BattlePetHealthPercent(uint32 health, uint32 maxHealth)
+    {
+        if (!maxHealth)
+            return 0;
+
+        return uint8(std::min<uint32>(100, health * 100 / maxHealth));
+    }
+}
 
 BattlePetMgr::~BattlePetMgr()
 {
@@ -68,7 +120,7 @@ void BattlePetMgr::LoadFromDb(PreparedQueryResult result)
         // client supports up to level 255 (uint8)
         if (level > BATTLE_PET_MAX_LEVEL)
         {
-            SF_LOG_ERROR("sql.sql", "Level %u defined in `account_battle_pet` for Battle Pet %lu is invalid, skipped.", quality, (uint64)id);
+            SF_LOG_ERROR("sql.sql", "Level %u defined in `account_battle_pet` for Battle Pet %lu is invalid, skipped.", level, (uint64)id);
             continue;
         }
 
@@ -77,26 +129,32 @@ void BattlePetMgr::LoadFromDb(PreparedQueryResult result)
 
         m_battlePetSet.insert(battlePet);
     } while (result->NextRow());
+
+    UpdateBattlePetCollectionAchievements();
 }
 
 void BattlePetMgr::SaveToDb(SQLTransaction& trans)
 {
+    PersistActivePetBattleHealth();
     SaveSlotsToDb(trans);
 
     if (m_battlePetSet.empty())
         return;
 
-    BattlePetSet::iterator itr = m_battlePetSet.begin();
-    while (itr != m_battlePetSet.end())
+    for (BattlePetSet::iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end();)
     {
-        BattlePet* battlePet = *itr++;
+        BattlePet* battlePet = *itr;
 
         if (!battlePet)
-            return;
+        {
+            itr = m_battlePetSet.erase(itr);
+            continue;
+        }
 
         switch (battlePet->GetDbState())
         {
             case BattlePetDbState::BATTLE_PET_DB_STATE_NONE:
+                ++itr;
                 break;
             case BattlePetDbState::BATTLE_PET_DB_STATE_DELETE:
             {
@@ -104,7 +162,7 @@ void BattlePetMgr::SaveToDb(SQLTransaction& trans)
                 stmt->setUInt64(0, battlePet->GetId());
                 trans->Append(stmt);
 
-                m_battlePetSet.erase(itr);
+                itr = m_battlePetSet.erase(itr);
                 delete battlePet;
 
                 break;
@@ -133,18 +191,30 @@ void BattlePetMgr::SaveToDb(SQLTransaction& trans)
                 trans->Append(stmt);
 
                 battlePet->SetDbState(BattlePetDbState::BATTLE_PET_DB_STATE_NONE);
+                ++itr;
                 break;
             }
             default:
+                ++itr;
                 break;
         }
     }
 }
 
+void BattlePetMgr::SaveToDb()
+{
+    SQLTransaction trans = CharacterDatabase.BeginTransaction();
+    SaveToDb(trans);
+    CharacterDatabase.CommitTransaction(trans);
+}
+
 void BattlePetMgr::LoadSlotsFromDb(PreparedQueryResult result)
 {
     if (!result)
+    {
+        SyncAchievementLoadoutRewards();
         return;
+    }
 
     Field* fields = result->Fetch();
 
@@ -152,6 +222,9 @@ void BattlePetMgr::LoadSlotsFromDb(PreparedQueryResult result)
     uint64 slot2 = fields[1].GetUInt64();
     uint64 slot3 = fields[2].GetUInt64();
     m_loadoutFlags = fields[3].GetUInt8();
+
+    if (HasLoadoutFlag(BATTLE_PET_LOADOUT_SLOT_FLAG_SLOT_2) && !GetTrapAbility())
+        SetLoadoutFlag(BATTLE_PET_LOADOUT_TRAP);
 
     // update flag and spell state for new alt characters
     if (m_loadoutFlags != BATTLE_PET_LOADOUT_SLOT_FLAG_NONE && !m_owner->HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_BATTLE_PET_ENABLED))
@@ -185,6 +258,7 @@ void BattlePetMgr::LoadSlotsFromDb(PreparedQueryResult result)
     SetLoadoutSlot(BATTLE_PET_LOADOUT_SLOT_1, hasError ? 0 : slot1);
     SetLoadoutSlot(BATTLE_PET_LOADOUT_SLOT_2, hasError ? 0 : slot2);
     SetLoadoutSlot(BATTLE_PET_LOADOUT_SLOT_3, hasError ? 0 : slot3);
+    SyncAchievementLoadoutRewards();
 }
 
 void BattlePetMgr::SaveSlotsToDb(SQLTransaction& trans)
@@ -209,11 +283,27 @@ void BattlePetMgr::SaveSlotsToDb(SQLTransaction& trans)
 
 BattlePet* BattlePetMgr::GetBattlePet(uint64 id) const
 {
-    for (BattlePetSet::iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end(); ++itr)
+    for (BattlePetSet::const_iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end(); ++itr)
         if ((*itr)->GetId() == id)
             return *itr;
 
     return NULL;
+}
+
+uint32 BattlePetMgr::GetBattlePetCount() const
+{
+    uint32 counter = 0;
+
+    for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
+    {
+        BattlePet* battlePet = *citr;
+        if (!battlePet || !battlePet->GetSpecies() || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        counter++;
+    }
+
+    return counter;
 }
 
 uint8 BattlePetMgr::GetBattlePetCount(uint16 speciesId) const
@@ -221,10 +311,54 @@ uint8 BattlePetMgr::GetBattlePetCount(uint16 speciesId) const
     uint8 counter = 0;
 
     for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
-        if ((*citr)->GetSpecies() == speciesId)
+    {
+        BattlePet* battlePet = *citr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        if (battlePet->GetSpecies() == speciesId)
             counter++;
+    }
 
     return counter;
+}
+
+std::string BattlePetMgr::GetBattlePetSpeciesName(BattlePet const* battlePet) const
+{
+    CreatureTemplate const* creatureTemplate = GetBattlePetCreatureTemplate(battlePet);
+    return creatureTemplate ? creatureTemplate->Name : std::string();
+}
+
+std::vector<BattlePet*> BattlePetMgr::FindBattlePetNameMatches(std::string const& name) const
+{
+    std::vector<BattlePet*> matches;
+    if (name.empty())
+        return matches;
+
+    for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
+    {
+        BattlePet* battlePet = *citr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        if (BattlePetNameMatches(battlePet->GetNickname(), name))
+            matches.push_back(battlePet);
+    }
+
+    if (!matches.empty())
+        return matches;
+
+    for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
+    {
+        BattlePet* battlePet = *citr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        if (BattlePetNameMatches(GetBattlePetSpeciesName(battlePet), name))
+            matches.push_back(battlePet);
+    }
+
+    return matches;
 }
 
 void BattlePetMgr::UnSummonCurrentBattlePet(bool temporary)
@@ -244,13 +378,27 @@ void BattlePetMgr::ResummonLastBattlePet()
     if (!m_summonLastId)
         return;
 
+    BattlePet* battlePet = GetBattlePet(m_summonLastId);
+    if (!battlePet)
+    {
+        m_summonLastId = 0;
+        return;
+    }
+
+    uint32 summonSpell = BattlePetGetSummonSpell(battlePet->GetSpecies());
+    if (!summonSpell)
+    {
+        m_summonLastId = 0;
+        return;
+    }
+
     m_summonId = m_summonLastId;
-    m_owner->CastSpell(m_owner, BattlePetGetSummonSpell(GetBattlePet(m_summonId)->GetSpecies()), true);
+    m_owner->CastSpell(m_owner, summonSpell, true);
 
     m_summonLastId = 0;
 }
 
-uint8 BattlePetMgr::GetLoadoutSlotForBattlePet(uint64 id)
+uint8 BattlePetMgr::GetLoadoutSlotForBattlePet(uint64 id) const
 {
     for (uint8 i = 0; i < BATTLE_PET_MAX_LOADOUT_SLOTS; i++)
         if (GetLoadoutSlot(i) == id)
@@ -274,6 +422,7 @@ void BattlePetMgr::UnlockLoadoutSlot(uint8 slot)
             break;
         case BATTLE_PET_LOADOUT_SLOT_2:
             SetLoadoutFlag(BATTLE_PET_LOADOUT_SLOT_FLAG_SLOT_2);
+            SetLoadoutFlag(BATTLE_PET_LOADOUT_TRAP);
             break;
         case BATTLE_PET_LOADOUT_SLOT_3:
             SetLoadoutFlag(BATTLE_PET_LOADOUT_SLOT_FLAG_SLOT_3);
@@ -323,6 +472,34 @@ bool BattlePetMgr::HasLoadoutSlot(uint8 slot) const
     return false;
 }
 
+bool BattlePetMgr::HasLoadoutBattlePet() const
+{
+    for (uint8 i = 0; i < BATTLE_PET_MAX_LOADOUT_SLOTS; i++)
+    {
+        uint64 petId = GetLoadoutSlot(i);
+        if (petId && GetBattlePet(petId))
+            return true;
+    }
+
+    return false;
+}
+
+BattlePet* BattlePetMgr::GetFirstAliveLoadoutBattlePet() const
+{
+    for (uint8 i = 0; i < BATTLE_PET_MAX_LOADOUT_SLOTS; i++)
+    {
+        uint64 petId = GetLoadoutSlot(i);
+        if (!petId)
+            continue;
+
+        BattlePet* battlePet = GetBattlePet(petId);
+        if (battlePet && battlePet->GetCurrentHealth())
+            return battlePet;
+    }
+
+    return NULL;
+}
+
 void BattlePetMgr::SetLoadoutFlag(uint8 flag)
 {
     if (HasLoadoutFlag(flag))
@@ -332,31 +509,105 @@ void BattlePetMgr::SetLoadoutFlag(uint8 flag)
     m_loadoutSave = true;
 }
 
-void BattlePetMgr::Create(uint16 speciesId)
+uint32 BattlePetMgr::GetTrapAbility() const
 {
-    if (!sBattlePetSpeciesStore.LookupEntry(speciesId))
-        return;
+    return BattlePetTrapAbilityForLoadoutFlags(m_loadoutFlags);
+}
 
-    if (m_battlePetSet.size() > BATTLE_PET_MAX_JOURNAL_PETS)
-        return;
+bool BattlePetMgr::ApplyAchievementLoadoutReward(uint32 achievementId)
+{
+    uint8 const slot = BattlePetLoadoutSlotForAchievement(achievementId);
+    if (slot == BATTLE_PET_LOADOUT_SLOT_NONE)
+        return false;
 
-    uint8 speciesCount = GetBattlePetCount(speciesId);
-    if (BattlePetSpeciesHasFlag(speciesId, BATTLE_PET_FLAG_UNIQUE) && speciesCount >= 1)
-        return;
+    if (HasLoadoutSlot(slot))
+        return false;
 
-    if (speciesCount >= BATTLE_PET_MAX_JOURNAL_SPECIES)
-        return;
+    UnlockLoadoutSlot(slot);
+    return true;
+}
+
+void BattlePetMgr::SyncAchievementLoadoutRewards()
+{
+    bool updated = false;
+
+    if (m_owner->HasAchieved(BATTLE_PET_ACHIEVEMENT_NEWBIE))
+        updated |= ApplyAchievementLoadoutReward(BATTLE_PET_ACHIEVEMENT_NEWBIE);
+
+    if (m_owner->HasAchieved(BATTLE_PET_ACHIEVEMENT_JUST_A_PUP))
+        updated |= ApplyAchievementLoadoutReward(BATTLE_PET_ACHIEVEMENT_JUST_A_PUP);
+
+    if (updated)
+        SaveToDb();
+}
+
+void BattlePetMgr::OnAchievementEarned(uint32 achievementId)
+{
+    if (ApplyAchievementLoadoutReward(achievementId))
+        SaveToDb();
+}
+
+BattlePet* BattlePetMgr::Create(uint16 speciesId)
+{
+    uint8 const level = sWorld->getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_INITIAL_LEVEL);
+    uint8 const quality = sObjectMgr->BattlePetGetRandomQuality(speciesId);
+    return Create(speciesId, level, quality);
+}
+
+BattlePet* BattlePetMgr::Create(uint16 speciesId, uint8 level, uint8 quality, bool notification)
+{
+    return Create(speciesId, level, quality, sObjectMgr->BattlePetGetRandomBreed(speciesId), notification);
+}
+
+BattlePet* BattlePetMgr::Create(uint16 speciesId, uint8 level, uint8 quality, uint8 breed, bool notification)
+{
+    if (!CanCreateBattlePet(speciesId))
+        return NULL;
+
+    if (!level)
+        level = 1;
+    else if (level > BATTLE_PET_MAX_LEVEL)
+        level = BATTLE_PET_MAX_LEVEL;
+
+    if (quality > ITEM_QUALITY_LEGENDARY)
+        quality = ITEM_QUALITY_NORMAL;
+
+    if (breed && sBattlePetBreedSet.find(breed) == sBattlePetBreedSet.end())
+        breed = sObjectMgr->BattlePetGetRandomBreed(speciesId);
 
     uint64 id = sObjectMgr->BattlePetGetNewId();
-    uint8 breed = sObjectMgr->BattlePetGetRandomBreed(speciesId);
-    uint8 quality = sObjectMgr->BattlePetGetRandomQuality(speciesId);
-    uint8 level = sWorld->getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_INITIAL_LEVEL);
 
     BattlePet* battlePet = new BattlePet(id, speciesId, level, quality, breed);
     m_battlePetSet.insert(battlePet);
 
-    // alert the client of a new Battle Pet
-    SendBattlePetUpdate(battlePet, true);
+    UpdateBattlePetCollectionAchievements(battlePet);
+
+    if (notification)
+        SendBattlePetUpdate(battlePet, true);
+
+    return battlePet;
+}
+
+bool BattlePetMgr::CanCreateBattlePet(uint16 speciesId) const
+{
+    BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
+    if (!speciesEntry)
+        return false;
+
+    if (!sObjectMgr->GetCreatureTemplate(speciesEntry->NpcId))
+        return false;
+
+    if (m_battlePetSet.size() >= BATTLE_PET_MAX_JOURNAL_PETS)
+        return false;
+
+    uint8 speciesCount = GetBattlePetCount(speciesId);
+    if (BattlePetSpeciesHasFlag(speciesId, BATTLE_PET_FLAG_UNIQUE) && speciesCount >= 1)
+        return false;
+
+    if (speciesCount >= BATTLE_PET_MAX_JOURNAL_SPECIES)
+        return false;
+
+    return true;
 }
 
 void BattlePetMgr::Delete(BattlePet* battlePet)
@@ -376,9 +627,479 @@ void BattlePetMgr::Delete(BattlePet* battlePet)
     }
 
     battlePet->SetDbState(BattlePetDbState::BATTLE_PET_DB_STATE_DELETE);
+    UpdateBattlePetCollectionAchievements();
 
     // alert client of deleted pet
     SendBattlePetDeleted(battlePet->GetId());
+}
+
+void BattlePetMgr::HealBattlePets(uint8 percent)
+{
+    if (!percent)
+        return;
+
+    for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
+    {
+        BattlePet* battlePet = *citr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        uint16 const health = BattlePetHealthFromPercent(battlePet->GetMaxHealth(), percent);
+        if (health <= battlePet->GetCurrentHealth())
+            continue;
+
+        battlePet->SetCurrentHealth(health);
+        SendBattlePetUpdate(battlePet, false);
+    }
+}
+
+void BattlePetMgr::StartWildPetBattle(uint64 enemyGuid, uint64 allyPetId, uint32 allyMaxHealth, uint32 allyHealth,
+    uint64 enemyPetId, uint32 enemyMaxHealth, uint32 enemyHealth,
+    uint16 enemySpecies, uint8 enemyLevel, uint8 enemyQuality, uint8 enemyBreed, uint8 allyFrontPet)
+{
+    m_petBattlePvpQueued = false;
+    m_activePetBattle.StartWild(enemyGuid, allyPetId, allyMaxHealth, allyHealth,
+        enemyPetId, enemyMaxHealth, enemyHealth, enemySpecies, enemyLevel, enemyQuality, enemyBreed, allyFrontPet);
+}
+
+void BattlePetMgr::StartPvpPetBattle(uint64 opponentGuid, uint64 allyPetId, uint32 allyMaxHealth, uint32 allyHealth,
+    uint64 enemyPetId, uint32 enemyMaxHealth, uint32 enemyHealth,
+    uint16 enemySpecies, uint8 enemyLevel, uint8 enemyQuality, uint8 allyFrontPet, uint8 enemyFrontPet,
+    BattlePetAchievementSource source)
+{
+    m_petBattlePvpQueued = false;
+    m_activePetBattle.StartPvp(opponentGuid, allyPetId, allyMaxHealth, allyHealth,
+        enemyPetId, enemyMaxHealth, enemyHealth, enemySpecies, enemyLevel, enemyQuality,
+        allyFrontPet, enemyFrontPet, source);
+}
+
+void BattlePetMgr::HideActivePetBattleWorldObject(Creature* creature)
+{
+    if (!m_owner || !creature || !m_activePetBattle.IsActive())
+        return;
+
+    m_activePetBattleWorldObjectGuid = creature->GetGUID();
+    m_activePetBattleWorldObjectHidden = true;
+    m_owner->UpdateVisibilityOf(creature);
+}
+
+void BattlePetMgr::ApplyActivePetBattlePlayerState(float faceX, float faceY)
+{
+    if (!m_owner)
+        return;
+
+    m_owner->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED | UNIT_FLAG_IMMUNE_TO_NPC);
+    m_owner->SetFacingTo(m_owner->GetAngle(faceX, faceY));
+    m_owner->SetControlled(true, UNIT_STATE_ROOT);
+    m_activePetBattlePlayerStateApplied = true;
+}
+
+void BattlePetMgr::ClearActivePetBattle()
+{
+    PersistActivePetBattleHealth();
+    ClearActivePetBattleWorldObjectState();
+    m_activePetBattle = ActivePetBattle();
+    m_petBattlePvpQueued = false;
+    ClearActivePetBattlePlayerState();
+}
+
+void BattlePetMgr::ClearActivePetBattleWorldObjectState()
+{
+    if (!m_activePetBattleWorldObjectHidden)
+        return;
+
+    uint64 const worldObjectGuid = m_activePetBattleWorldObjectGuid;
+    m_activePetBattleWorldObjectGuid = 0;
+    m_activePetBattleWorldObjectHidden = false;
+
+    if (!m_owner || !m_owner->IsInWorld())
+        return;
+
+    if (Creature* creature = ObjectAccessor::GetCreature(*m_owner, worldObjectGuid))
+        m_owner->UpdateVisibilityOf(creature);
+}
+
+void BattlePetMgr::ClearActivePetBattlePlayerState()
+{
+    if (!m_activePetBattlePlayerStateApplied)
+        return;
+
+    if (m_owner)
+    {
+        m_owner->SetControlled(false, UNIT_STATE_ROOT);
+        m_owner->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED | UNIT_FLAG_IMMUNE_TO_NPC);
+    }
+
+    m_activePetBattlePlayerStateApplied = false;
+}
+
+uint8 BattlePetMgr::GetActivePetBattleTrapStatus() const
+{
+    if (m_activePetBattle.IsPvP())
+        return PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+
+    if (!GetTrapAbility())
+        return PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+
+    uint16 const enemySpecies = m_activePetBattle.EnemySpecies;
+    bool const canStoreBattlePet = enemySpecies && CanCreateBattlePet(enemySpecies);
+    bool const enemyTameable = enemySpecies
+        && !BattlePetSpeciesHasFlag(enemySpecies, BATTLE_PET_FLAG_NOT_TAMEABLE);
+
+    return m_activePetBattle.GetTrapStatus(canStoreBattlePet, enemyTameable);
+}
+
+bool BattlePetMgr::SetActivePetBattleAllyPet(uint8 petIndex, uint64 petId, uint32 maxHealth, uint32 health)
+{
+    return m_activePetBattle.SetAllyPet(petIndex, petId, maxHealth, health);
+}
+
+bool BattlePetMgr::SelectActivePetBattleFrontPet(uint8 frontPet)
+{
+    return m_activePetBattle.SelectAllyFrontPet(frontPet);
+}
+
+bool BattlePetMgr::ApplyEnemyBattlePetDamage(uint32 damage, uint32 abilityEffectId,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round)
+{
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyEnemyAbilityRound(m_activePetBattle.RoundID, damage);
+    if (!turn.Accepted || !turn.HasRoundResult)
+        return false;
+
+    round = Skyfire::BattlePetPackets::BuildRoundResultFromTurn(turn, abilityEffectId);
+    ApplyActivePetBattleRoundState(round);
+    return true;
+}
+
+bool BattlePetMgr::ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uint32 abilityEffectId,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round,
+    Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
+{
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyAbilityRound(roundId, damage);
+    if (!turn.Accepted || !turn.HasRoundResult)
+        return false;
+
+    round = Skyfire::BattlePetPackets::BuildRoundResultFromTurn(turn, abilityEffectId);
+    ApplyActivePetBattleRoundState(round);
+
+    if (finalRound && turn.HasFinalRound)
+    {
+        PersistActivePetBattleHealth();
+        BuildActivePetBattleFinalRound(turn.Abandoned, *finalRound);
+    }
+
+    return true;
+}
+
+bool BattlePetMgr::ApplyBattlePetAbilityExchangeInput(uint32 roundId,
+    uint32 allyDamage, uint32 allyAbilityEffectId,
+    uint32 enemyDamage, uint32 enemyAbilityEffectId,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round,
+    Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
+{
+    ActivePetBattleTurn allyTurn;
+    ActivePetBattleTurn enemyTurn;
+    if (!m_activePetBattle.ApplyAbilityExchange(roundId, allyDamage, enemyDamage, allyTurn, enemyTurn))
+        return false;
+
+    if (!allyTurn.Accepted || !allyTurn.HasRoundResult)
+        return false;
+
+    round.RoundID = roundId;
+    round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
+        allyTurn.CasterPet, allyTurn.TargetPet, int32(allyTurn.RemainingHealth), allyAbilityEffectId, 1));
+
+    if (enemyTurn.Accepted && enemyTurn.HasRoundResult)
+    {
+        round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
+            enemyTurn.CasterPet, enemyTurn.TargetPet, int32(enemyTurn.RemainingHealth), enemyAbilityEffectId, 2));
+
+        if (enemyTurn.RequiresFrontPet)
+            round.InputFlags[0] = Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
+    }
+
+    ApplyActivePetBattleRoundState(round);
+
+    if (finalRound && (allyTurn.HasFinalRound || enemyTurn.HasFinalRound))
+    {
+        PersistActivePetBattleHealth();
+        BuildActivePetBattleFinalRound(false, *finalRound);
+    }
+
+    return true;
+}
+
+bool BattlePetMgr::ApplyBattlePetSwapInput(uint32 roundId, uint8 newFrontPet,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round)
+{
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplySwapRound(roundId, newFrontPet);
+    if (!turn.Accepted || !turn.HasRoundResult)
+        return false;
+
+    round = Skyfire::BattlePetPackets::BuildRoundResultFromTurn(turn, 0);
+    ApplyActivePetBattleRoundState(round);
+    return true;
+}
+
+bool BattlePetMgr::ApplyBattlePetForfeitInput(uint32 roundId,
+    Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound)
+{
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyForfeit(roundId);
+    if (!turn.Accepted || !turn.HasFinalRound)
+        return false;
+
+    PersistActivePetBattleHealth();
+    return BuildActivePetBattleFinalRound(turn.Abandoned, finalRound);
+}
+
+bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
+    Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound)
+{
+    if (!m_activePetBattle.CanAcceptInput(roundId))
+        return false;
+
+    if (GetActivePetBattleTrapStatus() != PET_BATTLE_TRAP_STATUS_ACTIVE)
+        return false;
+
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyTrapRound(roundId);
+    if (!turn.Accepted || !turn.HasFinalRound || !turn.Captured)
+        return false;
+
+    uint8 const capturedLevel = BattlePetCapturedLevel(m_activePetBattle.EnemyLevel);
+    BattlePet* capturedPet = Create(m_activePetBattle.EnemySpecies,
+        capturedLevel, m_activePetBattle.EnemyQuality, m_activePetBattle.EnemyBreed);
+    if (!capturedPet)
+        return false;
+
+    UpdateCapturedBattlePetAchievements(*capturedPet);
+    PersistActivePetBattleHealth();
+    return BuildActivePetBattleFinalRound(false, finalRound, turn.Captured);
+}
+
+void BattlePetMgr::ApplyActivePetBattleRoundState(
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round) const
+{
+    round.TrapStatus[0] = GetActivePetBattleTrapStatus();
+    round.TrapStatus[1] = PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+}
+
+void BattlePetMgr::PersistActivePetBattleHealth()
+{
+    if (!m_activePetBattle.IsActive())
+        return;
+
+    for (BattlePetSet::const_iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end(); ++itr)
+    {
+        BattlePet* battlePet = *itr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        uint32 activeHealth = 0;
+        if (!m_activePetBattle.GetAllyPetHealth(battlePet->GetId(), activeHealth))
+            continue;
+
+        uint16 const health = activeHealth > battlePet->GetMaxHealth()
+            ? battlePet->GetMaxHealth()
+            : uint16(activeHealth);
+        battlePet->SetCurrentHealth(health);
+    }
+}
+
+void BattlePetMgr::FinishActivePetBattle(uint8 winner)
+{
+    if (m_activePetBattle.IsActive())
+        m_activePetBattle.Finish(winner);
+}
+
+uint16 BattlePetMgr::RewardActivePetBattlePet(BattlePet* battlePet, bool awardExperience)
+{
+    if (!awardExperience || !battlePet || !m_activePetBattle.EnemyLevel)
+        return 0;
+
+    if (battlePet->GetLevel() >= BATTLE_PET_MAX_LEVEL)
+        return 0;
+
+    uint16 const reward = BattlePetExperienceReward(battlePet->GetLevel(), m_activePetBattle.EnemyLevel);
+    return battlePet->AddExperience(reward);
+}
+
+uint32 BattlePetMgr::GetUniqueBattlePetSpeciesCount() const
+{
+    std::set<uint16> species;
+
+    for (BattlePetSet::const_iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end(); ++itr)
+    {
+        BattlePet const* battlePet = *itr;
+        if (!battlePet || battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+            continue;
+
+        species.insert(battlePet->GetSpecies());
+    }
+
+    return uint32(species.size());
+}
+
+BattlePetAchievementContext BattlePetMgr::BuildActivePetBattleAchievementContext(
+    uint16 speciesId, uint8 quality, bool won, bool captured) const
+{
+    BattlePetAchievementContext context;
+    context.Species = speciesId;
+    context.FamilyMask = BattlePetSpeciesFamilyMask(speciesId);
+    context.Quality = quality;
+    context.Source = m_activePetBattle.GetAchievementSource();
+    context.HealthPercent = BattlePetHealthPercent(m_activePetBattle.EnemyHealth, m_activePetBattle.EnemyMaxHealth);
+    context.Won = won;
+    context.Captured = captured;
+    return context;
+}
+
+void BattlePetMgr::UpdateBattlePetCollectionAchievements(BattlePet const* battlePet)
+{
+    if (!m_owner)
+        return;
+
+    if (!battlePet)
+    {
+        for (BattlePetSet::const_iterator itr = m_battlePetSet.begin(); itr != m_battlePetSet.end(); ++itr)
+        {
+            BattlePet const* existingPet = *itr;
+            if (!existingPet || !existingPet->GetSpecies() || existingPet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+                continue;
+
+            uint16 const speciesId = existingPet->GetSpecies();
+            if (uint32 const npcId = BattlePetSpeciesNpcId(speciesId))
+                m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET, npcId);
+
+            m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES, speciesId);
+
+            if (uint32 const summonSpell = BattlePetGetSummonSpell(speciesId))
+                m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LEARN_SPELL, summonSpell);
+        }
+
+        m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT, GetUniqueBattlePetSpeciesCount());
+        return;
+    }
+
+    if (battlePet->GetDbState() != BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
+    {
+        uint16 const speciesId = battlePet->GetSpecies();
+        if (uint32 const npcId = BattlePetSpeciesNpcId(speciesId))
+            m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET, npcId);
+
+        m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES, speciesId);
+
+        if (uint32 const summonSpell = BattlePetGetSummonSpell(speciesId))
+            m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LEARN_SPELL, summonSpell);
+    }
+
+    m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT, GetUniqueBattlePetSpeciesCount());
+}
+
+void BattlePetMgr::UpdateCapturedBattlePetAchievements(BattlePet const& battlePet)
+{
+    if (!m_owner)
+        return;
+
+    BattlePetAchievementContext const context = BuildActivePetBattleAchievementContext(
+        battlePet.GetSpecies(), battlePet.GetQuality(), true, true);
+    if (!context.IsValid())
+        return;
+
+    m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET,
+        context.Species, context.FamilyMask, context.Payload());
+    m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET2,
+        1, context.FamilyMask, context.Payload());
+}
+
+void BattlePetMgr::UpdateBattlePetLevelAchievement(BattlePet const& battlePet, uint8 initialLevel, uint8 finalLevel)
+{
+    if (!m_owner || finalLevel <= initialLevel)
+        return;
+
+    uint32 const familyMask = BattlePetSpeciesFamilyMask(battlePet.GetSpecies());
+    for (uint8 level = initialLevel + 1; level <= finalLevel; ++level)
+        m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL, level, familyMask);
+}
+
+void BattlePetMgr::UpdateFinishedPetBattleAchievements()
+{
+    if (!m_owner || !m_activePetBattle.IsFinished() || m_activePetBattle.AchievementsApplied)
+        return;
+
+    m_activePetBattle.AchievementsApplied = true;
+
+    if (m_activePetBattle.Winner != PET_BATTLE_WINNER_ALLY)
+        return;
+
+    BattlePetAchievementContext const context = BuildActivePetBattleAchievementContext(
+        m_activePetBattle.EnemySpecies, m_activePetBattle.EnemyQuality, true, false);
+    if (!context.IsValid())
+        return;
+
+    m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_PET_BATTLE,
+        context.Species, context.FamilyMask, context.Payload());
+}
+
+bool BattlePetMgr::BuildActivePetBattleFinalRound(bool abandoned,
+    Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound, bool captured)
+{
+    if (!m_activePetBattle.IsActive())
+        return false;
+
+    bool const awardExperience = !m_activePetBattle.IsPvP() && !abandoned && !captured && !m_activePetBattle.Captured
+        && !m_activePetBattle.RewardsApplied && m_activePetBattle.Winner == PET_BATTLE_WINNER_ALLY;
+
+    std::vector<Skyfire::BattlePetPackets::BattlePetFinalRoundPet> pets;
+    for (uint8 i = 0; i < ActivePetBattle::BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++i)
+    {
+        if (!m_activePetBattle.HasAllyPet(i))
+            continue;
+
+        Skyfire::BattlePetPackets::BattlePetFinalRoundPet allyPet;
+        BattlePet* battlePet = GetBattlePet(m_activePetBattle.AllyTeam[i].PetID);
+        uint8 const initialLevel = battlePet ? battlePet->GetLevel() : 0;
+        bool const petEarnedExperience = awardExperience && i == m_activePetBattle.AllyFrontPet
+            && m_activePetBattle.AllyTeam[i].Health != 0;
+        uint16 const awardedXp = RewardActivePetBattlePet(
+            battlePet, petEarnedExperience);
+        uint8 const finalLevel = battlePet ? battlePet->GetLevel() : initialLevel;
+        uint16 const finalXp = battlePet ? battlePet->GetXp() : 0;
+
+        if (battlePet)
+            UpdateBattlePetLevelAchievement(*battlePet, initialLevel, finalLevel);
+
+        allyPet.Pboid = i;
+        allyPet.RemainingHealth = battlePet ? battlePet->GetCurrentHealth() : m_activePetBattle.AllyTeam[i].Health;
+        allyPet.InitialLevel = initialLevel;
+        allyPet.NewLevel = finalLevel;
+        allyPet.Xp = finalXp;
+        allyPet.MaxHealth = battlePet ? battlePet->GetMaxHealth() : m_activePetBattle.AllyTeam[i].MaxHealth;
+        allyPet.SeenAction = true;
+        allyPet.AwardedXP = awardedXp != 0 || finalLevel != initialLevel;
+        pets.push_back(allyPet);
+    }
+
+    if (awardExperience)
+        m_activePetBattle.RewardsApplied = true;
+
+    UpdateFinishedPetBattleAchievements();
+
+    Skyfire::BattlePetPackets::BattlePetFinalRoundPet enemyPet;
+    enemyPet.Pboid = m_activePetBattle.EnemyFrontPet;
+    enemyPet.RemainingHealth = m_activePetBattle.EnemyHealth;
+    enemyPet.MaxHealth = m_activePetBattle.EnemyMaxHealth;
+    enemyPet.SeenAction = true;
+    enemyPet.Captured = captured || m_activePetBattle.Captured;
+    enemyPet.Caged = enemyPet.Captured;
+    pets.push_back(enemyPet);
+
+    finalRound = Skyfire::BattlePetPackets::BuildFinalRoundState(
+        m_activePetBattle.Winner == PET_BATTLE_WINNER_ALLY, abandoned, pets);
+    finalRound.PvPBattle = m_activePetBattle.IsPvP();
+    finalRound.Winners[0] = m_activePetBattle.Winner == PET_BATTLE_WINNER_ALLY;
+    finalRound.Winners[1] = m_activePetBattle.Winner == PET_BATTLE_WINNER_ENEMY;
+
+    return true;
 }
 
 void BattlePetMgr::SendBattlePetDeleted(uint64 id)
@@ -401,6 +1122,12 @@ void BattlePetMgr::SendBattlePetJournalLock()
     m_owner->GetSession()->SendPacket(&data);*/
 }
 
+void BattlePetMgr::SendPetBattleRequestFailed(uint8 reason)
+{
+    WorldPacket data = Skyfire::BattlePetPackets::BuildRequestFailedPacket(reason);
+    m_owner->GetSession()->SendPacket(&data);
+}
+
 void BattlePetMgr::SendBattlePetJournal()
 {
     uint32 petCount = 0;
@@ -416,10 +1143,13 @@ void BattlePetMgr::SendBattlePetJournal()
     for (BattlePetSet::const_iterator citr = m_battlePetSet.begin(); citr != m_battlePetSet.end(); ++citr)
     {
         BattlePet const* battlePet = *citr;
+        if (!battlePet)
+            continue;
+
         if (battlePet->GetDbState() == BattlePetDbState::BATTLE_PET_DB_STATE_DELETE)
             continue;
 
-        CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(sBattlePetSpeciesStore.LookupEntry(battlePet->GetSpecies())->NpcId);
+        CreatureTemplate const* creatureTemplate = GetBattlePetCreatureTemplate(battlePet);
         if (!creatureTemplate)
             continue;
 
@@ -557,9 +1287,12 @@ void BattlePetMgr::SendBattlePetSlotUpdate(uint8 slot, bool notification, uint64
 
 void BattlePetMgr::SendBattlePetUpdate(BattlePet* battlePet, bool notification)
 {
+    if (!battlePet)
+        return;
+
     ObjectGuid petEntry = battlePet->GetId();
 
-    CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(sBattlePetSpeciesStore.LookupEntry(battlePet->GetSpecies())->NpcId);
+    CreatureTemplate const* creatureTemplate = GetBattlePetCreatureTemplate(battlePet);
     if (!creatureTemplate)
         return;
 

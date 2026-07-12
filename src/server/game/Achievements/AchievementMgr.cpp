@@ -6,11 +6,14 @@
 #include "AchievementMgr.h"
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
+#include "BattlePet.h"
+#include "BattlePetMgr.h"
 #include "Battleground.h"
 #include "CellImpl.h"
 #include "Chat.h"
 #include "Common.h"
 #include "DatabaseEnv.h"
+#include "DB2Stores.h"
 #include "DBCEnums.h"
 #include "DBCStructure.h"
 #include "DisableMgr.h"
@@ -1071,6 +1074,16 @@ static const uint32 achievIdForDungeon[][4] =
 template <typename T> static bool IsGuild() { return false; }
 template<> bool IsGuild<Guild>() { return true; }
 
+static bool IsPetBattleAchievementCategory(uint32 categoryId)
+{
+    return categoryId == 15118 || categoryId == 15119 || categoryId == 15120;
+}
+
+static bool UpdatesPetBattleAchievementPoints(uint32 categoryId)
+{
+    return categoryId == 15117 || IsPetBattleAchievementCategory(categoryId);
+}
+
 /**
  * this function will be called whenever the user might have done a criteria relevant action
  */
@@ -1158,6 +1171,10 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCriteriaTypes type,
             case ACHIEVEMENT_CRITERIA_TYPE_GET_KILLING_BLOWS:
             case ACHIEVEMENT_CRITERIA_TYPE_HONORABLE_KILL_AT_AREA:
             case ACHIEVEMENT_CRITERIA_TYPE_WIN_ARENA: // This also behaves like ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA
+            case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET:
+            case ACHIEVEMENT_CRITERIA_TYPE_WIN_PET_BATTLE:
+            case ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL:
+            case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET2:
                 SetCriteriaProgress(achievementCriteria, 1, referencePlayer, PROGRESS_ACCUMULATE);
                 break;
                 // std case: increment at miscValue1
@@ -1193,6 +1210,7 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCriteriaTypes type,
             case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_HIT_RECEIVED:
             case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_HEAL_CASTED:
             case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_HEALING_RECEIVED:
+            case ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT:
                 SetCriteriaProgress(achievementCriteria, miscValue1, referencePlayer, PROGRESS_HIGHEST);
                 break;
             case ACHIEVEMENT_CRITERIA_TYPE_REACH_LEVEL:
@@ -1264,6 +1282,8 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCriteriaTypes type,
             case ACHIEVEMENT_CRITERIA_TYPE_EQUIP_EPIC_ITEM:
             case ACHIEVEMENT_CRITERIA_TYPE_EQUIP_ITEM:
             case ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_ACHIEVEMENT:
+            case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET:
+            case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES:
                 SetCriteriaProgress(achievementCriteria, 1, referencePlayer);
                 break;
             case ACHIEVEMENT_CRITERIA_TYPE_BUY_BANK_SLOT:
@@ -1332,6 +1352,19 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCriteriaTypes type,
                 else
                     SetCriteriaProgress(achievementCriteria, miscValue1, referencePlayer, PROGRESS_ACCUMULATE);
                 break;
+            case ACHIEVEMENT_CRITERIA_TYPE_PET_BATTLE_ACHIEVEMENT_POINTS:
+            {
+                uint32 points = 0;
+                for (CompletedAchievementMap::const_iterator itr = m_completedAchievements.begin(); itr != m_completedAchievements.end(); ++itr)
+                {
+                    AchievementEntry const* achievement = sAchievementMgr->GetAchievement(itr->first);
+                    if (achievement && IsPetBattleAchievementCategory(achievement->categoryId))
+                        points += achievement->points;
+                }
+
+                SetCriteriaProgress(achievementCriteria, points, referencePlayer, PROGRESS_SET);
+                break;
+            }
                 /*
             case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_TEAM_RATING:
             {
@@ -1457,7 +1490,7 @@ bool AchievementMgr<T>::IsCompletedCriteria(CriteriaEntry const* criteria)
         if (!achievement)
             return false;
 
-        if (CriteriaEntry const* criteria = sCriteriaStore.LookupEntry(criteriaTree->ID))
+        if (CriteriaEntry const* criteria = sCriteriaStore.LookupEntry(criteriaTree->criteriaID))
             if (!IsCompletedCriteriaForAchievement(criteria, achievement))
                 return false;
     }
@@ -1553,6 +1586,14 @@ bool AchievementMgr<T>::IsCompletedCriteriaForAchievement(CriteriaEntry const* c
         case ACHIEVEMENT_CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS:
         case ACHIEVEMENT_CRITERIA_TYPE_GET_KILLING_BLOWS:
         case ACHIEVEMENT_CRITERIA_TYPE_CURRENCY:
+        case ACHIEVEMENT_CRITERIA_TYPE_PET_BATTLE_ACHIEVEMENT_POINTS:
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET:
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES:
+        case ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT:
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET:
+        case ACHIEVEMENT_CRITERIA_TYPE_WIN_PET_BATTLE:
+        case ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL:
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET2:
             return progress->counter >= criteriaTree->criteriaCount;
         case ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_ACHIEVEMENT:
         case ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_QUEST:
@@ -1889,6 +1930,11 @@ void AchievementMgr<Player>::CompletedAchievement(AchievementEntry const* achiev
 
     UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_ACHIEVEMENT, 0, 0, 0, NULL, referencePlayer);
     UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_EARN_ACHIEVEMENT_POINTS, achievement->points, 0, 0, NULL, referencePlayer);
+    if (UpdatesPetBattleAchievementPoints(achievement->categoryId))
+        UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_PET_BATTLE_ACHIEVEMENT_POINTS, 0, 0, 0, NULL, referencePlayer);
+
+    if (BattlePetMgr* battlePetMgr = referencePlayer->GetBattlePetMgr())
+        battlePetMgr->OnAchievementEarned(achievement->ID);
 
     // reward items and titles if any
     AchievementReward const* reward = sAchievementMgr->GetAchievementReward(achievement);
@@ -2383,7 +2429,7 @@ bool AchievementMgr<T>::CanUpdateCriteria(CriteriaEntry const* criteria, Achieve
         return false;
     }
 
-    if (!AdditionalRequirementsSatisfied(criteria, miscValue1, miscValue2, unit, referencePlayer))
+    if (!AdditionalRequirementsSatisfied(criteria, miscValue1, miscValue2, miscValue3, unit, referencePlayer))
     {
         SF_LOG_TRACE("achievement", "CanUpdateCriteria: (Id: %u Type %s) Additional requirements not satisfied",
             criteria->ID, AchievementGlobalMgr::GetCriteriaTypeString(criteria->type));
@@ -2482,11 +2528,29 @@ bool AchievementMgr<T>::RequirementsSatisfied(CriteriaEntry const* achievementCr
         case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_PERSONAL_RATING:
         case ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_TEAM_RATING:
         case ACHIEVEMENT_CRITERIA_TYPE_KNOWN_FACTIONS:
+        case ACHIEVEMENT_CRITERIA_TYPE_PET_BATTLE_ACHIEVEMENT_POINTS:
+        case ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT:
         case ACHIEVEMENT_CRITERIA_TYPE_REACH_LEVEL:
             break;
         case ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_ACHIEVEMENT:
             if (m_completedAchievements.find(achievementCriteria->complete_achievement.linkedAchievement) == m_completedAchievements.end())
                 return false;
+            break;
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET:
+            if (!miscValue1 || (achievementCriteria->collect_battle_pet.creatureID && miscValue1 != achievementCriteria->collect_battle_pet.creatureID))
+                return false;
+            break;
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES:
+            if (!miscValue1 || (achievementCriteria->collect_battle_pet_species.speciesID && miscValue1 != achievementCriteria->collect_battle_pet_species.speciesID))
+                return false;
+            break;
+        case ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL:
+            if (!miscValue1 || (achievementCriteria->reach_battle_pet_level.level && miscValue1 < achievementCriteria->reach_battle_pet_level.level))
+                return false;
+            break;
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET:
+        case ACHIEVEMENT_CRITERIA_TYPE_WIN_PET_BATTLE:
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET2:
             break;
         case ACHIEVEMENT_CRITERIA_TYPE_WIN_BG:
             if (!miscValue1 || achievementCriteria->win_bg.bgMapID != referencePlayer->GetMapId())
@@ -2779,7 +2843,7 @@ bool AchievementMgr<T>::RequirementsSatisfied(CriteriaEntry const* achievementCr
 }
 
 template<class T>
-bool AchievementMgr<T>::AdditionalRequirementsSatisfied(CriteriaEntry const* criteria, uint64 miscValue1, uint64 /*miscValue2*/, Unit const* unit, Player* referencePlayer) const
+bool AchievementMgr<T>::AdditionalRequirementsSatisfied(CriteriaEntry const* criteria, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit const* unit, Player* referencePlayer) const
 {
     ModifierTreeEntry const* condition = sModifierTreeStore.LookupEntry(criteria->modifierTreeId);
 
@@ -2796,6 +2860,7 @@ bool AchievementMgr<T>::AdditionalRequirementsSatisfied(CriteriaEntry const* cri
         ModifierTreeEntry const* tree = (*iter);
         uint32 reqType = tree->conditionType;
         uint32 reqValue = tree->conditionValue[0];
+        uint32 battlePetPayload = uint32(miscValue3);
 
         switch (AchievementCriteriaAdditionalCondition(reqType))
         {
@@ -2917,6 +2982,34 @@ bool AchievementMgr<T>::AdditionalRequirementsSatisfied(CriteriaEntry const* cri
                 break;
             case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_TARGET_HEALTH_PERCENT_BELOW: // 46
                 if (!unit || unit->GetHealthPct() >= reqValue)
+                    return false;
+                break;
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_BATTLE_PET_FAMILY: // 78
+                if (reqValue >= 32 || !(uint32(miscValue2) & (uint32(1) << reqValue)))
+                    return false;
+                break;
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_BATTLE_PET_HEALTH_PCT: // 79
+                if (!BattlePetAchievementCriteriaHealthPercent(battlePetPayload) || BattlePetAchievementCriteriaHealthPercent(battlePetPayload) >= reqValue)
+                    return false;
+                break;
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_PET_BATTLE_AGAINST_TAMER: // 81
+                return false;
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_BATTLE_PET_QUALITY: // 89
+            {
+                uint32 quality = reqValue;
+                if (BattlePetBreedQualityEntry const* qualityEntry = sBattlePetBreedQualityStore.LookupEntry(reqValue))
+                    quality = qualityEntry->Quality;
+
+                if (BattlePetAchievementCriteriaQuality(battlePetPayload) != quality)
+                    return false;
+                break;
+            }
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_PET_BATTLE_PVP: // 90
+                if (BattlePetAchievementCriteriaIsPvp(battlePetPayload) != (reqValue != 0))
+                    return false;
+                break;
+            case ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_BATTLE_PET_SPECIES: // 91
+                if (miscValue1 != reqValue)
                     return false;
                 break;
             default:
@@ -3127,6 +3220,22 @@ char const* AchievementGlobalMgr::GetCriteriaTypeString(AchievementCriteriaTypes
             return "ACCEPTED_SUMMONINGS";
         case ACHIEVEMENT_CRITERIA_TYPE_EARN_ACHIEVEMENT_POINTS:
             return "EARN_ACHIEVEMENT_POINTS";
+        case ACHIEVEMENT_CRITERIA_TYPE_PET_BATTLE_ACHIEVEMENT_POINTS:
+            return "PET_BATTLE_ACHIEVEMENT_POINTS";
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET:
+            return "COLLECT_BATTLE_PET";
+        case ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES:
+            return "COLLECT_BATTLE_PET_SPECIES";
+        case ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT:
+            return "OWN_BATTLE_PET_COUNT";
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET:
+            return "CAPTURE_BATTLE_PET";
+        case ACHIEVEMENT_CRITERIA_TYPE_WIN_PET_BATTLE:
+            return "WIN_PET_BATTLE";
+        case ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL:
+            return "REACH_BATTLE_PET_LEVEL";
+        case ACHIEVEMENT_CRITERIA_TYPE_CAPTURE_BATTLE_PET2:
+            return "CAPTURE_BATTLE_PET2";
         case ACHIEVEMENT_CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS:
             return "USE_LFD_TO_GROUP_WITH_PLAYERS";
         case ACHIEVEMENT_CRITERIA_TYPE_SPENT_GOLD_GUILD_REPAIRS:

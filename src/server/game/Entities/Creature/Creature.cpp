@@ -4,6 +4,7 @@
 */
 
 #include "BattlegroundMgr.h"
+#include "BattlePet.h"
 #include "CellImpl.h"
 #include "Common.h"
 #include "Creature.h"
@@ -377,6 +378,9 @@ bool Creature::UpdateEntry(uint32 Entry, uint32 team, const CreatureData* data)
         SetUInt32Value(UNIT_FIELD_NPC_FLAGS, npcflag | sGameEventMgr->GetNPCFlag(this));
     else
         SetUInt32Value(UNIT_FIELD_NPC_FLAGS, npcflag);
+
+    if (npcflag & UNIT_NPC_FLAG_WILDPET_CAPTURABLE)
+        SetUInt32Value(UNIT_FIELD_WILD_BATTLE_PET_LEVEL, BattlePetNormalizeWildLevel(getLevel()));
 
     SetAttackTime(WeaponAttackType::BASE_ATTACK, cInfo->baseattacktime);
     SetAttackTime(WeaponAttackType::OFF_ATTACK, cInfo->baseattacktime);

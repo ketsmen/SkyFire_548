@@ -295,6 +295,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     /// Update Timeout timer.
     UpdateTimeOutTime(diff);
     m_charBooster->Update(diff);
+    UpdatePetBattlePvpQueueState();
 
     ///- Before we process anything:
     /// If necessary, kick the player from the character select screen
@@ -471,6 +472,8 @@ void WorldSession::LogoutPlayer(bool save)
 
     if (_player)
     {
+        ClearPetBattlePvpQueueState();
+
         if (uint64 lguid = _player->GetLootGUID())
             DoLootRelease(lguid);
 

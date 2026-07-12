@@ -34,7 +34,7 @@ struct AchievementEntry
     //uint32 parentAchievement;                             // 3 its Achievement parent (can`t start while parent uncomplete, use its Criteria if don`t have own, use its progress on begin)
     char* name;                                             // 4
     //char* description;                                    // 5
-    //uint32    categoryId;                                 // 6
+    uint32    categoryId;                                   // 6
     uint32    points;                                       // 7 reward points
     //uint32 OrderInCategory;                               // 8
     uint32    flags;                                        // 9
@@ -450,11 +450,29 @@ struct AchievementCriteriaEntry
             uint32  duelCount;                              // 4
         } win_duel;
 
-        // ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_POWER          = 96
+        // ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET     = 96
         struct
         {
-            uint32  powerType;                              // 3 mana=0, 1=rage, 3=energy, 6=runic power
-        } highest_power;
+            uint32  creatureID;                             // 3
+        } collect_battle_pet;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES = 155
+        struct
+        {
+            uint32  speciesID;                              // 3
+        } collect_battle_pet_species;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT   = 156
+        struct
+        {
+            uint32  count;                                  // 3
+        } own_battle_pet_count;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL = 160
+        struct
+        {
+            uint32  level;                                  // 3
+        } reach_battle_pet_level;
 
         // ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_STAT           = 97
         struct
@@ -1248,11 +1266,29 @@ struct CriteriaEntry
             uint32  skillLine;                              // 2
         } learn_skillline_spell;
 
-        // ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_POWER          = 96
+        // ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET     = 96
         struct
         {
-            uint32  powerType;                              // 2 mana=0, 1=rage, 3=energy, 6=runic power
-        } highest_power;
+            uint32  creatureID;                             // 2
+        } collect_battle_pet;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_COLLECT_BATTLE_PET_SPECIES = 155
+        struct
+        {
+            uint32  speciesID;                              // 2
+        } collect_battle_pet_species;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET_COUNT   = 156
+        struct
+        {
+            uint32  count;                                  // 2
+        } own_battle_pet_count;
+
+        // ACHIEVEMENT_CRITERIA_TYPE_REACH_BATTLE_PET_LEVEL = 160
+        struct
+        {
+            uint32  level;                                  // 2
+        } reach_battle_pet_level;
 
         // ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_STAT           = 97
         struct
@@ -1553,6 +1589,12 @@ struct GtBarberShopCostBaseEntry
 {
     //uint32 level;
     float   cost;
+};
+
+struct GtBattlePetXpEntry
+{
+    // uint32 [level][levelOffset]
+    float value;
 };
 
 struct GtCombatRatingsEntry

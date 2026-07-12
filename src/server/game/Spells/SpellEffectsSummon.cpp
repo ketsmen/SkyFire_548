@@ -57,6 +57,8 @@
 #include "World.h"
 #include "WorldPacket.h"
 
+#include <algorithm>
+
 void Spell::EffectTriggerRitualOfSummoning(SpellEffIndex effIndex)
 {
     if (effectHandleMode != SPELL_EFFECT_HANDLE_HIT)
@@ -1166,4 +1168,28 @@ void Spell::EffectBattlePetsUnlock(SpellEffIndex /*effIndex*/)
 
     for (uint8 i = 0; i < sWorld->getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_LOADOUT_UNLOCK_COUNT); i++)
         battlePetMgr->UnlockLoadoutSlot(i);
+
+    battlePetMgr->SaveToDb();
+}
+
+void Spell::EffectHealBattlePetPct(SpellEffIndex effIndex)
+{
+    if (effectHandleMode != SPELL_EFFECT_HANDLE_HIT)
+        return;
+
+    Player* player = GetCaster()->ToPlayer();
+    if (!player)
+        return;
+
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (!battlePetMgr)
+        return;
+
+    int32 const effectValue = m_spellInfo->Effects[effIndex].CalcValue(m_caster);
+    uint8 const percent = uint8(std::min<int32>(std::max<int32>(effectValue, 0), 100));
+    battlePetMgr->HealBattlePets(percent ? percent : 100);
+    battlePetMgr->SaveToDb();
+
+    if (m_spellInfo->Id == SPELL_REVIVE_BATTLE_PETS)
+        player->SendSpellCooldown(SPELL_REVIVE_BATTLE_PETS, player->GetSpellCooldownDelay(SPELL_REVIVE_BATTLE_PETS) * IN_MILLISECONDS);
 }

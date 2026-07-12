@@ -5,60 +5,1128 @@
 
 #include "BattlePet.h"
 #include "BattlePetMgr.h"
+#include "BattlePetPackets.h"
 #include "Common.h"
+#include "Creature.h"
 #include "DB2Enums.h"
 #include "DB2Stores.h"
+#include "Item.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "TemporarySummon.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 
+#include <algorithm>
+#include <cmath>
+#include <ctime>
+#include <map>
+#include <vector>
+
+namespace
+{
+    struct PetBattlePvpProposal
+    {
+        uint64 OpponentGuid = 0;
+        bool Accepted = false;
+        time_t CreatedAt = 0;
+    };
+
+    struct PetBattlePvpChallenge
+    {
+        uint64 ChallengerGuid = 0;
+        uint64 TargetGuid = 0;
+        G3D::Vector3 Origin;
+        G3D::Vector3 Positions[2];
+        float Orientation = 0.0f;
+        uint32 LocationResult = 0;
+        bool HasLocationResult = false;
+        bool PromptAcknowledged = false;
+        time_t CreatedAt = 0;
+    };
+
+    std::vector<uint64> PetBattlePvpQueue;
+    std::map<uint64, PetBattlePvpProposal> PetBattlePvpProposals;
+    std::map<uint64, PetBattlePvpChallenge> PetBattlePvpChallengesByTarget;
+    std::map<uint64, uint64> PetBattlePvpChallengeTargetByChallenger;
+    uint32 const PetBattlePvpProposalTimeout = 60;
+    uint32 const PetBattlePvpChallengeTimeout = 60;
+
+    bool ValidatePetBattleQueueRequest(Player& player);
+    bool ValidatePetBattlePvpDuelTarget(Player& challenger, Player* target);
+
+    void SendPetBattleDuelPopup(Player& challenger, Player& target)
+    {
+        ObjectGuid arbiterGuid = challenger.GetGUID();
+        ObjectGuid casterGuid = challenger.GetGUID();
+
+        WorldPacket data(SMSG_DUEL_REQUESTED, 8 + 8);
+        data.WriteGuidMask(arbiterGuid, 5);
+        data.WriteGuidMask(casterGuid, 4, 2, 7);
+        data.WriteGuidMask(arbiterGuid, 0);
+        data.WriteGuidMask(casterGuid, 5);
+        data.WriteGuidMask(arbiterGuid, 4, 6);
+        data.WriteGuidMask(casterGuid, 1, 3, 6);
+        data.WriteGuidMask(arbiterGuid, 7, 3, 2, 1);
+        data.WriteGuidMask(casterGuid, 0);
+
+        data.WriteGuidBytes(arbiterGuid, 5, 3);
+        data.WriteGuidBytes(casterGuid, 7, 4);
+        data.WriteGuidBytes(arbiterGuid, 7);
+        data.WriteGuidBytes(casterGuid, 3, 6, 0);
+        data.WriteGuidBytes(arbiterGuid, 4);
+        data.WriteGuidBytes(casterGuid, 2, 1);
+        data.WriteGuidBytes(arbiterGuid, 0, 2, 6, 1);
+        data.WriteGuidBytes(casterGuid, 5);
+
+        target.SendDirectMessage(&data);
+    }
+
+    uint16 FindBattlePetSpeciesIdByNpcId(uint32 npcId)
+    {
+        for (uint32 speciesId = 0; speciesId < sBattlePetSpeciesStore.GetNumRows(); ++speciesId)
+        {
+            BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
+            if (speciesEntry && speciesEntry->NpcId == npcId)
+                return uint16(speciesId);
+        }
+
+        return 0;
+    }
+
+    bool BuildWildInitialUpdatePetData(Creature const& wildBattlePet,
+        Skyfire::BattlePetPackets::InitialUpdatePetData& wildPetData, uint8& wildPetBreed)
+    {
+        uint16 const speciesId = FindBattlePetSpeciesIdByNpcId(wildBattlePet.GetEntry());
+        if (!speciesId)
+            return false;
+
+        wildPetBreed = sObjectMgr->BattlePetGetRandomBreed(speciesId);
+        wildPetData = Skyfire::BattlePetPackets::BuildWildInitialUpdatePetData(
+            uint64(wildBattlePet.GetGUID()), speciesId, BattlePetNormalizeWildLevel(wildBattlePet.getLevel()),
+            sObjectMgr->BattlePetGetRandomQuality(speciesId), wildPetBreed);
+        return true;
+    }
+
+    uint32 BattlePetAbilityStateModifier(uint32 abilityId, uint32 stateId)
+    {
+        uint32 modifier = 0;
+        for (uint32 i = 0; i < sBattlePetAbilityStateStore.GetNumRows(); ++i)
+        {
+            BattlePetAbilityStateEntry const* stateEntry = sBattlePetAbilityStateStore.LookupEntry(i);
+            if (!stateEntry)
+                continue;
+
+            if (stateEntry->AbilityId == abilityId && stateEntry->StateId == stateId)
+                modifier += stateEntry->Value;
+        }
+
+        return modifier;
+    }
+
+    uint32 BattlePetAbilityBasePoints(uint32 abilityId)
+    {
+        std::pair<BattlePetAbilityTurnByAbilityStore::const_iterator, BattlePetAbilityTurnByAbilityStore::const_iterator> turnRange =
+            sBattlePetAbilityTurnByAbilityStore.equal_range(abilityId);
+
+        for (BattlePetAbilityTurnByAbilityStore::const_iterator itr = turnRange.first; itr != turnRange.second; ++itr)
+        {
+            BattlePetAbilityEffectByTurnStore::const_iterator effectItr =
+                sBattlePetAbilityEffectByTurnStore.find(itr->second.first);
+            if (effectItr != sBattlePetAbilityEffectByTurnStore.end() && effectItr->second)
+            {
+                uint32 const points = effectItr->second->PropertyValues[0];
+                if (points)
+                    return points;
+            }
+        }
+
+        return 0;
+    }
+
+    uint32 BattlePetDamageFromStats(uint32 abilityId, uint16 power, uint8 level)
+    {
+        if (!abilityId)
+            return 0;
+
+        uint32 const safeLevel = std::max<uint32>(level, 1);
+        uint32 const safePower = std::max<uint32>(power, safeLevel * 8);
+        uint32 const abilityPoints = BattlePetAbilityBasePoints(abilityId);
+        uint32 const abilityPower = BattlePetAbilityStateModifier(abilityId, BATTLE_PET_STATE_STAT_POWER);
+        uint32 const baseDamage = abilityPoints ? abilityPoints : safeLevel * 2;
+        uint32 const scaledDamage = baseDamage + (safePower / 20) + (abilityPower / 10);
+        return std::max<uint32>(1, scaledDamage);
+    }
+
+    uint16 BattlePetPowerFromBattleState(uint16 species, uint8 level, uint8 quality, uint8 breed)
+    {
+        if (!species)
+            return level * 8;
+
+        float const basePower = BattlePetSpeciesMainStat(BATTLE_PET_STATE_STAT_POWER, species) +
+            BattlePetBreedMainStatModifier(BATTLE_PET_STATE_STAT_POWER, breed);
+        float const qualityMod = BattlePetQualityMultiplier(quality);
+        return uint16(std::max<float>(1.0f, std::floor((basePower * std::max<uint8>(level, 1) * qualityMod) + 0.5f)));
+    }
+
+    uint32 BattlePetInputDamageForAbility(uint32 abilityId, BattlePet const* caster)
+    {
+        if (!abilityId)
+            return 0;
+
+        if (!caster)
+            return BattlePetDamageFromStats(abilityId, 0, 1);
+
+        return BattlePetDamageFromStats(abilityId, caster->GetPower(), caster->GetLevel());
+    }
+
+    uint32 BattlePetInputDamageForEnemyAbility(uint32 abilityId, ActivePetBattle const& activeBattle)
+    {
+        if (!abilityId)
+            return 0;
+
+        uint16 const power = BattlePetPowerFromBattleState(activeBattle.EnemySpecies,
+            activeBattle.EnemyLevel, activeBattle.EnemyQuality, activeBattle.EnemyBreed);
+        return BattlePetDamageFromStats(abilityId, power, activeBattle.EnemyLevel);
+    }
+
+    BattlePet const* GetActiveBattlePet(BattlePetMgr const& battlePetMgr)
+    {
+        ActivePetBattle const& activeBattle = battlePetMgr.GetActivePetBattle();
+        return battlePetMgr.GetBattlePet(activeBattle.AllyPetID);
+    }
+
+    BattlePet const* GetPvpOpponentActiveBattlePet(Player const& player, ActivePetBattle const& activeBattle)
+    {
+        if (!activeBattle.IsPvP())
+            return NULL;
+
+        Player* opponent = ObjectAccessor::FindPlayer(activeBattle.EnemyGUID);
+        if (!opponent)
+            return NULL;
+
+        BattlePetMgr* opponentBattlePetMgr = opponent->GetBattlePetMgr();
+        if (!opponentBattlePetMgr || !opponentBattlePetMgr->HasActivePetBattle())
+            return NULL;
+
+        ActivePetBattle const& opponentBattle = opponentBattlePetMgr->GetActivePetBattle();
+        if (!opponentBattle.IsPvP() || opponentBattle.EnemyGUID != player.GetGUID())
+            return NULL;
+
+        return GetActiveBattlePet(*opponentBattlePetMgr);
+    }
+
+    uint32 BattlePetInputEffectForAbility(uint32 abilityId)
+    {
+        std::pair<BattlePetAbilityTurnByAbilityStore::const_iterator, BattlePetAbilityTurnByAbilityStore::const_iterator> turnRange =
+            sBattlePetAbilityTurnByAbilityStore.equal_range(abilityId);
+
+        for (BattlePetAbilityTurnByAbilityStore::const_iterator itr = turnRange.first; itr != turnRange.second; ++itr)
+        {
+            BattlePetAbilityEffectByTurnStore::const_iterator effectItr =
+                sBattlePetAbilityEffectByTurnStore.find(itr->second.first);
+            if (effectItr != sBattlePetAbilityEffectByTurnStore.end() && effectItr->second)
+                return effectItr->second->Id;
+        }
+
+        return 0;
+    }
+
+    void SendBattlePetRoundResult(Player& player, Skyfire::BattlePetPackets::BattlePetRoundResult const& round)
+    {
+        WorldPacket packet = Skyfire::BattlePetPackets::BuildRoundResultPacket(round);
+        player.SendDirectMessage(&packet);
+    }
+
+    void SendBattlePetFinalRound(Player& player, Skyfire::BattlePetPackets::BattlePetFinalRound const& finalRound)
+    {
+        WorldPacket finalRoundPacket = Skyfire::BattlePetPackets::BuildFinalRoundPacket(finalRound);
+        player.SendDirectMessage(&finalRoundPacket);
+    }
+
+    void SendBattlePetFinished(Player& player)
+    {
+        WorldPacket finishedPacket = Skyfire::BattlePetPackets::BuildFinishedPacket();
+        player.SendDirectMessage(&finishedPacket);
+    }
+
+    void ClearActivePetBattleAndSave(Player& player)
+    {
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        battlePetMgr->ClearActivePetBattle();
+        battlePetMgr->SaveToDb();
+    }
+
+    uint8 OpponentWinnerForFinalRound(Skyfire::BattlePetPackets::BattlePetFinalRound const& finalRound)
+    {
+        if (finalRound.Winners[0])
+            return PET_BATTLE_WINNER_ENEMY;
+
+        if (finalRound.Winners[1])
+            return PET_BATTLE_WINNER_ALLY;
+
+        return PET_BATTLE_WINNER_NONE;
+    }
+
+    void FinishActivePvpPetBattleForOpponent(Player& player, uint64 opponentGuid, uint8 opponentWinner, bool abandoned)
+    {
+        if (!opponentGuid)
+            return;
+
+        Player* opponent = ObjectAccessor::FindPlayer(opponentGuid);
+        if (!opponent)
+            return;
+
+        BattlePetMgr* opponentBattlePetMgr = opponent->GetBattlePetMgr();
+        if (!opponentBattlePetMgr->HasActivePetBattle())
+            return;
+
+        ActivePetBattle const& opponentBattle = opponentBattlePetMgr->GetActivePetBattle();
+        if (!opponentBattle.IsPvP() || opponentBattle.EnemyGUID != player.GetGUID())
+            return;
+
+        if (opponentWinner)
+            opponentBattlePetMgr->FinishActivePetBattle(opponentWinner);
+
+        Skyfire::BattlePetPackets::BattlePetFinalRound opponentFinalRound;
+        if (opponentBattlePetMgr->BuildActivePetBattleFinalRound(abandoned, opponentFinalRound))
+            SendBattlePetFinalRound(*opponent, opponentFinalRound);
+
+        ClearActivePetBattleAndSave(*opponent);
+    }
+
+    void FinishActivePvpPetBattle(Player& player, uint64 opponentGuid,
+        Skyfire::BattlePetPackets::BattlePetFinalRound const& playerFinalRound,
+        uint8 opponentWinner, bool opponentAbandoned)
+    {
+        SendBattlePetFinalRound(player, playerFinalRound);
+        FinishActivePvpPetBattleForOpponent(player, opponentGuid, opponentWinner, opponentAbandoned);
+        ClearActivePetBattleAndSave(player);
+    }
+
+    void FinishActivePvpPetBattleAfterForfeit(Player& loser, uint64 opponentGuid,
+        Skyfire::BattlePetPackets::BattlePetFinalRound const& loserFinalRound)
+    {
+        FinishActivePvpPetBattle(loser, opponentGuid, loserFinalRound, PET_BATTLE_WINNER_ALLY, true);
+    }
+
+    uint32 PetBattleQueueSlotResult(Player& player, uint8 slot)
+    {
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        if (!battlePetMgr->HasLoadoutSlot(slot))
+            return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_QUEUED;
+
+        uint64 const petId = battlePetMgr->GetLoadoutSlot(slot);
+        if (!petId)
+            return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_QUEUED;
+
+        BattlePet* battlePet = battlePetMgr->GetBattlePet(petId);
+        if (!battlePet)
+            return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_SLOT_NO_PET;
+
+        if (!battlePet->GetSpecies())
+            return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_SLOT_NO_SPECIES;
+
+        if (!battlePet->GetCurrentHealth())
+            return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_SLOT_DEAD;
+
+        return Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_QUEUED;
+    }
+
+    void BuildPetBattleQueueSlotResults(Player& player,
+        uint32 (&slotResults)[Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_SLOT_COUNT])
+    {
+        for (uint8 slot = 0; slot < Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_SLOT_COUNT; slot++)
+            slotResults[slot] = PetBattleQueueSlotResult(player, slot);
+    }
+
+    void SendPetBattleQueueStatus(WorldSession& session, Player& player, uint32 status)
+    {
+        uint32 slotResults[Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_SLOT_COUNT] = { };
+        BuildPetBattleQueueSlotResults(player, slotResults);
+
+        WorldPacket data = Skyfire::BattlePetPackets::BuildQueueStatusPacket(player.GetGUID(), status, slotResults);
+        session.SendPacket(&data);
+    }
+
+    void SendPetBattleQueueStatus(Player& player, uint32 status)
+    {
+        if (WorldSession* session = player.GetSession())
+            SendPetBattleQueueStatus(*session, player, status);
+    }
+
+    void SendPetBattleQueueProposeMatch(Player& player)
+    {
+        if (WorldSession* session = player.GetSession())
+        {
+            WorldPacket data = Skyfire::BattlePetPackets::BuildQueueProposeMatchPacket();
+            session->SendPacket(&data);
+        }
+    }
+
+    void SendPetBattlePvpChallengeFailed(uint64 playerGuid)
+    {
+        if (Player* player = ObjectAccessor::FindPlayer(playerGuid))
+            player->GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+    }
+
+    bool IsPetBattlePvpChallengeExpired(PetBattlePvpChallenge const& challenge)
+    {
+        return challenge.CreatedAt && time(NULL) - challenge.CreatedAt >= PetBattlePvpChallengeTimeout;
+    }
+
+    void ClearPetBattlePvpChallengeForTarget(uint64 targetGuid, bool notifyPlayers = false,
+        uint64 exceptGuid = 0)
+    {
+        std::map<uint64, PetBattlePvpChallenge>::iterator challengeItr =
+            PetBattlePvpChallengesByTarget.find(targetGuid);
+        if (challengeItr == PetBattlePvpChallengesByTarget.end())
+            return;
+
+        PetBattlePvpChallenge const challenge = challengeItr->second;
+        PetBattlePvpChallengeTargetByChallenger.erase(challenge.ChallengerGuid);
+        PetBattlePvpChallengesByTarget.erase(challengeItr);
+
+        if (!notifyPlayers)
+            return;
+
+        if (challenge.ChallengerGuid != exceptGuid)
+            SendPetBattlePvpChallengeFailed(challenge.ChallengerGuid);
+
+        if (challenge.TargetGuid != exceptGuid)
+            SendPetBattlePvpChallengeFailed(challenge.TargetGuid);
+    }
+
+    void ClearPetBattlePvpChallengesFor(uint64 playerGuid, bool notifyPlayers = false,
+        uint64 exceptGuid = 0)
+    {
+        ClearPetBattlePvpChallengeForTarget(playerGuid, notifyPlayers, exceptGuid);
+
+        std::map<uint64, uint64>::iterator targetItr =
+            PetBattlePvpChallengeTargetByChallenger.find(playerGuid);
+        if (targetItr == PetBattlePvpChallengeTargetByChallenger.end())
+            return;
+
+        ClearPetBattlePvpChallengeForTarget(targetItr->second, notifyPlayers, exceptGuid);
+    }
+
+    std::map<uint64, PetBattlePvpChallenge>::iterator FindPetBattlePvpChallengeForPlayer(uint64 playerGuid)
+    {
+        std::map<uint64, PetBattlePvpChallenge>::iterator challengeItr =
+            PetBattlePvpChallengesByTarget.find(playerGuid);
+        if (challengeItr != PetBattlePvpChallengesByTarget.end())
+            return challengeItr;
+
+        std::map<uint64, uint64>::iterator targetItr =
+            PetBattlePvpChallengeTargetByChallenger.find(playerGuid);
+        if (targetItr == PetBattlePvpChallengeTargetByChallenger.end())
+            return PetBattlePvpChallengesByTarget.end();
+
+        return PetBattlePvpChallengesByTarget.find(targetItr->second);
+    }
+
+    bool ExpirePetBattlePvpChallenge(Player& player)
+    {
+        std::map<uint64, PetBattlePvpChallenge>::iterator challengeItr =
+            FindPetBattlePvpChallengeForPlayer(player.GetGUID());
+        if (challengeItr == PetBattlePvpChallengesByTarget.end()
+            || !IsPetBattlePvpChallengeExpired(challengeItr->second))
+            return false;
+
+        ClearPetBattlePvpChallengeForTarget(challengeItr->first, true);
+        return true;
+    }
+
+    bool BuildPlayerPetBattleTeam(Player& player, Skyfire::BattlePetPackets::InitialUpdateTeamData& team)
+    {
+        team = Skyfire::BattlePetPackets::InitialUpdateTeamData();
+
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        BattlePet* activeBattlePet = battlePetMgr->GetFirstAliveLoadoutBattlePet();
+        if (!activeBattlePet)
+            return false;
+
+        for (uint8 slot = 0; slot < BATTLE_PET_MAX_LOADOUT_SLOTS
+            && team.PetCount < Skyfire::BattlePetPackets::INITIAL_UPDATE_MAX_TEAM_PETS; slot++)
+        {
+            BattlePet* loadoutBattlePet = battlePetMgr->GetBattlePet(battlePetMgr->GetLoadoutSlot(slot));
+            if (!loadoutBattlePet)
+                continue;
+
+            uint8 const petIndex = team.PetCount;
+            team.Pets[petIndex] = Skyfire::BattlePetPackets::BuildInitialUpdatePetData(*loadoutBattlePet);
+            team.PetCount++;
+
+            if (loadoutBattlePet == activeBattlePet)
+                team.FrontPet = petIndex;
+        }
+
+        if (!team.PetCount)
+            return false;
+
+        team.OwnerGuid = player.GetGUID();
+        team.TrapStatus = PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+        return true;
+    }
+
+    void SetActivePetBattleTeam(BattlePetMgr& battlePetMgr,
+        Skyfire::BattlePetPackets::InitialUpdateTeamData const& team)
+    {
+        for (uint8 petIndex = 0; petIndex < team.PetCount; petIndex++)
+            battlePetMgr.SetActivePetBattleAllyPet(petIndex, team.Pets[petIndex].Id,
+                team.Pets[petIndex].MaxHealth, team.Pets[petIndex].CurrentHealth);
+    }
+
+    G3D::Vector3 CalculatePetBattlePlayerPosition(Player const& player,
+        G3D::Vector3 const& ownPetPosition, G3D::Vector3 const& opponentPetPosition)
+    {
+        float dx = opponentPetPosition.x - ownPetPosition.x;
+        float dy = opponentPetPosition.y - ownPetPosition.y;
+        float length = std::sqrt(dx * dx + dy * dy);
+        if (length < 0.1f)
+        {
+            dx = std::cos(player.GetOrientation());
+            dy = std::sin(player.GetOrientation());
+            length = 1.0f;
+        }
+
+        dx /= length;
+        dy /= length;
+
+        constexpr float playerPetBackstep = 2.5f;
+        return G3D::Vector3(ownPetPosition.x - dx * playerPetBackstep,
+            ownPetPosition.y - dy * playerPetBackstep, ownPetPosition.z);
+    }
+
+    void PlacePlayerForPetBattle(Player& player, G3D::Vector3 const& ownPetPosition,
+        G3D::Vector3 const& opponentPetPosition)
+    {
+        G3D::Vector3 const playerPosition =
+            CalculatePetBattlePlayerPosition(player, ownPetPosition, opponentPetPosition);
+        float const orientation = Position::NormalizeOrientation(
+            std::atan2(opponentPetPosition.y - playerPosition.y,
+                opponentPetPosition.x - playerPosition.x));
+
+        player.NearTeleportTo(playerPosition.x, playerPosition.y, playerPosition.z, orientation);
+        player.GetBattlePetMgr()->ApplyActivePetBattlePlayerState(
+            opponentPetPosition.x, opponentPetPosition.y);
+    }
+
+    bool StartPetBattlePvpForPlayer(Player& player, Player& opponent,
+        Skyfire::BattlePetPackets::InitialUpdateTeamData const& playerTeam,
+        Skyfire::BattlePetPackets::InitialUpdateTeamData const& opponentTeam,
+        G3D::Vector3 const& origin, G3D::Vector3 const* positions,
+        float orientation, bool hasLocationResult, uint32 locationResult,
+        BattlePetAchievementSource battleSource)
+    {
+        if (!playerTeam.PetCount || !opponentTeam.PetCount)
+            return false;
+
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        Skyfire::BattlePetPackets::InitialUpdatePetData const& activePet =
+            playerTeam.Pets[playerTeam.FrontPet];
+        Skyfire::BattlePetPackets::InitialUpdatePetData const& opponentPet =
+            opponentTeam.Pets[opponentTeam.FrontPet];
+        uint8 const enemyFrontPet = uint8(3 + opponentTeam.FrontPet);
+
+        PlacePlayerForPetBattle(player, positions[0], positions[1]);
+
+        WorldPacket finalizeLocation = Skyfire::BattlePetPackets::BuildFinalizeLocationPacket(
+            origin, positions, true, orientation, hasLocationResult, locationResult);
+        player.SendDirectMessage(&finalizeLocation);
+
+        battlePetMgr->StartPvpPetBattle(opponent.GetGUID(),
+            activePet.Id, activePet.MaxHealth, activePet.CurrentHealth,
+            opponentPet.Id, opponentPet.MaxHealth, opponentPet.CurrentHealth,
+            uint16(opponentPet.Species), uint8(opponentPet.Level), uint8(opponentPet.Quality),
+            playerTeam.FrontPet, enemyFrontPet, battleSource);
+
+        SetActivePetBattleTeam(*battlePetMgr, playerTeam);
+        battlePetMgr->SelectActivePetBattleFrontPet(playerTeam.FrontPet);
+
+        Skyfire::BattlePetPackets::InitialUpdateTeamData teams[2];
+        teams[0] = playerTeam;
+        teams[1] = opponentTeam;
+        teams[0].TrapStatus = battlePetMgr->GetActivePetBattleTrapStatus();
+        teams[1].TrapStatus = PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+
+        WorldPacket initialUpdate = Skyfire::BattlePetPackets::BuildInitialUpdatePacket(
+            ObjectGuid(0), teams, 2, true);
+        player.SendDirectMessage(&initialUpdate);
+        return true;
+    }
+
+    bool StartPetBattlePvp(Player& player, Player& opponent, G3D::Vector3 const& origin,
+        G3D::Vector3 const* positions, float orientation, bool hasLocationResult, uint32 locationResult,
+        BattlePetAchievementSource battleSource = BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL)
+    {
+        if (!ValidatePetBattleQueueRequest(player) || !ValidatePetBattlePvpDuelTarget(player, &opponent))
+            return false;
+
+        Skyfire::BattlePetPackets::InitialUpdateTeamData playerTeam;
+        Skyfire::BattlePetPackets::InitialUpdateTeamData opponentTeam;
+        if (!BuildPlayerPetBattleTeam(player, playerTeam) || !BuildPlayerPetBattleTeam(opponent, opponentTeam))
+        {
+            player.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            opponent.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return false;
+        }
+
+        G3D::Vector3 opponentPositions[2] = { positions[1], positions[0] };
+        float const opponentOrientation = Position::NormalizeOrientation(orientation + 3.14159265358979323846f);
+
+        bool const playerStarted = StartPetBattlePvpForPlayer(player, opponent, playerTeam, opponentTeam,
+            origin, positions, orientation, hasLocationResult, locationResult, battleSource);
+        bool const opponentStarted = StartPetBattlePvpForPlayer(opponent, player, opponentTeam, playerTeam,
+            origin, opponentPositions, opponentOrientation, hasLocationResult, locationResult, battleSource);
+
+        if (!playerStarted || !opponentStarted)
+        {
+            player.GetBattlePetMgr()->ClearActivePetBattle();
+            opponent.GetBattlePetMgr()->ClearActivePetBattle();
+            return false;
+        }
+
+        return true;
+    }
+
+    void BuildPetBattleQueueLocation(Player const& player, Player const& opponent,
+        G3D::Vector3& origin, G3D::Vector3* positions, float& orientation)
+    {
+        origin = G3D::Vector3(player.GetPositionX(), player.GetPositionY(), player.GetPositionZ());
+
+        float dx = opponent.GetPositionX() - player.GetPositionX();
+        float dy = opponent.GetPositionY() - player.GetPositionY();
+        float length = std::sqrt(dx * dx + dy * dy);
+        if (length < 0.1f)
+        {
+            dx = std::cos(player.GetOrientation());
+            dy = std::sin(player.GetOrientation());
+            length = 1.0f;
+        }
+
+        dx /= length;
+        dy /= length;
+
+        float const centerX = (player.GetPositionX() + opponent.GetPositionX()) * 0.5f;
+        float const centerY = (player.GetPositionY() + opponent.GetPositionY()) * 0.5f;
+        float const centerZ = (player.GetPositionZ() + opponent.GetPositionZ()) * 0.5f;
+
+        positions[0] = G3D::Vector3(centerX - dx * 1.5f, centerY - dy * 1.5f, centerZ);
+        positions[1] = G3D::Vector3(centerX + dx * 1.5f, centerY + dy * 1.5f, centerZ);
+        orientation = Skyfire::BattlePetPackets::CalculateBattlePetFacing(origin, positions);
+    }
+
+    bool IsPetBattlePvpQueueCandidate(Player* player)
+    {
+        if (!player)
+            return false;
+
+        BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+        return battlePetMgr && battlePetMgr->IsPetBattlePvpQueued()
+            && !battlePetMgr->HasActivePetBattle()
+            && battlePetMgr->HasLoadoutBattlePet()
+            && battlePetMgr->GetFirstAliveLoadoutBattlePet();
+    }
+
+    void RemovePetBattlePvpQueueEntry(uint64 playerGuid)
+    {
+        PetBattlePvpQueue.erase(std::remove(PetBattlePvpQueue.begin(), PetBattlePvpQueue.end(), playerGuid),
+            PetBattlePvpQueue.end());
+    }
+
+    void ClearPetBattlePvpProposal(uint64 playerGuid)
+    {
+        std::map<uint64, PetBattlePvpProposal>::iterator proposalItr = PetBattlePvpProposals.find(playerGuid);
+        if (proposalItr == PetBattlePvpProposals.end())
+            return;
+
+        uint64 const opponentGuid = proposalItr->second.OpponentGuid;
+        PetBattlePvpProposals.erase(playerGuid);
+        PetBattlePvpProposals.erase(opponentGuid);
+    }
+
+    bool IsPetBattlePvpProposalExpired(PetBattlePvpProposal const& proposal)
+    {
+        return proposal.CreatedAt && time(NULL) - proposal.CreatedAt >= PetBattlePvpProposalTimeout;
+    }
+
+    void LeavePetBattlePvpQueue(Player& player, bool sendStatus,
+        uint32 playerStatus = Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_REMOVED,
+        uint32 opponentStatus = Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_REMOVED,
+        bool sendOpponentStatus = true)
+    {
+        uint64 const playerGuid = player.GetGUID();
+        RemovePetBattlePvpQueueEntry(playerGuid);
+
+        std::map<uint64, PetBattlePvpProposal>::iterator proposalItr = PetBattlePvpProposals.find(playerGuid);
+        uint64 const opponentGuid = proposalItr != PetBattlePvpProposals.end() ? proposalItr->second.OpponentGuid : 0;
+        ClearPetBattlePvpProposal(playerGuid);
+
+        player.GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+        if (sendStatus)
+            SendPetBattleQueueStatus(player, playerStatus);
+
+        if (!opponentGuid)
+            return;
+
+        if (Player* opponent = ObjectAccessor::FindPlayer(opponentGuid))
+        {
+            opponent->GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+            if (sendOpponentStatus)
+                SendPetBattleQueueStatus(*opponent, opponentStatus);
+        }
+    }
+
+    bool ExpirePetBattlePvpProposal(Player& player)
+    {
+        std::map<uint64, PetBattlePvpProposal>::iterator proposalItr =
+            PetBattlePvpProposals.find(player.GetGUID());
+        if (proposalItr == PetBattlePvpProposals.end() || !IsPetBattlePvpProposalExpired(proposalItr->second))
+            return false;
+
+        LeavePetBattlePvpQueue(player, true,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_PROPOSAL_TIMEOUT,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_PROPOSAL_TIMEOUT);
+        return true;
+    }
+
+    uint64 TakePetBattlePvpQueueOpponent(Player& player)
+    {
+        uint64 const playerGuid = player.GetGUID();
+        RemovePetBattlePvpQueueEntry(playerGuid);
+
+        for (std::vector<uint64>::iterator itr = PetBattlePvpQueue.begin(); itr != PetBattlePvpQueue.end();)
+        {
+            Player* opponent = ObjectAccessor::FindPlayer(*itr);
+            if (!IsPetBattlePvpQueueCandidate(opponent))
+            {
+                if (opponent)
+                    opponent->GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+
+                itr = PetBattlePvpQueue.erase(itr);
+                continue;
+            }
+
+            uint64 const opponentGuid = *itr;
+            PetBattlePvpQueue.erase(itr);
+            return opponentGuid;
+        }
+
+        return 0;
+    }
+
+    void ProposePetBattlePvpMatch(Player& player, Player& opponent)
+    {
+        uint64 const playerGuid = player.GetGUID();
+        uint64 const opponentGuid = opponent.GetGUID();
+        time_t const createdAt = time(NULL);
+
+        PetBattlePvpProposals[playerGuid] = { opponentGuid, false, createdAt };
+        PetBattlePvpProposals[opponentGuid] = { playerGuid, false, createdAt };
+
+        SendPetBattleQueueProposeMatch(player);
+        SendPetBattleQueueProposeMatch(opponent);
+    }
+
+    void JoinPetBattlePvpQueue(WorldSession& session, Player& player)
+    {
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        uint64 const playerGuid = player.GetGUID();
+
+        if (battlePetMgr->IsPetBattlePvpQueued())
+        {
+            SendPetBattleQueueStatus(session, player, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_ALREADY_QUEUED);
+            return;
+        }
+
+        ClearPetBattlePvpChallengesFor(playerGuid);
+        ClearPetBattlePvpProposal(playerGuid);
+        RemovePetBattlePvpQueueEntry(playerGuid);
+        battlePetMgr->SetPetBattlePvpQueued(true);
+        SendPetBattleQueueStatus(session, player, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_QUEUED);
+
+        uint64 const opponentGuid = TakePetBattlePvpQueueOpponent(player);
+        if (Player* opponent = ObjectAccessor::FindPlayer(opponentGuid))
+        {
+            opponent->GetBattlePetMgr()->SetPetBattlePvpQueued(true);
+            ProposePetBattlePvpMatch(player, *opponent);
+            return;
+        }
+
+        PetBattlePvpQueue.push_back(playerGuid);
+    }
+
+    void FailAcceptedPetBattlePvpQueueMatch(Player& player, Player* opponent)
+    {
+        LeavePetBattlePvpQueue(player, true,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_JOIN_FAILED,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_JOIN_FAILED,
+            opponent != NULL);
+
+        if (opponent && opponent->GetBattlePetMgr()->IsPetBattlePvpQueued())
+        {
+            opponent->GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+            SendPetBattleQueueStatus(*opponent,
+                Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_JOIN_FAILED);
+        }
+    }
+
+    bool ReadPetBattleQueueProposeAccepted(WorldPacket& recvData)
+    {
+        if (recvData.rpos() >= recvData.size())
+            return false;
+
+        return recvData.ReadBit();
+    }
+
+    void ReadPetBattlePvpDuelRequestLocation(WorldPacket& recvData, PetBattleRequest& petBattleRequest)
+    {
+        for (uint8 i = 0; i < 2; i++)
+        {
+            recvData >> petBattleRequest.Positions[i].x;
+            recvData >> petBattleRequest.Positions[i].z;
+            recvData >> petBattleRequest.Positions[i].y;
+        }
+
+        recvData >> petBattleRequest.Origin.z;
+        recvData >> petBattleRequest.Origin.y;
+        recvData >> petBattleRequest.Origin.x;
+
+        petBattleRequest.LocationResult = 21;
+        if (recvData.size() >= sizeof(uint32))
+        {
+            uint8 const* tail = recvData.contents() + recvData.size() - sizeof(uint32);
+            petBattleRequest.LocationResult = uint32(tail[0])
+                | (uint32(tail[1]) << 8)
+                | (uint32(tail[2]) << 16)
+                | (uint32(tail[3]) << 24);
+        }
+    }
+
+    bool ValidatePetBattleQueueRequest(Player& player)
+    {
+        BattlePetMgr* battlePetMgr = player.GetBattlePetMgr();
+        if (battlePetMgr->HasActivePetBattle())
+        {
+            battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return false;
+        }
+
+        if (!battlePetMgr->HasLoadoutBattlePet())
+        {
+            battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_NO_PETS);
+            return false;
+        }
+
+        if (!battlePetMgr->GetFirstAliveLoadoutBattlePet())
+        {
+            battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_ALL_PETS_DEAD);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool ValidatePetBattlePvpDuelTarget(Player& challenger, Player* target)
+    {
+        BattlePetMgr* challengerBattlePetMgr = challenger.GetBattlePetMgr();
+        BattlePetMgr* targetBattlePetMgr = target ? target->GetBattlePetMgr() : NULL;
+        if (!target || target == &challenger || !targetBattlePetMgr || targetBattlePetMgr->HasActivePetBattle()
+            || target->GetMapId() != challenger.GetMapId())
+        {
+            challengerBattlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return false;
+        }
+
+        if (!targetBattlePetMgr->HasLoadoutBattlePet())
+        {
+            challengerBattlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_NO_PETS);
+            return false;
+        }
+
+        if (!targetBattlePetMgr->GetFirstAliveLoadoutBattlePet())
+        {
+            challengerBattlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_ALL_PETS_DEAD);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool HandlePendingPetBattlePvpChallengeResponse(Player& target,
+        Skyfire::BattlePetPackets::BattlePetRequestUpdate const& request)
+    {
+        uint64 const targetGuid = target.GetGUID();
+        std::map<uint64, PetBattlePvpChallenge>::iterator challengeItr =
+            PetBattlePvpChallengesByTarget.find(targetGuid);
+        if (challengeItr == PetBattlePvpChallengesByTarget.end())
+            return false;
+
+        if (IsPetBattlePvpChallengeExpired(challengeItr->second))
+        {
+            ClearPetBattlePvpChallengeForTarget(targetGuid, true);
+            return true;
+        }
+
+        PetBattlePvpChallenge challenge = challengeItr->second;
+        Player* challenger = ObjectAccessor::FindPlayer(challenge.ChallengerGuid);
+        if (!challenger)
+        {
+            ClearPetBattlePvpChallengeForTarget(targetGuid);
+            target.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return true;
+        }
+
+        if (request.Cancelled)
+        {
+            ClearPetBattlePvpChallengeForTarget(targetGuid);
+            challenger->GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return true;
+        }
+
+        if (!challengeItr->second.PromptAcknowledged)
+        {
+            challengeItr->second.PromptAcknowledged = true;
+            return true;
+        }
+
+        challenge = challengeItr->second;
+        ClearPetBattlePvpChallengeForTarget(targetGuid);
+
+        LeavePetBattlePvpQueue(*challenger, false);
+        LeavePetBattlePvpQueue(target, false);
+
+        if (!StartPetBattlePvp(*challenger, target, challenge.Origin, challenge.Positions,
+            challenge.Orientation, challenge.HasLocationResult, challenge.LocationResult))
+        {
+            challenger->GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            target.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        }
+
+        return true;
+    }
+
+    bool CompletePendingPetBattlePvpChallenge(Player& target, bool accepted)
+    {
+        uint64 const targetGuid = target.GetGUID();
+        std::map<uint64, PetBattlePvpChallenge>::iterator challengeItr =
+            PetBattlePvpChallengesByTarget.find(targetGuid);
+        if (challengeItr == PetBattlePvpChallengesByTarget.end())
+            return false;
+
+        if (IsPetBattlePvpChallengeExpired(challengeItr->second))
+        {
+            ClearPetBattlePvpChallengeForTarget(targetGuid, true);
+            return true;
+        }
+
+        PetBattlePvpChallenge challenge = challengeItr->second;
+        Player* challenger = ObjectAccessor::FindPlayer(challenge.ChallengerGuid);
+        ClearPetBattlePvpChallengeForTarget(targetGuid);
+
+        if (!challenger)
+        {
+            target.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return true;
+        }
+
+        if (!accepted)
+        {
+            challenger->GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return true;
+        }
+
+        LeavePetBattlePvpQueue(*challenger, false);
+        LeavePetBattlePvpQueue(target, false);
+
+        if (!StartPetBattlePvp(*challenger, target, challenge.Origin, challenge.Positions,
+            challenge.Orientation, challenge.HasLocationResult, challenge.LocationResult))
+        {
+            challenger->GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            target.GetBattlePetMgr()->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        }
+
+        return true;
+    }
+}
+
+void WorldSession::UpdatePetBattlePvpQueueState()
+{
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    ExpirePetBattlePvpChallenge(*player);
+    ExpirePetBattlePvpProposal(*player);
+}
+
+void WorldSession::ClearPetBattlePvpQueueState()
+{
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    ClearPetBattlePvpChallengesFor(player->GetGUID(), true, player->GetGUID());
+    LeavePetBattlePvpQueue(*player, false,
+        Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_REMOVED,
+        Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_OPPONENT_DECLINED);
+}
+
 void WorldSession::HandlePetBattleStartPvpMatchmaking(WorldPacket& recvData)
 {
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_START_PVP_MATCHMAKING");
 
-    WorldPacket data(SMSG_PET_BATTLE_QUEUE_STATUS, 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 8 + 1);
+    Player* player = GetPlayer();
+    if (!player || !ValidatePetBattleQueueRequest(*player))
+        return;
 
-    //CliRideTicket.RequesterGuid
-    ObjectGuid guid = GetPlayer()->GetGUID();
-
-    data.WriteGuidMask(guid, 7, 2, 6, 1);
-    data.WriteBit(0); // 20 hasAverageWaitTime
-    data.WriteGuidMask(guid, 4);
-    data.WriteBits(0, 22);
-    data.WriteGuidMask(guid, 0);
-    data.WriteBit(0); // 48 hasClientWaitTime
-    data.WriteGuidMask(guid, 3, 5);
-
-    data.FlushBits();
-    data.WriteGuidBytes(guid, 2, 4);
-    data << uint32(0); // 72 CliRideTicket.Time
-    data.WriteGuidBytes(guid, 3);
-    data << uint32(1); // 24 Status // ERR_PETBATTLE_QUEUE_ status, 1 = ERR_PETBATTLE_QUEUE_QUEUED
-    data.WriteGuidBytes(guid, 6);
-    //if (hasClientWaitTime)
-    //data << uint32(0) // 44
-    data.WriteGuidBytes(guid, 1);
-    data << uint32(0); // 68 CliRideTicket.Type
-    data.WriteGuidBytes(guid, 5, 7);
-    data << uint32(0); // 64 CliRideTicket.Id
-    data.WriteGuidBytes(guid, 0);
-
-    for (uint8 i = 0; i < 3; i++)
-        data << uint32(1); // SlotResult
-
-    //if (hasAverageWaitTime)
-    // data << uint32(0); // 16
-
-    SendPacket(&data);
+    JoinPetBattlePvpQueue(*this, *player);
 }
 
 void WorldSession::HandlePetBattleStopPvpMatchmaking(WorldPacket& recvData)
 {
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_STOP_PVP_MATCHMAKING");
-    //CliRideTicket
+
+    if (Player* player = GetPlayer())
+        LeavePetBattlePvpQueue(*player, true);
+}
+
+void WorldSession::HandlePetBattleQueueProposeMatchResult(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH_RESULT");
+
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    if (ExpirePetBattlePvpProposal(*player))
+        return;
+
+    uint64 const playerGuid = player->GetGUID();
+    std::map<uint64, PetBattlePvpProposal>::iterator proposalItr = PetBattlePvpProposals.find(playerGuid);
+    if (proposalItr == PetBattlePvpProposals.end())
+    {
+        SendPetBattleQueueStatus(*this, *player, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_NONE);
+        return;
+    }
+
+    if (!ReadPetBattleQueueProposeAccepted(recvData))
+    {
+        LeavePetBattlePvpQueue(*player, true,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_PROPOSAL_DECLINED,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_OPPONENT_DECLINED);
+        return;
+    }
+
+    proposalItr->second.Accepted = true;
+
+    uint64 const opponentGuid = proposalItr->second.OpponentGuid;
+    std::map<uint64, PetBattlePvpProposal>::iterator opponentProposalItr = PetBattlePvpProposals.find(opponentGuid);
+    if (opponentProposalItr == PetBattlePvpProposals.end())
+    {
+        LeavePetBattlePvpQueue(*player, true);
+        return;
+    }
+
+    if (!opponentProposalItr->second.Accepted)
+        return;
+
+    Player* opponent = ObjectAccessor::FindPlayer(opponentGuid);
+    if (!opponent)
+    {
+        FailAcceptedPetBattlePvpQueueMatch(*player, NULL);
+        return;
+    }
+
+    if (!ValidatePetBattleQueueRequest(*player) || !ValidatePetBattlePvpDuelTarget(*player, opponent))
+    {
+        FailAcceptedPetBattlePvpQueueMatch(*player, opponent);
+        return;
+    }
+
+    ClearPetBattlePvpProposal(playerGuid);
+    RemovePetBattlePvpQueueEntry(playerGuid);
+    RemovePetBattlePvpQueueEntry(opponentGuid);
+
+    player->GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+    opponent->GetBattlePetMgr()->SetPetBattlePvpQueued(false);
+
+    SendPetBattleQueueStatus(*this, *player, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_NONE);
+    SendPetBattleQueueStatus(*opponent, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_NONE);
+
+    G3D::Vector3 origin;
+    G3D::Vector3 positions[2];
+    float orientation = 0.0f;
+    BuildPetBattleQueueLocation(*player, *opponent, origin, positions, orientation);
+    if (!StartPetBattlePvp(*player, *opponent, origin, positions, orientation, false, 0,
+        BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING))
+    {
+        SendPetBattleQueueStatus(*this, *player,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_JOIN_FAILED);
+        SendPetBattleQueueStatus(*opponent,
+            Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_JOIN_FAILED);
+    }
+}
+
+void WorldSession::HandlePetBattleRequestPvp(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_REQUEST_PVP");
+
+    PetBattleRequest petBattleRequest = { };
+    ReadPetBattlePvpDuelRequestLocation(recvData, petBattleRequest);
+
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    if (!ValidatePetBattleQueueRequest(*player))
+        return;
+
+    Player* target = player->GetSelectedPlayer();
+    if (!ValidatePetBattlePvpDuelTarget(*player, target))
+        return;
+
+    LeavePetBattlePvpQueue(*player, false);
+    LeavePetBattlePvpQueue(*target, false);
+
+    uint64 const playerGuid = player->GetGUID();
+    uint64 const targetGuid = target->GetGUID();
+    ClearPetBattlePvpChallengesFor(playerGuid, true, playerGuid);
+    ClearPetBattlePvpChallengesFor(targetGuid, true, targetGuid);
+
+    petBattleRequest.Orientation = Skyfire::BattlePetPackets::ResolveBattlePetFacing(
+        false, petBattleRequest.Orientation, petBattleRequest.Origin, petBattleRequest.Positions);
+
+    PetBattlePvpChallenge challenge;
+    challenge.ChallengerGuid = playerGuid;
+    challenge.TargetGuid = targetGuid;
+    challenge.Origin = petBattleRequest.Origin;
+    challenge.Positions[0] = petBattleRequest.Positions[0];
+    challenge.Positions[1] = petBattleRequest.Positions[1];
+    challenge.Orientation = petBattleRequest.Orientation;
+    challenge.LocationResult = petBattleRequest.LocationResult;
+    challenge.HasLocationResult = true;
+    challenge.CreatedAt = time(NULL);
+    PetBattlePvpChallengesByTarget[targetGuid] = challenge;
+    PetBattlePvpChallengeTargetByChallenger[playerGuid] = targetGuid;
+
+    WorldPacket data = Skyfire::BattlePetPackets::BuildPvpChallengePacket(
+        player->GetGUID(), petBattleRequest.Origin, petBattleRequest.Positions,
+        true, petBattleRequest.Orientation, true, petBattleRequest.LocationResult);
+    target->SendDirectMessage(&data);
+    SendPetBattleDuelPopup(*player, *target);
+}
+
+bool WorldSession::HandlePendingPetBattlePvpDuelResponse(bool accepted)
+{
+    Player* player = GetPlayer();
+    if (!player)
+        return false;
+
+    return CompletePendingPetBattlePvpChallenge(*player, accepted);
 }
 
 void WorldSession::HandleBattlePetDelete(WorldPacket& recvData)
@@ -87,7 +1155,15 @@ void WorldSession::HandleBattlePetDelete(WorldPacket& recvData)
         return;
     }
 
+    if (battlePetMgr->GetLoadoutSlotForBattlePet(petEntry) != BATTLE_PET_LOADOUT_SLOT_NONE)
+    {
+        SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_DELETE - Player %u tryed to release slotted Battle Pet %lu!",
+            GetPlayer()->GetGUIDLow(), (uint64)petEntry);
+        return;
+    }
+
     battlePetMgr->Delete(battlePet);
+    battlePetMgr->SaveToDb();
 }
 
 #define BATTLE_PET_MAX_DECLINED_NAMES 5
@@ -159,6 +1235,8 @@ void WorldSession::HandleBattlePetModifyName(WorldPacket& recvData)
 
     if (battlePetMgr->GetCurrentSummonId())
         battlePetMgr->GetCurrentSummon()->SetUInt32Value(UNIT_FIELD_BATTLE_PET_COMPANION_NAME_TIMESTAMP, battlePet->GetTimestamp());
+
+    battlePetMgr->SaveToDb();
 }
 
 void WorldSession::HandleBattlePetQueryName(WorldPacket& recvData)
@@ -220,6 +1298,8 @@ void WorldSession::HandleBattlePetQueryName(WorldPacket& recvData)
         return;
 
     BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(battlePet->GetSpecies());
+    if (!speciesEntry)
+        return;
 
     WorldPacket data(SMSG_BATTLE_PET_QUERY_NAME_RESPONSE, 8 + 4 + 4 + 5 + battlePet->GetNickname().size());
     data << uint64(petEntry);
@@ -238,6 +1318,47 @@ void WorldSession::HandleBattlePetQueryName(WorldPacket& recvData)
     data.WriteString(battlePet->GetNickname());
 
     SendPacket(&data);
+}
+
+void WorldSession::HandleBattlePetRequestJournal(WorldPacket& /*recvData*/)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_BATTLE_PET_REQUEST_JOURNAL");
+    BattlePetMgr* battlePetMgr = GetPlayer()->GetBattlePetMgr();
+    battlePetMgr->SendBattlePetJournal();
+    battlePetMgr->SendBattlePetJournalLock();
+}
+
+void WorldSession::HandleBattlePetLearn(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_BATTLE_PET_LEARN");
+
+    ObjectGuid itemGuid;
+    recvData.ReadGuidMask(itemGuid, 7, 1, 0, 5, 4, 2, 3, 6);
+    recvData.ReadGuidBytes(itemGuid, 2, 3, 4, 1, 5, 7, 0, 6);
+
+    Player* player = GetPlayer();
+    Item* item = player->GetItemByGuid(itemGuid);
+    if (!item)
+    {
+        SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_LEARN - Player %u tried to learn a battle pet from missing item " UI64FMTD,
+            player->GetGUIDLow(), uint64(itemGuid));
+        return;
+    }
+
+    BattlePetItemXSpeciesStore::const_iterator speciesItr = sBattlePetItemXSpeciesStore.find(item->GetEntry());
+    if (speciesItr == sBattlePetItemXSpeciesStore.end() || !speciesItr->second)
+    {
+        SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_LEARN - Player %u tried to learn a battle pet from non-pet item %u",
+            player->GetGUIDLow(), item->GetEntry());
+        return;
+    }
+
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (!battlePetMgr->Create(speciesItr->second))
+        return;
+
+    player->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+    battlePetMgr->SaveToDb();
 }
 
 void WorldSession::HandleBattlePetSetBattleSlot(WorldPacket& recvData)
@@ -278,11 +1399,17 @@ void WorldSession::HandleBattlePetSetBattleSlot(WorldPacket& recvData)
     }
 
     // sever handles slot swapping, find source slot and replace it with the destination slot
+    uint64 const dstPetEntry = battlePetMgr->GetLoadoutSlot(slot);
     uint8 srcSlot = battlePetMgr->GetLoadoutSlotForBattlePet(petEntry);
-    if (srcSlot != BATTLE_PET_LOADOUT_SLOT_NONE)
-        battlePetMgr->SetLoadoutSlot(srcSlot, battlePetMgr->GetLoadoutSlot(slot), true);
+    if (srcSlot != BATTLE_PET_LOADOUT_SLOT_NONE && srcSlot != slot)
+    {
+        battlePetMgr->SetLoadoutSlot(srcSlot, dstPetEntry, true);
+        battlePetMgr->SendBattlePetSlotUpdate(srcSlot, false, dstPetEntry);
+    }
 
     battlePetMgr->SetLoadoutSlot(slot, petEntry, true);
+    battlePetMgr->SendBattlePetSlotUpdate(slot, false, petEntry);
+    battlePetMgr->SaveToDb();
 }
 
 enum BattlePetFlagModes
@@ -306,7 +1433,8 @@ void WorldSession::HandleBattlePetSetFlags(WorldPacket& recvData)
 
     recvData.ReadGuidBytes(petEntry, 4, 0, 7, 3, 1, 6, 2, 5);
 
-    BattlePet* battlePet = GetPlayer()->GetBattlePetMgr()->GetBattlePet(petEntry);
+    BattlePetMgr* battlePetMgr = GetPlayer()->GetBattlePetMgr();
+    BattlePet* battlePet = battlePetMgr->GetBattlePet(petEntry);
     if (!battlePet)
     {
         SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_SET_FLAGS - Player %u tryed to set the flags for Battle Pet %lu which it doesn't own!",
@@ -325,8 +1453,26 @@ void WorldSession::HandleBattlePetSetFlags(WorldPacket& recvData)
         return;
     }
 
-    // TODO: check if Battle Pet is correct level for ability
+    if (mode != BATTLE_PET_FLAG_MODE_SET && mode != BATTLE_PET_FLAG_MODE_UNSET)
+    {
+        SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_SET_FLAGS - Player %u tryed to set Battle Pet flag %u with invalid mode %u!",
+            GetPlayer()->GetGUIDLow(), flag, mode);
+        return;
+    }
 
+    uint8 const abilitySlot = BattlePetAbilitySlotForJournalFlag(flag);
+    if (abilitySlot != BATTLE_PET_ABILITY_SLOT_INVALID)
+    {
+        bool const useAlternateAbility = mode == BATTLE_PET_FLAG_MODE_SET;
+        if (!BattlePetHasSpeciesAbility(battlePet->GetSpecies(), abilitySlot, useAlternateAbility, battlePet->GetLevel()))
+        {
+            SF_LOG_DEBUG("network", "CMSG_BATTLE_PET_SET_FLAGS - Player %u tryed to select unavailable Battle Pet ability flag %u for pet %lu!",
+                GetPlayer()->GetGUIDLow(), flag, (uint64)petEntry);
+            return;
+        }
+    }
+
+    uint16 const oldFlags = battlePet->GetFlags();
     switch (mode)
     {
         case BATTLE_PET_FLAG_MODE_SET:
@@ -335,6 +1481,12 @@ void WorldSession::HandleBattlePetSetFlags(WorldPacket& recvData)
         case BATTLE_PET_FLAG_MODE_UNSET:
             battlePet->UnSetFlag(flag);
             break;
+    }
+
+    if (oldFlags != battlePet->GetFlags())
+    {
+        battlePetMgr->SendBattlePetUpdate(battlePet, false);
+        battlePetMgr->SaveToDb();
     }
 }
 
@@ -377,14 +1529,217 @@ void WorldSession::HandleBattlePetSummonCompanion(WorldPacket& recvData)
     }
 }
 
+void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_INPUT");
+
+    Skyfire::BattlePetPackets::BattlePetInput input = Skyfire::BattlePetPackets::ReadBattlePetInput(recvData);
+    Skyfire::BattlePetPackets::BattlePetInputCommand command =
+        Skyfire::BattlePetPackets::BuildBattlePetInputCommand(input);
+    if (command.Action == Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_NONE)
+        return;
+
+    Player* player = GetPlayer();
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (!battlePetMgr->HasActivePetBattle())
+        return;
+
+    bool handled = false;
+    bool sendRound = false;
+    bool sendFinal = false;
+    uint64 pvpForfeitOpponentGuid = 0;
+    uint64 pvpFinalOpponentGuid = 0;
+    Skyfire::BattlePetPackets::BattlePetRoundResult round;
+    Skyfire::BattlePetPackets::BattlePetFinalRound finalRound;
+
+    switch (command.Action)
+    {
+        case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_ABILITY:
+        {
+            ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+            uint32 const roundId = activeBattle.RoundID;
+            uint32 const enemyAbilityId = BattlePetGetSpeciesAbility(
+                activeBattle.EnemySpecies, 0, 0, activeBattle.EnemyLevel);
+            BattlePet const* allyBattlePet = GetActiveBattlePet(*battlePetMgr);
+            BattlePet const* enemyBattlePet = GetPvpOpponentActiveBattlePet(*player, activeBattle);
+            uint32 const enemyDamage = enemyBattlePet
+                ? BattlePetInputDamageForAbility(enemyAbilityId, enemyBattlePet)
+                : BattlePetInputDamageForEnemyAbility(enemyAbilityId, activeBattle);
+
+            if (activeBattle.IsPvP())
+                pvpFinalOpponentGuid = activeBattle.EnemyGUID;
+
+            handled = battlePetMgr->ApplyBattlePetAbilityExchangeInput(roundId,
+                BattlePetInputDamageForAbility(command.AbilityID, allyBattlePet),
+                BattlePetInputEffectForAbility(command.AbilityID),
+                enemyDamage,
+                BattlePetInputEffectForAbility(enemyAbilityId), round, &finalRound);
+            sendRound = handled;
+            sendFinal = !finalRound.Pets.empty();
+            break;
+        }
+        case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_SWAP:
+            if (command.NewFrontPet < 0)
+                return;
+
+            handled = battlePetMgr->ApplyBattlePetSwapInput(battlePetMgr->GetActivePetBattle().RoundID,
+                uint8(command.NewFrontPet), round);
+            sendRound = handled;
+            break;
+        case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_FORFEIT:
+        {
+            ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+            if (activeBattle.IsPvP())
+                pvpForfeitOpponentGuid = activeBattle.EnemyGUID;
+
+            handled = battlePetMgr->ApplyBattlePetForfeitInput(battlePetMgr->GetActivePetBattle().RoundID, finalRound);
+            sendFinal = handled;
+            break;
+        }
+        case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_TRAP:
+            handled = battlePetMgr->ApplyBattlePetTrapInput(battlePetMgr->GetActivePetBattle().RoundID, finalRound);
+            sendFinal = handled;
+            break;
+        default:
+            return;
+    }
+
+    if (!handled)
+        return;
+
+    if (sendRound)
+        SendBattlePetRoundResult(*player, round);
+
+    if (sendFinal)
+    {
+        if (pvpForfeitOpponentGuid)
+            FinishActivePvpPetBattleAfterForfeit(*player, pvpForfeitOpponentGuid, finalRound);
+        else if (pvpFinalOpponentGuid)
+            FinishActivePvpPetBattle(*player, pvpFinalOpponentGuid, finalRound,
+                OpponentWinnerForFinalRound(finalRound), false);
+        else
+        {
+            SendBattlePetFinalRound(*player, finalRound);
+            ClearActivePetBattleAndSave(*player);
+        }
+    }
+}
+
+void WorldSession::HandleBattlePetInputFirstPet(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_SET_FRONT_PET");
+
+    Skyfire::BattlePetPackets::BattlePetFirstPetSelection selection =
+        Skyfire::BattlePetPackets::ReadBattlePetFirstPetSelection(recvData);
+
+    Player* player = GetPlayer();
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (!battlePetMgr->HasActivePetBattle())
+        return;
+
+    if (!battlePetMgr->SelectActivePetBattleFrontPet(selection.PetID))
+        return;
+
+    ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+    WorldPacket firstRound = Skyfire::BattlePetPackets::BuildFirstRoundPacket(
+        activeBattle.RoundID, activeBattle.AllyFrontPet, activeBattle.EnemyFrontPet,
+        battlePetMgr->GetActivePetBattleTrapStatus(), PET_BATTLE_TRAP_STATUS_UNAVAILABLE);
+    player->SendDirectMessage(&firstRound);
+}
+
+void WorldSession::HandleBattlePetFinalNotify(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_FINAL_NOTIFY");
+
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    SendBattlePetFinished(*player);
+
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (battlePetMgr->HasActivePetBattle())
+        ClearActivePetBattleAndSave(*player);
+}
+
+void WorldSession::HandleBattlePetQuitNotify(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_QUIT_NOTIFY");
+
+    Player* player = GetPlayer();
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (!battlePetMgr->HasActivePetBattle())
+        return;
+
+    ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+    uint64 const pvpOpponentGuid = activeBattle.IsPvP() ? activeBattle.EnemyGUID : 0;
+    Skyfire::BattlePetPackets::BattlePetFinalRound finalRound;
+    if (battlePetMgr->ApplyBattlePetForfeitInput(activeBattle.RoundID, finalRound))
+    {
+        if (pvpOpponentGuid)
+        {
+            FinishActivePvpPetBattleAfterForfeit(*player, pvpOpponentGuid, finalRound);
+            return;
+        }
+
+        SendBattlePetFinalRound(*player, finalRound);
+    }
+
+    ClearActivePetBattleAndSave(*player);
+}
+
+void WorldSession::HandleBattlePetRequestUpdate(WorldPacket& recvData)
+{
+    SF_LOG_DEBUG("network", "WORLD: Received CMSG_PET_BATTLE_REQUEST_UPDATE");
+
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    Skyfire::BattlePetPackets::BattlePetRequestUpdate request =
+        Skyfire::BattlePetPackets::ReadBattlePetRequestUpdate(recvData);
+
+    if (!battlePetMgr->HasActivePetBattle())
+    {
+        if (HandlePendingPetBattlePvpChallengeResponse(*player, request))
+            return;
+
+        if (ExpirePetBattlePvpProposal(*player))
+            return;
+
+        if (battlePetMgr->IsPetBattlePvpQueued())
+            SendPetBattleQueueStatus(*this, *player, Skyfire::BattlePetPackets::PET_BATTLE_QUEUE_STATUS_QUEUED);
+
+        return;
+    }
+
+    if (!request.Cancelled)
+        return;
+
+    ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+    uint64 const pvpOpponentGuid = activeBattle.IsPvP() ? activeBattle.EnemyGUID : 0;
+    Skyfire::BattlePetPackets::BattlePetFinalRound finalRound;
+    if (!battlePetMgr->ApplyBattlePetForfeitInput(activeBattle.RoundID, finalRound))
+        return;
+
+    if (pvpOpponentGuid)
+        FinishActivePvpPetBattleAfterForfeit(*player, pvpOpponentGuid, finalRound);
+    else
+    {
+        SendBattlePetFinalRound(*player, finalRound);
+        ClearActivePetBattleAndSave(*player);
+    }
+}
+
 void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
 {
     SF_LOG_DEBUG("network", "WORLD: Received CMSG_BATTLE_PET_WILD_REQUEST");
     ObjectGuid guid;
-    bool hasOrientation;
-    bool hasResult;
+    bool missingOrientation;
+    bool missingResult;
 
-    PetBattleRequest petBattleRequest;
+    PetBattleRequest petBattleRequest = { };
 
     for (uint8 i = 0; i < 2; i++) // team positions
     {
@@ -399,214 +1754,106 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
     recvData >> petBattleRequest.Origin.x;
 
     recvData.ReadGuidMask(guid, 0);
-    hasOrientation = recvData.ReadBit();
+    missingOrientation = recvData.ReadBit();
     recvData.ReadGuidMask(guid, 6, 3, 5, 2, 7, 1, 4);
-    hasResult = recvData.ReadBit();
+    missingResult = recvData.ReadBit();
 
     recvData.ReadGuidBytes(guid, 3, 6, 5, 2, 7, 1, 0, 4);
 
-    if (hasOrientation)
+    if (!missingOrientation)
         recvData >> petBattleRequest.Orientation;
 
-    if (hasResult)
+    if (!missingResult)
         recvData >> petBattleRequest.LocationResult;
 
+    BattlePetMgr* battlePetMgr = GetPlayer()->GetBattlePetMgr();
     Creature* wildBattlePet = ObjectAccessor::GetCreatureOrPetOrVehicle(*GetPlayer(), guid);
+    if (!wildBattlePet)
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        return;
+    }
+
+    if (!wildBattlePet->HasFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_WILDPET_CAPTURABLE))
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        return;
+    }
+
+    if (!battlePetMgr->HasLoadoutBattlePet())
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_NO_PETS);
+        return;
+    }
+
+    BattlePet* activeBattlePet = battlePetMgr->GetFirstAliveLoadoutBattlePet();
+    if (!activeBattlePet)
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_ALL_PETS_DEAD);
+        return;
+    }
+
+    Skyfire::BattlePetPackets::InitialUpdateTeamData teams[2];
+    uint8 activeBattlePetIndex = 0;
+    for (uint8 slot = 0; slot < BATTLE_PET_MAX_LOADOUT_SLOTS
+        && teams[0].PetCount < Skyfire::BattlePetPackets::INITIAL_UPDATE_MAX_TEAM_PETS; slot++)
+    {
+        BattlePet* loadoutBattlePet = battlePetMgr->GetBattlePet(battlePetMgr->GetLoadoutSlot(slot));
+        if (!loadoutBattlePet)
+            continue;
+
+        uint8 const petIndex = teams[0].PetCount;
+        teams[0].Pets[petIndex] = Skyfire::BattlePetPackets::BuildInitialUpdatePetData(*loadoutBattlePet);
+        teams[0].PetCount++;
+
+        if (loadoutBattlePet == activeBattlePet)
+            activeBattlePetIndex = petIndex;
+    }
+
+    teams[0].FrontPet = activeBattlePetIndex;
+    teams[0].OwnerGuid = GetPlayer()->GetGUID();
+    teams[0].TrapAbility = battlePetMgr->GetTrapAbility();
+    teams[1].PetCount = 1;
+    teams[1].TrapStatus = PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
+
+    uint8 wildPetBreed = 0;
+    if (!BuildWildInitialUpdatePetData(*wildBattlePet, teams[1].Pets[0], wildPetBreed))
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        return;
+    }
+
+    petBattleRequest.EnemyGUID = wildBattlePet->GetGUID();
     petBattleRequest.Type = PetBattleRequest::PET_BATTLE_TYPE_PVE;
     petBattleRequest.Challenger = GetPlayer();
     petBattleRequest.Enemy = wildBattlePet;
+    bool const hasClientOrientation = !missingOrientation;
+    petBattleRequest.Orientation = Skyfire::BattlePetPackets::ResolveBattlePetFacing(
+        hasClientOrientation, petBattleRequest.Orientation, petBattleRequest.Origin, petBattleRequest.Positions);
 
+    battlePetMgr->ApplyActivePetBattlePlayerState(petBattleRequest.Positions[1].x, petBattleRequest.Positions[1].y);
 
-    WorldPacket data(SMSG_PET_BATTLE_FINALIZE_LOCATION, 100);
-    data << petBattleRequest.Origin.x;
-    data << petBattleRequest.Origin.y;
-
-    for (uint8 i = 0; i < 2; i++) // team positions
-    {
-        data << petBattleRequest.Positions[i].y;
-        data << petBattleRequest.Positions[i].x;
-        data << petBattleRequest.Positions[i].z;
-    }
-
-    data << petBattleRequest.Origin.z;
-
-    data.WriteBit(petBattleRequest.Orientation);
-    data.WriteBit(petBattleRequest.LocationResult);
-
-    if (petBattleRequest.LocationResult)
-        data << uint32(petBattleRequest.LocationResult);
-    if (petBattleRequest.Orientation)
-        data << float(petBattleRequest.Orientation);
+    WorldPacket data = Skyfire::BattlePetPackets::BuildFinalizeLocationPacket(
+        petBattleRequest.Origin, petBattleRequest.Positions, true, petBattleRequest.Orientation,
+        !missingResult, petBattleRequest.LocationResult);
     _player->SendDirectMessage(&data);
 
+    battlePetMgr->StartWildPetBattle(petBattleRequest.EnemyGUID,
+        activeBattlePet->GetId(), activeBattlePet->GetMaxHealth(), activeBattlePet->GetCurrentHealth(),
+        teams[1].Pets[0].Id, teams[1].Pets[0].MaxHealth, teams[1].Pets[0].CurrentHealth,
+        uint16(teams[1].Pets[0].Species), uint8(teams[1].Pets[0].Level), uint8(teams[1].Pets[0].Quality),
+        wildPetBreed, activeBattlePetIndex);
 
-    //SMSG_PET_BATTLE_INITIAL_UPDATE starts the pet battle itself.
-    WorldPacket data2(SMSG_PET_BATTLE_INITIAL_UPDATE, 1000);
+    for (uint8 petIndex = 0; petIndex < teams[0].PetCount; petIndex++)
+        battlePetMgr->SetActivePetBattleAllyPet(petIndex, teams[0].Pets[petIndex].Id,
+            teams[0].Pets[petIndex].MaxHealth, teams[0].Pets[petIndex].CurrentHealth);
 
-    bool hasWatingForFrontPetsMaxSecs = true;
-    bool hasPvPMaxRoundTime = true;
-    bool hasForfietPenalty = true;
-    bool hasCreatureId = false;
-    bool hasDisplayId = false;
+    battlePetMgr->SelectActivePetBattleFrontPet(activeBattlePetIndex);
+    teams[0].TrapStatus = battlePetMgr->GetActivePetBattleTrapStatus();
 
-    ObjectGuid wildBattlePetGuid = petBattleRequest.EnemyGUID;
-
-    // enviroment update
-    for (uint8 i = 0; i < 3; i++)
-    {
-        data2.WriteBits(0, 21);                      // AuraCount
-        data2.WriteBits(0, 21);                      // StateCount
-    }
-
-    for (uint8 i = 0; i < 2; i++)
-    {
-        bool hasRoundTimeSec = false;
-        bool hasFrontPet = false;
-        bool trapStatus = true;
-
-        ObjectGuid characterGuid = 0;
-
-        data2.WriteBit(trapStatus);
-        data2.WriteBits(1, 2); // BattlePet Count
-        data2.WriteBit(characterGuid[2]);
-
-        for (uint8 j = 0; j < 1; j++)
-        {
-            ObjectGuid petEntry = 0;
-
-            data2.WriteBits(0, 21);      // aura count
-            data2.WriteBit(petEntry[3]);
-            data2.WriteBits(0, 21);
-
-            uint8 abilityCount = 0;
-            for (uint8 k = 0; k < 3; k++)
-                abilityCount++;
-
-            data2.WriteBit(petEntry[0]);
-            data2.WriteBit(0); // flags
-            data2.WriteGuidMask(petEntry, 5, 1);
-
-            data2.WriteBits(abilityCount, 20);
-            data2.WriteBit(0);
-            data2.WriteBits(0, 7); // name size
-            data2.WriteGuidMask(petEntry, 2, 4);
-
-            for (uint8 l = 0; l < 3; l++)
-                data2.WriteBit(0);
-
-            data2.WriteGuidMask(petEntry, 6, 7);
-        }
-
-        data2.WriteBit(hasFrontPet);
-        data2.WriteBit(hasRoundTimeSec);
-        data2.WriteGuidMask(characterGuid, 5, 3, 4, 6, 7, 0, 1);
-    }
-
-    data2.WriteBit(hasForfietPenalty);
-
-    data2.WriteBit(0); // CanAwardXP?
-    data2.WriteBit(0); // IsPvP
-
-    data2.WriteBit(hasDisplayId);
-    data2.WriteBit(hasCreatureId);
-    data2.WriteBit(hasWatingForFrontPetsMaxSecs);
-    data2.WriteBit(wildBattlePetGuid);
-
-    data2.WriteGuidMask(wildBattlePetGuid, 2, 4, 5, 1, 3, 6, 7, 0);
-
-    data2.WriteBit(!hasPvPMaxRoundTime);
-    data2.WriteBit(0); // battlepetstate
-
-    data2.FlushBits();
-
-    for (uint8 i = 0; i < 2; i++)
-    {
-        ObjectGuid characterGuid = 0;
-
-        bool hasRoundTimeSec = false;
-        bool hasFrontPet = true;
-        bool trapStatus = true;
-
-        uint8 battlePetTeamIndex = 0;
-        for (uint8 j = 0; j < 1; j++)
-        {
-            data2 << battlePetTeamIndex;
-            battlePetTeamIndex++;
-
-
-            BattlePet* battlePet = GetPlayer()->GetBattlePetMgr()->GetBattlePet(GetPlayer()->GetBattlePetMgr()->GetLoadoutSlot(j));
-            ObjectGuid petEntry = battlePet->GetId();
-
-            for (uint8 k = 0; k < 3; k++)
-            {
-                data2 << uint32(0); //AbilityId
-                data2 << uint8(k);
-                data2 << uint8(0); // GlobalIndex
-                data2 << uint16(0); // Cooldown
-                data2 << uint16(0); // Lockdown
-            }
-
-            data2 << uint32(0);
-            data2.WriteByteSeq(petEntry[4]);
-            data2 << uint16(battlePet->GetLevel()); //Level
-            data2.WriteByteSeq(petEntry[7]);
-            data2 << uint16(battlePet->GetQuality()); // quality
-            data2.WriteByteSeq(petEntry[6]);
-            data2 << uint32(battlePet->GetPower()); // power
-            data2.WriteByteSeq(petEntry[0]);
-            data2 << uint32(battlePet->GetMaxHealth()); //maxhp
-            data2.WriteByteSeq(petEntry[5]);
-            data2.WriteByteSeq(petEntry[2]);
-            data2 << uint32(battlePet->GetSpeed()); //speed
-            data2 << uint32(battlePet->GetCurrentHealth()); // curhp
-            data2.WriteByteSeq(petEntry[3]);
-            data2 << uint32(0);
-            data2.WriteByteSeq(petEntry[1]);
-            data2 << uint32(0);
-            data2 << uint16(battlePet->GetXp()); // xp
-            data2 << battlePet->GetFlags(); // flags
-            data2.WriteString(battlePet->GetNickname()); //name
-            data2 << uint32(battlePet->GetSpecies()); //species
-        }
-
-        if (trapStatus)
-            data2 << uint32(0);
-
-        data2 << uint32(0);
-        data2.WriteGuidBytes(characterGuid, 5, 7, 6, 1, 4, 0);
-
-        if (hasFrontPet)
-            data2 << uint8(0);
-
-        data2 << uint8(6);
-
-        if (hasRoundTimeSec)
-            data2 << uint16(0);
-
-        data2.WriteGuidBytes(characterGuid, 3, 2);
-    }
-
-    if (hasForfietPenalty)
-        data2 << uint8(10);
-
-    data2 << uint8(1);
-
-    data2.WriteGuidBytes(wildBattlePetGuid, 5, 4, 3, 2, 7, 0, 1, 6);
-
-    if (hasDisplayId)
-        data2 << uint32(0);
-
-    if (hasPvPMaxRoundTime)
-        data2 << uint16(30);
-
-    data2 << uint32(0);
-
-    if (hasWatingForFrontPetsMaxSecs)
-        data2 << uint16(30);
-
-    if (hasCreatureId)
-        data2 << uint32(0);
-
+    WorldPacket data2 = Skyfire::BattlePetPackets::BuildInitialUpdatePacket(
+        petBattleRequest.EnemyGUID, teams, 2, petBattleRequest.Type != PetBattleRequest::PET_BATTLE_TYPE_PVE);
     _player->SendDirectMessage(&data2);
+    battlePetMgr->HideActivePetBattleWorldObject(wildBattlePet);
 }
 

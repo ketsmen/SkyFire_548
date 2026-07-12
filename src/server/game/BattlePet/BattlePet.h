@@ -12,6 +12,95 @@
 #define BATTLE_PET_MAX_LEVEL       25
 #define BATTLE_PET_MAX_NAME_LENGTH 16
 
+constexpr uint8 BATTLE_PET_ABILITY_SLOT_COUNT = 3;
+constexpr uint8 BATTLE_PET_ABILITY_SLOT_INVALID = BATTLE_PET_ABILITY_SLOT_COUNT;
+
+enum BattlePetAchievementSource
+{
+    BATTLE_PET_ACHIEVEMENT_SOURCE_WILD = 0,
+    BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL = 1,
+    BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING = 2
+};
+
+inline char const* BattlePetAchievementSourceName(BattlePetAchievementSource source)
+{
+    switch (source)
+    {
+        case BATTLE_PET_ACHIEVEMENT_SOURCE_WILD:
+            return "wild";
+        case BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL:
+            return "pvp-duel";
+        case BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING:
+            return "pvp-matchmaking";
+        default:
+            return "unknown";
+    }
+}
+
+inline uint8 BattlePetCapturedLevel(uint8 level)
+{
+    if (level >= 21)
+        return level - 2;
+
+    if (level >= 16)
+        return level - 1;
+
+    return level;
+}
+
+inline uint32 BattlePetAchievementCriteriaPayload(uint8 quality, BattlePetAchievementSource source, uint8 healthPercent = 0)
+{
+    return uint32(quality) | (uint32(source) << 8) | (uint32(healthPercent) << 16);
+}
+
+inline uint32 BattlePetAchievementCriteriaPayload(uint8 quality, bool pvpBattle, uint8 healthPercent = 0)
+{
+    return BattlePetAchievementCriteriaPayload(quality,
+        pvpBattle ? BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_DUEL : BATTLE_PET_ACHIEVEMENT_SOURCE_WILD,
+        healthPercent);
+}
+
+inline uint8 BattlePetAchievementCriteriaQuality(uint32 payload)
+{
+    return uint8(payload & 0xFF);
+}
+
+inline uint8 BattlePetAchievementCriteriaSource(uint32 payload)
+{
+    return uint8((payload >> 8) & 0xFF);
+}
+
+inline bool BattlePetAchievementCriteriaIsPvp(uint32 payload)
+{
+    return BattlePetAchievementCriteriaSource(payload) != BATTLE_PET_ACHIEVEMENT_SOURCE_WILD;
+}
+
+inline bool BattlePetAchievementCriteriaIsMatchmaking(uint32 payload)
+{
+    return BattlePetAchievementCriteriaSource(payload) == BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING;
+}
+
+inline uint8 BattlePetAchievementCriteriaHealthPercent(uint32 payload)
+{
+    return uint8((payload >> 16) & 0xFF);
+}
+
+struct BattlePetAchievementContext
+{
+    uint16 Species = 0;
+    uint32 FamilyMask = 0;
+    uint8 Quality = 0;
+    BattlePetAchievementSource Source = BATTLE_PET_ACHIEVEMENT_SOURCE_WILD;
+    uint8 HealthPercent = 0;
+    bool Won = false;
+    bool Captured = false;
+
+    bool IsValid() const { return Species != 0; }
+    bool IsPvp() const { return Source != BATTLE_PET_ACHIEVEMENT_SOURCE_WILD; }
+    bool IsMatchmaking() const { return Source == BATTLE_PET_ACHIEVEMENT_SOURCE_PVP_MATCHMAKING; }
+    uint32 Payload() const { return BattlePetAchievementCriteriaPayload(Quality, Source, HealthPercent); }
+};
+
 /*
 enum BattlePetTypeSuffix
 {
@@ -73,6 +162,40 @@ enum class BattlePetDbState
     BATTLE_PET_DB_STATE_SAVE = 2
 };
 
+// flags used in 'account_battle_pet' db table
+enum BattlePetJournalFlags
+{
+    BATTLE_PET_JOURNAL_FLAG_NONE = 0x00,
+    BATTLE_PET_JOURNAL_FLAG_FAVORITES = 0x01,
+    BATTLE_PET_JOURNAL_FLAG_COLLECTED = 0x02, // name dumped from client, use unknown
+    BATTLE_PET_JOURNAL_FLAG_NOT_COLLECTED = 0x04,
+    BATTLE_PET_JOURNAL_FLAG_UNKNOWN_1 = 0x08,
+    BATTLE_PET_JOURNAL_FLAG_ABILITY_1 = 0x10, // ability flags are set if the second ability for that slot is selected
+    BATTLE_PET_JOURNAL_FLAG_ABILITY_2 = 0x20, // ...
+    BATTLE_PET_JOURNAL_FLAG_ABILITY_3 = 0x40  // ...
+};
+
+inline uint8 BattlePetAbilitySlotForJournalFlag(uint32 flag)
+{
+    switch (flag)
+    {
+        case BATTLE_PET_JOURNAL_FLAG_ABILITY_1:
+            return 0;
+        case BATTLE_PET_JOURNAL_FLAG_ABILITY_2:
+            return 1;
+        case BATTLE_PET_JOURNAL_FLAG_ABILITY_3:
+            return 2;
+        default:
+            return BATTLE_PET_ABILITY_SLOT_INVALID;
+    }
+}
+
+uint16 BattlePetHealthFromPercent(uint16 maxHealth, uint8 percent);
+uint16 BattlePetExperienceForNextLevel(uint8 level);
+uint16 BattlePetExperienceReward(uint8 petLevel, uint8 enemyLevel, uint8 participatingPetCount = 1);
+uint8 BattlePetNormalizeWildLevel(uint8 level);
+bool BattlePetSpeciesFlagsAllowWildCapture(uint32 flags);
+
 class BattlePet
 {
 public:
@@ -102,17 +225,20 @@ public:
     uint8 GetBreed() const { return m_breed; }
 
     void SetNickname(std::string const& nickname);
-    void SetTimestamp(uint32 timestamp) { m_timestamp = timestamp; }
+    void SetTimestamp(uint32 timestamp);
     void SetQuality(ItemQualities quality);
+    void SetXp(uint16 xp);
+    void SetCurrentHealth(uint16 health);
 
     BattlePetDbState GetDbState() const { return m_dbState; }
     void SetDbState(BattlePetDbState state) { m_dbState = state; }
 
-    uint8 GetFlags() const { return m_flags; }
+    uint16 GetFlags() const { return m_flags; }
     bool HasFlag(uint16 flag) const { return (m_flags & flag) != 0; }
     void SetFlag(uint16 flag);
     void UnSetFlag(uint16 flag);
     void SetLevel(uint8 level);
+    uint16 AddExperience(uint16 xp);
 
     void CalculateStats(bool currentHealth = false);
 

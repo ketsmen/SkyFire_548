@@ -12,17 +12,17 @@
 #include "Log.h"
 #include "World.h"
 
-//DB2Storage<BattlePetAbilityEffectEntry>     sBattlePetAbilityEffectStore(BattlePetAbilityEffectfmt);
-//DB2Storage<BattlePetAbilityEntry>           sBattlePetAbilityStore(BattlePetAbilityfmt);
-//DB2Storage<BattlePetAbilityStateEntry>      sBattlePetAbilityStateStore(BattlePetAbilityStatefmt);
-//DB2Storage<BattlePetAbilityTurnEntry>       sBattlePetAbilityTurnStore(BattlePetAbilityTurnfmt);
-//DB2Storage<BattlePetBreedQualityEntry>      sBattlePetBreedQualityStore(BattlePetBreedQualityfmt);
+DB2Storage<BattlePetAbilityEffectEntry>     sBattlePetAbilityEffectStore(BattlePetAbilityEffectfmt);
+DB2Storage<BattlePetAbilityEntry>           sBattlePetAbilityStore(BattlePetAbilityfmt);
+DB2Storage<BattlePetAbilityStateEntry>      sBattlePetAbilityStateStore(BattlePetAbilityStatefmt);
+DB2Storage<BattlePetAbilityTurnEntry>       sBattlePetAbilityTurnStore(BattlePetAbilityTurnfmt);
+DB2Storage<BattlePetBreedQualityEntry>      sBattlePetBreedQualityStore(BattlePetBreedQualityfmt);
 DB2Storage<BattlePetBreedStateEntry>        sBattlePetBreedStateStore(BattlePetBreedStatefmt);
-//DB2Storage<BattlePetEffectPropertiesEntry>  sBattlePetEffectPropertiesStore(BattlePetEffectPropertiesfmt);
+DB2Storage<BattlePetEffectPropertiesEntry>  sBattlePetEffectPropertiesStore(BattlePetEffectPropertiesfmt);
 DB2Storage<BattlePetSpeciesEntry>           sBattlePetSpeciesStore(BattlePetSpeciesfmt);
 DB2Storage<BattlePetSpeciesStateEntry>      sBattlePetSpeciesStateStore(BattlePetSpeciesStatefmt);
-//DB2Storage<BattlePetSpeciesXAbilityEntry>   sBattlePetSpeciesXAbilityStore(BattlePetSpeciesXAbilityfmt);
-//DB2Storage<BattlePetStateEntry>             sBattlePetStateStore(BattlePetStatefmt);
+DB2Storage<BattlePetSpeciesXAbilityEntry>   sBattlePetSpeciesXAbilityStore(BattlePetSpeciesXAbilityfmt);
+DB2Storage<BattlePetStateEntry>             sBattlePetStateStore(BattlePetStatefmt);
 //DB2Storage<BattlePetVisualEntry>            sBattlePetVisualStore(BattlePetVisualfmt);
 DB2Storage<BroadcastTextEntry>              sBroadcastTextStore(BroadcastTextfmt/*, &DB2Utilities::HasBroadcastTextEntry, &DB2Utilities::WriteBroadcastTextDbReply*/);
 //DB2Storage<CreatureDifficultyEntry>         sCreatureDifficultyStore(CreatureDifficultyfmt);
@@ -46,6 +46,10 @@ DB2Storage<SpellReagentsEntry>              sSpellReagentsStore(SpellReagentsfmt
 
 BattlePetBreedSet                           sBattlePetBreedSet;
 BattlePetItemXSpeciesStore                  sBattlePetItemXSpeciesStore;
+BattlePetAbilityTurnByAbilityStore          sBattlePetAbilityTurnByAbilityStore;
+BattlePetAbilityEffectByTurnStore           sBattlePetAbilityEffectByTurnStore;
+BattlePetQualityMultiplierStore             sBattlePetQualityMultiplierStore;
+BattlePetSpeciesXAbilityBySpeciesStore      sBattlePetSpeciesXAbilityBySpeciesStore;
 
 typedef std::list<std::string> DB2StoreProblemList;
 
@@ -115,17 +119,17 @@ void LoadDB2Stores(std::string const& dataPath)
     DB2StoreProblemList bad_db2_files;
     uint32 availableDb2Locales = 0xFF;
 
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityEffectStore,   db2Path, "BattlePetAbilityEffect.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityStateStore,    db2Path, "BattlePetAbilityState.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityStore,         db2Path, "BattlePetAbility.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityTurnStore,     db2Path, "BattlePetAbilityTurn.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetBreedQualityStore,    db2Path, "BattlePetBreedQuality.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityEffectStore, db2Path, "BattlePetAbilityEffect.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityStateStore, db2Path, "BattlePetAbilityState.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityStore, db2Path, "BattlePetAbility.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetAbilityTurnStore, db2Path, "BattlePetAbilityTurn.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetBreedQualityStore, db2Path, "BattlePetBreedQuality.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetBreedStateStore, db2Path, "BattlePetBreedState.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetEffectPropertiesStore,db2Path, "BattlePetEffectProperties.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetEffectPropertiesStore, db2Path, "BattlePetEffectProperties.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetSpeciesStateStore, db2Path, "BattlePetSpeciesState.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetSpeciesStore, db2Path, "BattlePetSpecies.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetSpeciesXAbilityStore, db2Path, "BattlePetSpeciesXAbility.db2");
-    //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetStateStore,           db2Path, "BattlePetState.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetSpeciesXAbilityStore, db2Path, "BattlePetSpeciesXAbility.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetStateStore, db2Path, "BattlePetState.db2");
     //LoadDB2(availableDb2Locales, bad_db2_files, sBattlePetVisualStore,          db2Path, "BattlePetVisual.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, sBroadcastTextStore, db2Path, "BroadcastText.db2");
     //LoadDB2(availableDb2Locales, bad_db2_files, sCreatureDifficultyStore,       db2Path, "CreatureDifficulty.db2");
@@ -152,9 +156,45 @@ void LoadDB2Stores(std::string const& dataPath)
             if (sBattlePetBreedSet.find(breedStateEntry->BreedId) == sBattlePetBreedSet.end())
                 sBattlePetBreedSet.insert(breedStateEntry->BreedId);
 
+    sBattlePetQualityMultiplierStore.clear();
+    for (uint32 i = 0; i < sBattlePetBreedQualityStore.GetNumRows(); i++)
+        if (BattlePetBreedQualityEntry const* qualityEntry = sBattlePetBreedQualityStore.LookupEntry(i))
+            sBattlePetQualityMultiplierStore[uint8(qualityEntry->Quality)] = qualityEntry->QualityModifier;
+
     for (uint32 i = 0; i < sItemToBattlePetStore.GetNumRows(); i++)
         if (ItemToBattlePetEntry const* itemEntry = sItemToBattlePetStore.LookupEntry(i))
             sBattlePetItemXSpeciesStore.insert(std::make_pair(itemEntry->ItemId, itemEntry->SpeciesId));
+
+    sBattlePetAbilityTurnByAbilityStore.clear();
+    for (uint32 i = 0; i < sBattlePetAbilityTurnStore.GetNumRows(); i++)
+    {
+        BattlePetAbilityTurnEntry const* turnEntry = sBattlePetAbilityTurnStore.LookupEntry(i);
+        if (!turnEntry)
+            continue;
+
+        sBattlePetAbilityTurnByAbilityStore.insert(std::make_pair(turnEntry->AbilityId,
+            std::make_pair(turnEntry->Id, uint8(turnEntry->TurnIndex))));
+    }
+
+    sBattlePetAbilityEffectByTurnStore.clear();
+    for (uint32 i = 0; i < sBattlePetAbilityEffectStore.GetNumRows(); i++)
+    {
+        BattlePetAbilityEffectEntry const* effectEntry = sBattlePetAbilityEffectStore.LookupEntry(i);
+        if (!effectEntry)
+            continue;
+
+        sBattlePetAbilityEffectByTurnStore[effectEntry->TurnEntryId] = effectEntry;
+    }
+
+    sBattlePetSpeciesXAbilityBySpeciesStore.clear();
+    for (uint32 i = 0; i < sBattlePetSpeciesXAbilityStore.GetNumRows(); i++)
+    {
+        BattlePetSpeciesXAbilityEntry const* abilityEntry = sBattlePetSpeciesXAbilityStore.LookupEntry(i);
+        if (!abilityEntry)
+            continue;
+
+        sBattlePetSpeciesXAbilityBySpeciesStore.insert(std::make_pair(uint16(abilityEntry->SpeciesId), abilityEntry));
+    }
 
     // error checks
     if (bad_db2_files.size() >= DB2FilesCount)
@@ -228,6 +268,29 @@ float BattlePetBreedMainStatModifier(uint16 stateId, uint8 breedId)
     return 0;
 }
 
+float BattlePetQualityMultiplier(uint8 quality)
+{
+    BattlePetQualityMultiplierStore::const_iterator itr = sBattlePetQualityMultiplierStore.find(quality);
+    if (itr != sBattlePetQualityMultiplierStore.end() && itr->second > 0.0f)
+        return itr->second;
+
+    switch (quality)
+    {
+        case ITEM_QUALITY_NORMAL:
+            return 1.1f;
+        case ITEM_QUALITY_UNCOMMON:
+            return 1.2f;
+        case ITEM_QUALITY_RARE:
+            return 1.3f;
+        case ITEM_QUALITY_EPIC:
+            return 1.4f;
+        case ITEM_QUALITY_LEGENDARY:
+            return 1.5f;
+        default:
+            return 1.0f;
+    }
+}
+
 uint32 BattlePetGetSummonSpell(uint16 speciesId)
 {
     BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
@@ -244,4 +307,55 @@ bool BattlePetSpeciesHasFlag(uint16 speciesId, uint16 flag)
         return false;
 
     return (speciesEntry->Flags & flag) != 0;
+}
+
+bool BattlePetHasSpeciesAbility(uint16 speciesId, uint8 abilitySlot, bool alternateAbility, uint8 level)
+{
+    if (abilitySlot >= BATTLE_PET_ABILITY_SLOT_COUNT)
+        return false;
+
+    std::pair<BattlePetSpeciesXAbilityBySpeciesStore::const_iterator, BattlePetSpeciesXAbilityBySpeciesStore::const_iterator> bounds =
+        sBattlePetSpeciesXAbilityBySpeciesStore.equal_range(speciesId);
+
+    for (BattlePetSpeciesXAbilityBySpeciesStore::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+    {
+        BattlePetSpeciesXAbilityEntry const* abilityEntry = itr->second;
+        if (!abilityEntry || abilityEntry->SlotId != abilitySlot || !abilityEntry->AbilityId || abilityEntry->RequiredLevel > level)
+            continue;
+
+        bool const isAlternateAbility = abilityEntry->RequiredLevel >= 10;
+        if (isAlternateAbility == alternateAbility)
+            return true;
+    }
+
+    return false;
+}
+
+uint32 BattlePetGetSpeciesAbility(uint16 speciesId, uint8 abilitySlot, uint16 flags, uint8 level)
+{
+    if (abilitySlot >= BATTLE_PET_ABILITY_SLOT_COUNT)
+        return 0;
+
+    uint16 const selectedFlag = uint16(BATTLE_PET_JOURNAL_FLAG_ABILITY_1 << abilitySlot);
+    bool const useAlternateAbility = (flags & selectedFlag) != 0;
+
+    uint32 defaultAbilityId = 0;
+    std::pair<BattlePetSpeciesXAbilityBySpeciesStore::const_iterator, BattlePetSpeciesXAbilityBySpeciesStore::const_iterator> bounds =
+        sBattlePetSpeciesXAbilityBySpeciesStore.equal_range(speciesId);
+
+    for (BattlePetSpeciesXAbilityBySpeciesStore::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+    {
+        BattlePetSpeciesXAbilityEntry const* abilityEntry = itr->second;
+        if (!abilityEntry || abilityEntry->SlotId != abilitySlot || abilityEntry->RequiredLevel > level)
+            continue;
+
+        bool const alternateAbility = abilityEntry->RequiredLevel >= 10;
+        if (!alternateAbility && !defaultAbilityId)
+            defaultAbilityId = abilityEntry->AbilityId;
+
+        if (alternateAbility == useAlternateAbility)
+            return abilityEntry->AbilityId;
+    }
+
+    return defaultAbilityId;
 }

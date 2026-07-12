@@ -92,7 +92,6 @@ bool IsHushedUnhandledClientOpcode(uint16 opcode)
     {
         case 0x18B2:
         case 0x044E:
-        case 0x0A23:
         case 0x0CF0:
             return true;
         default:

@@ -261,7 +261,7 @@ private:
 
     bool ConditionsSatisfied(CriteriaEntry const* criteria, Player* referencePlayer) const;
     bool RequirementsSatisfied(CriteriaEntry const* criteria, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit const* unit, Player* referencePlayer) const;
-    bool AdditionalRequirementsSatisfied(CriteriaEntry const* criteria, uint64 miscValue1, uint64 miscValue2, Unit const* unit, Player* referencePlayer) const;
+    bool AdditionalRequirementsSatisfied(CriteriaEntry const* criteria, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit const* unit, Player* referencePlayer) const;
 
     T* _owner;
     CriteriaProgressMap m_criteriaProgress;

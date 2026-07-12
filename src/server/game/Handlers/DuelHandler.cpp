@@ -43,8 +43,13 @@ void WorldSession::HandleDuelResponseOpcode(WorldPacket& recvPacket)
 
     recvPacket.ReadGuidBytes(guid, 6, 4, 5, 0, 1, 2, 7, 3);
 
-    if (!GetPlayer()->duel)                                  // ignore accept from duel-sender
+    if (!GetPlayer()->duel)
+    {
+        if (HandlePendingPetBattlePvpDuelResponse(accepted))
+            return;
+
         return;
+    }
 
     if (accepted)
     {

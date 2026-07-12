@@ -744,6 +744,7 @@ public:                                                 // opcodes handlers
 
     void HandleDuelProposedOpcode(WorldPacket& recvPacket);
     void HandleDuelResponseOpcode(WorldPacket& recvPacket);
+    bool HandlePendingPetBattlePvpDuelResponse(bool accepted);
 
 
 
@@ -1074,13 +1075,24 @@ public:                                                 // opcodes handlers
     // Battle Pets
     void HandlePetBattleStartPvpMatchmaking(WorldPacket& recvData);
     void HandlePetBattleStopPvpMatchmaking(WorldPacket& recvData);
+    void HandlePetBattleQueueProposeMatchResult(WorldPacket& recvData);
+    void HandlePetBattleRequestPvp(WorldPacket& recvData);
     void HandleBattlePetDelete(WorldPacket& recvData);
+    void HandleBattlePetLearn(WorldPacket& recvData);
     void HandleBattlePetModifyName(WorldPacket& recvData);
     void HandleBattlePetQueryName(WorldPacket& recvData);
+    void HandleBattlePetRequestJournal(WorldPacket& recvData);
     void HandleBattlePetSetBattleSlot(WorldPacket& recvData);
     void HandleBattlePetSetFlags(WorldPacket& recvData);
     void HandleBattlePetSummonCompanion(WorldPacket& recvData);
+    void HandleBattlePetInput(WorldPacket& recvData);
+    void HandleBattlePetInputFirstPet(WorldPacket& recvData);
+    void HandleBattlePetFinalNotify(WorldPacket& recvData);
+    void HandleBattlePetQuitNotify(WorldPacket& recvData);
+    void HandleBattlePetRequestUpdate(WorldPacket& recvData);
     void HandleBattlePetWildRequest(WorldPacket& recvData);
+    void UpdatePetBattlePvpQueueState();
+    void ClearPetBattlePvpQueueState();
 
     // Titles
     void HandleSetTitleOpcode(WorldPacket& recvData);

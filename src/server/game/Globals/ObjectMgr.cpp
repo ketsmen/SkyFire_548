@@ -7,6 +7,7 @@
 #include "AchievementMgr.h"
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
+#include "BattlePet.h"
 #include "Chat.h"
 #include "Common.h"
 #include "DatabaseEnv.h"
@@ -50,6 +51,22 @@ ScriptMapMap sWaypointScripts;
 
 namespace
 {
+    bool IsCapturableBattlePetNpc(uint32 npcId)
+    {
+        if (!npcId)
+            return false;
+
+        for (uint32 speciesId = 0; speciesId < sBattlePetSpeciesStore.GetNumRows(); ++speciesId)
+        {
+            BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(speciesId);
+            if (speciesEntry && speciesEntry->NpcId == npcId
+                && BattlePetSpeciesFlagsAllowWildCapture(speciesEntry->Flags))
+                return true;
+        }
+
+        return false;
+    }
+
     Skyfire::Rest::InnAreaBounds ToInnAreaBounds(TavernRestArea const& restArea)
     {
         Skyfire::Rest::InnAreaBounds bounds;
@@ -477,6 +494,9 @@ void ObjectMgr::LoadCreatureTemplates()
         creatureTemplate.faction_A = uint32(fields[18].GetUInt16());
         creatureTemplate.faction_H = uint32(fields[19].GetUInt16());
         creatureTemplate.npcflag = fields[20].GetUInt32();
+        if (IsCapturableBattlePetNpc(creatureTemplate.Entry))
+            creatureTemplate.npcflag |= UNIT_NPC_FLAG_WILDPET_CAPTURABLE;
+
         creatureTemplate.speed_walk = fields[21].GetFloat();
         creatureTemplate.speed_run = fields[22].GetFloat();
         creatureTemplate.scale = fields[23].GetFloat();
@@ -1178,6 +1198,9 @@ void ObjectMgr::ChooseCreatureFlags(const CreatureTemplate* cinfo, uint32& npcfl
         if (data->dynamicflags)
             dynamicflags = data->dynamicflags;
     }
+
+    if (IsCapturableBattlePetNpc(cinfo->Entry))
+        npcflag |= UNIT_NPC_FLAG_WILDPET_CAPTURABLE;
 }
 
 CreatureModelInfo const* ObjectMgr::GetCreatureModelRandomGender(uint32* displayID)

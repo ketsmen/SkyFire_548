@@ -6,17 +6,17 @@
 #ifndef SKYFIRE_DB2SFRM_H
 #define SKYFIRE_DB2SFRM_H
 
-//char const BattlePetAbilityEffectfmt[] = "nxxxxxxxxxxx";
-//char const BattlePetAbilityfmt[] = "niiixxss";
-//char const BattlePetAbilityStatefmt[] = "niii";
-//char const BattlePetAbilityTurnfmt[] = "nxxxxx";
-//char const BattlePetBreedQualityfmt[] = "nxx";
+char const BattlePetAbilityEffectfmt[] = "nixxiiiiiiii";
+char const BattlePetAbilityfmt[] = "nixiiixx";
+char const BattlePetAbilityStatefmt[] = "niii";
+char const BattlePetAbilityTurnfmt[] = "nixixx";
+char const BattlePetBreedQualityfmt[] = "nif";
 char const BattlePetBreedStatefmt[] = "diii";
-//char const BattlePetEffectPropertiesfmt[] = "nxxxxxxxxxxxxx";
-char const BattlePetSpeciesfmt[] = "dixixxixx";
+char const BattlePetEffectPropertiesfmt[] = "nxssssssxxxxxx";
+char const BattlePetSpeciesfmt[] = "dixiixixx";
 char const BattlePetSpeciesStatefmt[] = "diii";
-//char const BattlePetSpeciesXAbilityfmt[] = "niiii";
-//char const BattlePetStatefmt[] = "nxsi";
+char const BattlePetSpeciesXAbilityfmt[] = "diiii";
+char const BattlePetStatefmt[] = "nxsi";
 //char const BattlePetVisualfmt[] = "nxxxxxxx";
 char const BroadcastTextfmt[] = "nxxxxxxxxxxxx";
 //char const CreatureDifficultyfmt[] = "nxxxxxxxxxx";
