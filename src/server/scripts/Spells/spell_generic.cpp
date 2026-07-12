@@ -1668,7 +1668,7 @@ class spell_gen_fishing : public SpellScriptLoader
 
             bool Load() OVERRIDE
             {
-                return GetCaster()->GetTypeId() == TYPEID_PLAYER;
+                return GetCaster()->GetTypeId() == TypeID::TYPEID_PLAYER;
             }
 
             void HandleDummy(SpellEffIndex effIndex)
