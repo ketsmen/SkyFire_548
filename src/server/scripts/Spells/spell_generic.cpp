@@ -18,6 +18,7 @@
 #include "GridNotifiersImpl.h"
 #include "Group.h"
 #include "InstanceScript.h"
+#include "Item.h"
 #include "LFGMgr.h"
 #include "Pet.h"
 #include "ReputationMgr.h"
@@ -1640,6 +1641,60 @@ class spell_gen_elune_candle : public SpellScriptLoader
         SpellScript* GetSpellScript() const OVERRIDE
         {
             return new spell_gen_elune_candle_SpellScript();
+        }
+};
+
+enum FishingSpells
+{
+    SPELL_FISHING_NO_FISHING_POLE = 131476,
+    SPELL_FISHING_WITH_POLE       = 131490
+};
+
+// 131474 - Fishing
+class spell_gen_fishing : public SpellScriptLoader
+{
+    public:
+        spell_gen_fishing() : SpellScriptLoader("spell_gen_fishing") { }
+
+        class spell_gen_fishing_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_fishing_SpellScript);
+
+            bool Validate(SpellInfo const* /*spellInfo*/) OVERRIDE
+            {
+                return sSpellMgr->GetSpellInfo(SPELL_FISHING_NO_FISHING_POLE)
+                    && sSpellMgr->GetSpellInfo(SPELL_FISHING_WITH_POLE);
+            }
+
+            bool Load() OVERRIDE
+            {
+                return GetCaster()->GetTypeId() == TYPEID_PLAYER;
+            }
+
+            void HandleDummy(SpellEffIndex effIndex)
+            {
+                PreventHitDefaultEffect(effIndex);
+
+                uint32 spellId = SPELL_FISHING_NO_FISHING_POLE;
+                if (Item* mainHand = GetCaster()->ToPlayer()->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND))
+                {
+                    ItemTemplate const* itemTemplate = mainHand->GetTemplate();
+                    if (itemTemplate->Class == ITEM_CLASS_WEAPON && itemTemplate->SubClass == ITEM_SUBCLASS_WEAPON_FISHING_POLE)
+                        spellId = SPELL_FISHING_WITH_POLE;
+                }
+
+                GetCaster()->CastSpell(GetCaster(), spellId, false);
+            }
+
+            void Register() OVERRIDE
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_gen_fishing_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const OVERRIDE
+        {
+            return new spell_gen_fishing_SpellScript();
         }
 };
 
@@ -3720,6 +3775,7 @@ void AddSC_generic_spell_scripts()
     new spell_gen_dummy_trigger();
     new spell_gen_dungeon_credit();
     new spell_gen_elune_candle();
+    new spell_gen_fishing();
     new spell_gen_gadgetzan_transporter_backfire();
     new spell_gen_gift_of_naaru();
     new spell_gen_gnomish_transporter();
