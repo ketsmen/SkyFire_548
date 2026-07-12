@@ -815,6 +815,12 @@ namespace
             return false;
         }
 
+        if (player.IsInCombat())
+        {
+            battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return false;
+        }
+
         if (!battlePetMgr->HasLoadoutBattlePet())
         {
             battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_NO_PETS);
@@ -836,6 +842,12 @@ namespace
         BattlePetMgr* targetBattlePetMgr = target ? target->GetBattlePetMgr() : NULL;
         if (!target || target == &challenger || !targetBattlePetMgr || targetBattlePetMgr->HasActivePetBattle()
             || target->GetMapId() != challenger.GetMapId())
+        {
+            challengerBattlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+            return false;
+        }
+
+        if (target->IsInCombat())
         {
             challengerBattlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
             return false;
@@ -1766,8 +1778,18 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
     if (!missingResult)
         recvData >> petBattleRequest.LocationResult;
 
-    BattlePetMgr* battlePetMgr = GetPlayer()->GetBattlePetMgr();
-    Creature* wildBattlePet = ObjectAccessor::GetCreatureOrPetOrVehicle(*GetPlayer(), guid);
+    Player* player = GetPlayer();
+    if (!player)
+        return;
+
+    BattlePetMgr* battlePetMgr = player->GetBattlePetMgr();
+    if (player->IsInCombat())
+    {
+        battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
+        return;
+    }
+
+    Creature* wildBattlePet = ObjectAccessor::GetCreatureOrPetOrVehicle(*player, guid);
     if (!wildBattlePet)
     {
         battlePetMgr->SendPetBattleRequestFailed(PET_BATTLE_REQUEST_FAILED_INVALID_TARGET);
@@ -1811,7 +1833,7 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
     }
 
     teams[0].FrontPet = activeBattlePetIndex;
-    teams[0].OwnerGuid = GetPlayer()->GetGUID();
+    teams[0].OwnerGuid = player->GetGUID();
     teams[0].TrapAbility = battlePetMgr->GetTrapAbility();
     teams[1].PetCount = 1;
     teams[1].TrapStatus = PET_BATTLE_TRAP_STATUS_UNAVAILABLE;
@@ -1825,7 +1847,7 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
 
     petBattleRequest.EnemyGUID = wildBattlePet->GetGUID();
     petBattleRequest.Type = PetBattleRequest::PET_BATTLE_TYPE_PVE;
-    petBattleRequest.Challenger = GetPlayer();
+    petBattleRequest.Challenger = player;
     petBattleRequest.Enemy = wildBattlePet;
     bool const hasClientOrientation = !missingOrientation;
     petBattleRequest.Orientation = Skyfire::BattlePetPackets::ResolveBattlePetFacing(
@@ -1836,7 +1858,7 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
     WorldPacket data = Skyfire::BattlePetPackets::BuildFinalizeLocationPacket(
         petBattleRequest.Origin, petBattleRequest.Positions, true, petBattleRequest.Orientation,
         !missingResult, petBattleRequest.LocationResult);
-    _player->SendDirectMessage(&data);
+    player->SendDirectMessage(&data);
 
     battlePetMgr->StartWildPetBattle(petBattleRequest.EnemyGUID,
         activeBattlePet->GetId(), activeBattlePet->GetMaxHealth(), activeBattlePet->GetCurrentHealth(),
@@ -1853,7 +1875,7 @@ void WorldSession::HandleBattlePetWildRequest(WorldPacket& recvData)
 
     WorldPacket data2 = Skyfire::BattlePetPackets::BuildInitialUpdatePacket(
         petBattleRequest.EnemyGUID, teams, 2, petBattleRequest.Type != PetBattleRequest::PET_BATTLE_TYPE_PVE);
-    _player->SendDirectMessage(&data2);
+    player->SendDirectMessage(&data2);
     battlePetMgr->HideActivePetBattleWorldObject(wildBattlePet);
 }
 

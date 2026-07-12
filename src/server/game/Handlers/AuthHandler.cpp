@@ -129,3 +129,14 @@ void WorldSession::SendClientCacheVersion(uint32 version)
     data << uint32(version);
     SendPacket(&data);
 }
+
+void WorldSession::SendFeatureSystemStatusGlueScreen()
+{
+    WorldPacket data(SMSG_FEATURE_SYSTEM_STATUS_GLUE_SCREEN);
+    data.WriteBit(true);  // show ingame shop icon
+    data.WriteBit(false); // ingame shop parental control
+    data.WriteBit(true);  // ingame shop status
+    data.FlushBits();
+
+    SendPacket(&data);
+}
