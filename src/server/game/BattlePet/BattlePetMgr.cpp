@@ -16,6 +16,7 @@
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Player.h"
+#include "SpellAuraDefines.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -687,6 +688,9 @@ void BattlePetMgr::ApplyActivePetBattlePlayerState(float faceX, float faceY)
 {
     if (!m_owner)
         return;
+
+    if (m_owner->IsMounted())
+        m_owner->RemoveAurasByType(SPELL_AURA_MOUNTED);
 
     m_owner->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED | UNIT_FLAG_IMMUNE_TO_NPC);
     m_owner->SetFacingTo(m_owner->GetAngle(faceX, faceY));
