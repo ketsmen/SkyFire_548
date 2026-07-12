@@ -855,7 +855,9 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             if (!GetBaseObject())
                 break;
 
-            uint32 phase = std::rand() % e.action.randomPhaseRange.phaseMax + e.action.randomPhaseRange.phaseMin;
+            uint32 phaseMax = e.action.randomPhaseRange.phaseMax;
+            uint32 phaseMin = e.action.randomPhaseRange.phaseMin;
+            uint32 phase = (phaseMax > phaseMin) ? (std::rand() % (phaseMax - phaseMin + 1) + phaseMin) : phaseMin;
             SetPhase(phase);
             SF_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction: SMART_ACTION_RANDOM_PHASE_RANGE: Creature %u sets event phase to %u",
                 GetBaseObject()->GetGUIDLow(), phase);
@@ -1756,7 +1758,9 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
         }
         case SMART_ACTION_CALL_RANDOM_RANGE_TIMED_ACTIONLIST:
         {
-            uint32 id = std::rand() % e.action.randTimedActionList.entry2 + e.action.randTimedActionList.entry1;
+            uint32 entry2 = e.action.randTimedActionList.entry2;
+            uint32 entry1 = e.action.randTimedActionList.entry1;
+            uint32 id = (entry2 > entry1) ? (std::rand() % (entry2 - entry1 + 1) + entry1) : entry1;
             if (e.GetTargetType() == SMART_TARGET_NONE)
             {
                 SF_LOG_ERROR("sql.sql", "SmartScript: Entry %d SourceType %u Event %u Action %u is using TARGET_NONE(0) for Script9 target. Please correct target_type in database.", e.entryOrGuid, e.GetScriptType(), e.GetEventType(), e.GetActionType());
@@ -3241,7 +3245,10 @@ void SmartScript::RecalcTimer(SmartScriptHolder& e, uint32 min, uint32 max)
     if (max > 0 && min > 0)
     {
         // min/max was checked at loading!
-        timer = std::rand() % max + min;
+        if (max > min)
+            timer = std::rand() % (max - min + 1) + min;
+        else
+            timer = min;
     }
     e.timer = timer ? timer : 0;
     e.active = e.timer ? false : true;

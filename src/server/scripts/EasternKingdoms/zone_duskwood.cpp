@@ -557,9 +557,59 @@ public:
     }
 };
 
+/*######
+## spell_q26674_call_stalvan
+######*/
+
+class spell_q26674_call_stalvan : public SpellScriptLoader
+{
+public:
+    spell_q26674_call_stalvan() : SpellScriptLoader("spell_q26674_call_stalvan") { }
+
+    class spell_q26674_call_stalvan_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_q26674_call_stalvan_SpellScript);
+
+        void HandleScript()
+        {
+            Player* player = GetCaster()->ToPlayer();
+            if (!player)
+                return;
+
+            // Summon Stalvan and Tobias.
+            if (Creature* stalvan = player->SummonCreature(315, -10371.669922f, -1251.914185f, 35.9100023f, 5.536726f, TempSummonType::TEMPSUMMON_CORPSE_TIMED_DESPAWN, 60000))
+            {
+                stalvan->SetReactState(REACT_PASSIVE);
+                stalvan->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+            }
+            if (Creature* tobias = player->SummonCreature(35124, -10361.395508f, -1256.723022f, 35.859238f, 3.17049f, TempSummonType::TEMPSUMMON_TIMED_DESPAWN, 60000))
+            {
+                tobias->SetReactState(REACT_PASSIVE);
+                tobias->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+                
+                // Scale the summoned Tobias so he doesn't get instantly one-shot by Stalvan during the RP combat
+                tobias->SetLevel(32);
+                tobias->SetMaxHealth(25000);
+                tobias->SetFullHealth();
+            }
+        }
+
+        void Register() OVERRIDE
+        {
+            AfterCast += SpellCastFn(spell_q26674_call_stalvan_SpellScript::HandleScript);
+        }
+    };
+
+    SpellScript* GetSpellScript() const OVERRIDE
+    {
+        return new spell_q26674_call_stalvan_SpellScript();
+    }
+};
+
 void AddSC_duskwood()
 {
     new npc_lurking_potion();
     new npc_oliver_harris();
     new spell_q26720_harris_ampule();
+    new spell_q26674_call_stalvan();
 }
