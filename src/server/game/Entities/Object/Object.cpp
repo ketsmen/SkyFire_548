@@ -2101,14 +2101,21 @@ bool WorldObject::CanSeeOrDetect(WorldObject const* obj, bool ignoreStealth, boo
             }
         }
 
-        WorldObject const* viewpoint = this;
+        bool isWithinSight = false;
         if (Player const* player = this->ToPlayer())
-            viewpoint = player->GetViewpoint();
+        {
+            float cinematicX, cinematicY, cinematicZ;
+            if (player->GetCinematicPosition(cinematicX, cinematicY, cinematicZ))
+                isWithinSight = obj->IsWithinDist2d(cinematicX, cinematicY, GetSightRange(obj));
+            else if (WorldObject const* viewpoint = player->GetViewpoint())
+                isWithinSight = viewpoint->IsWithinDist(obj, GetSightRange(obj), false);
+            else
+                isWithinSight = IsWithinDist(obj, GetSightRange(obj), false);
+        }
+        else
+            isWithinSight = IsWithinDist(obj, GetSightRange(obj), false);
 
-        if (!viewpoint)
-            viewpoint = this;
-
-        if (!corpseCheck && !viewpoint->IsWithinDist(obj, GetSightRange(obj), false))
+        if (!corpseCheck && !isWithinSight)
             return false;
     }
 

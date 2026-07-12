@@ -2893,6 +2893,8 @@ public:
     void StopCinematic();
     void SendCinematicStart(uint32 CinematicSequenceId);
     bool IsInCinematic() const { return inCinematic && cinematicSequence; }
+    bool GetCinematicPosition(float& x, float& y, float& z) const;
+    void UpdateCinematicVisibility();
 
     void SendMovieStart(uint32 MovieId);
 
@@ -3586,6 +3588,7 @@ private:
     CinematicSequence* cinematicSequence;
     bool                inCinematic;
     uint32              cinematicClientStartTime;
+    uint32              cinematicVisibilityTimer;
     float               cinematicStartX, cinematicStartY, cinematicStartZ, cinematicStartO;
     bool                m_FlyingBeforeCinematic;
 
