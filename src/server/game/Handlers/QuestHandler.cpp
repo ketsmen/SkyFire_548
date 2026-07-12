@@ -752,7 +752,7 @@ uint32 WorldSession::getDialogStatus(Player* player, Object* questgiver, uint32 
         if (!quest)
             continue;
 
-        ConditionList conditions = sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_QUEST_SHOW_MARK, quest->GetQuestId());
+        ConditionList conditions = sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_QUEST_ACCEPT, quest->GetQuestId());
         if (!sConditionMgr->IsObjectMeetToConditions(player, conditions))
             continue;
 
@@ -780,7 +780,7 @@ uint32 WorldSession::getDialogStatus(Player* player, Object* questgiver, uint32 
         if (!quest)
             continue;
 
-        ConditionList conditions = sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_QUEST_SHOW_MARK, quest->GetQuestId());
+        ConditionList conditions = sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_QUEST_ACCEPT, quest->GetQuestId());
         if (!sConditionMgr->IsObjectMeetToConditions(player, conditions))
             continue;
 
