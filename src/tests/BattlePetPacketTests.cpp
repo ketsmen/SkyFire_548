@@ -1956,7 +1956,11 @@ namespace
         passed &= Expect(third.Accepted && battle.GetAllyAbilityCooldown(0, 1) == 0,
             "Active pet battle should expire cooldowns after enough accepted rounds");
 
-        ActivePetBattleTurn reused = battle.ApplyAbilityRound(3, 50, 1, 1234, 3);
+        ActivePetBattleTurn clear = battle.ApplyAbilityRound(3, 50, 2, 5678, 0);
+        passed &= Expect(clear.Accepted && clear.Cooldowns.size() == 1 && clear.Cooldowns[0].Cooldown == 0,
+            "Active pet battle should report an expired cooldown once so the client can clear it");
+
+        ActivePetBattleTurn reused = battle.ApplyAbilityRound(4, 50, 1, 1234, 3);
         passed &= Expect(reused.Accepted,
             "Active pet battle should accept the ability again after cooldown expiration");
 

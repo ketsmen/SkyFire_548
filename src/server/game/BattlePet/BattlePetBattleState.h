@@ -44,6 +44,7 @@ struct ActivePetBattleCooldown
     uint32 AbilityID = 0;
     uint16 Cooldown = 0;
     uint16 Lockdown = 0;
+    bool OnCooldown = false;
 };
 
 struct ActivePetBattleTurn
@@ -557,6 +558,7 @@ private:
         cooldownState.AbilityID = abilityId;
         cooldownState.Cooldown = cooldown;
         cooldownState.Lockdown = 0;
+        cooldownState.OnCooldown = true;
     }
 
     void SnapshotAllyCooldowns(std::vector<ActivePetBattleCooldown>& cooldowns) const
@@ -566,8 +568,21 @@ private:
             for (uint8 abilitySlot = 0; abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT; ++abilitySlot)
             {
                 ActivePetBattleCooldown const& cooldownState = AllyCooldowns[petIndex][abilitySlot];
-                if (cooldownState.Cooldown)
+                if (cooldownState.OnCooldown)
                     cooldowns.push_back(cooldownState);
+            }
+        }
+    }
+
+    void ClearExpiredAllyCooldowns()
+    {
+        for (uint8 petIndex = 0; petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++petIndex)
+        {
+            for (uint8 abilitySlot = 0; abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT; ++abilitySlot)
+            {
+                ActivePetBattleCooldown& cooldownState = AllyCooldowns[petIndex][abilitySlot];
+                if (cooldownState.OnCooldown && !cooldownState.Cooldown)
+                    cooldownState = ActivePetBattleCooldown();
             }
         }
     }
@@ -583,11 +598,6 @@ private:
                     continue;
 
                 --cooldownState.Cooldown;
-                if (!cooldownState.Cooldown)
-                {
-                    cooldownState.AbilityID = 0;
-                    cooldownState.Lockdown = 0;
-                }
             }
         }
     }
@@ -595,6 +605,7 @@ private:
     void FinishAcceptedRound(ActivePetBattleTurn& turn)
     {
         SnapshotAllyCooldowns(turn.Cooldowns);
+        ClearExpiredAllyCooldowns();
         DecrementAllyCooldowns();
         AdvanceRound();
     }
