@@ -2002,6 +2002,8 @@ namespace
             "Resolved ally death round helper should mark the defeated ally pet");
         passed &= Expect(round.InputFlags[0] == Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET,
             "Resolved ally death round helper should request ally front pet selection");
+        passed &= Expect(round.InputFlags[0] == 0x08,
+            "Resolved ally death round helper should use the client select-new-pet input flag");
         passed &= Expect(round.InputFlags[1] == Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_NONE,
             "Resolved ally death round helper should leave enemy input flags clear");
 

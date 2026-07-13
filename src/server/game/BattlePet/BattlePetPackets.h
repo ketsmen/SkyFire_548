@@ -143,7 +143,10 @@ namespace Skyfire::BattlePetPackets
     enum BattlePetRoundInputFlag
     {
         BATTLE_PET_ROUND_INPUT_FLAG_NONE = 0,
-        BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET = 4
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_ABILITY_1 = 0x01,
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_ABILITY_2 = 0x02,
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_PET_SWAP = 0x04,
+        BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET = 0x08
     };
 
     struct BattlePetFinalRoundPet
