@@ -281,7 +281,7 @@ struct ActivePetBattle
         return turn;
     }
 
-    ActivePetBattleTurn ApplyTrapRound(uint32 roundId)
+    ActivePetBattleTurn ApplyTrapRound(uint32 roundId, bool captured)
     {
         ActivePetBattleTurn turn = CreateTurn(roundId);
         if (!CanAcceptRound(roundId))
@@ -293,13 +293,24 @@ struct ActivePetBattle
         if (!CanTrap())
             return turn;
 
-        Finish(PET_BATTLE_WINNER_ALLY);
-        Captured = true;
-
         turn.Accepted = true;
-        turn.HasFinalRound = true;
-        turn.Captured = true;
-        turn.Winner = Winner;
+        turn.Captured = captured;
+
+        if (captured)
+        {
+            Finish(PET_BATTLE_WINNER_ALLY);
+            Captured = true;
+
+            turn.HasFinalRound = true;
+            turn.Winner = Winner;
+        }
+        else
+        {
+            ++TrapFailedAttempts;
+            turn.HasRoundResult = true;
+            AdvanceRound();
+        }
+
         return turn;
     }
 
@@ -398,6 +409,7 @@ struct ActivePetBattle
     uint8 Winner = PET_BATTLE_WINNER_NONE;
     uint8 AllyFrontPet = 0;
     uint8 EnemyFrontPet = 3;
+    uint8 TrapFailedAttempts = 0;
     bool WaitingForAllyFrontPet = false;
     ActivePetBattlePetState AllyTeam[BATTLE_PET_MAX_ACTIVE_TEAM_PETS];
 
@@ -425,7 +437,7 @@ private:
         if (!EnemyMaxHealth)
             return false;
 
-        return uint64(EnemyHealth) * 100 <= uint64(EnemyMaxHealth) * 20;
+        return uint64(EnemyHealth) * 100 <= uint64(EnemyMaxHealth) * 35;
     }
 
     static bool IsValidAllyPetIndex(uint8 petIndex)

@@ -193,7 +193,8 @@ public:
     bool ApplyBattlePetSwapInput(uint32 roundId, uint8 newFrontPet,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round);
     bool ApplyBattlePetForfeitInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
-    bool ApplyBattlePetTrapInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
+    bool ApplyBattlePetTrapInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetRoundResult& round,
+        Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
     void FinishActivePetBattle(uint8 winner);
     bool BuildActivePetBattleFinalRound(bool abandoned, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound,
         bool captured = false);

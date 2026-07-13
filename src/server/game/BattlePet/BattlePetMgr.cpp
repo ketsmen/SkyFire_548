@@ -17,6 +17,7 @@
 #include "Opcodes.h"
 #include "Player.h"
 #include "SpellAuraDefines.h"
+#include "Util.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -65,6 +66,36 @@ namespace
             return 0;
 
         return uint8(std::min<uint32>(100, health * 100 / maxHealth));
+    }
+
+    float BattlePetTrapFailedAttemptBonus(uint32 trapAbility)
+    {
+        switch (trapAbility)
+        {
+            case BATTLE_PET_ABILITY_TRAP:
+                return 20.0f;
+            case BATTLE_PET_ABILITY_STRONG_TRAP:
+                return 25.0f;
+            case BATTLE_PET_ABILITY_PRISTINE_TRAP:
+                return 30.0f;
+            case BATTLE_PET_ABILITY_GM_TRAP:
+                return 100.0f;
+            default:
+                return 0.0f;
+        }
+    }
+
+    float BattlePetTrapCaptureChance(uint32 trapAbility, uint8 failedAttempts)
+    {
+        if (trapAbility == BATTLE_PET_ABILITY_GM_TRAP)
+            return 100.0f;
+
+        float chance = 45.0f;
+        float const bonus = BattlePetTrapFailedAttemptBonus(trapAbility);
+        for (uint8 i = 0; i < failedAttempts; ++i)
+            chance += (100.0f - chance) * bonus / 100.0f;
+
+        return std::min<float>(99.0f, chance);
     }
 }
 
@@ -857,6 +888,7 @@ bool BattlePetMgr::ApplyBattlePetForfeitInput(uint32 roundId,
 }
 
 bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound)
 {
     if (!m_activePetBattle.CanAcceptInput(roundId))
@@ -865,8 +897,21 @@ bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
     if (GetActivePetBattleTrapStatus() != PET_BATTLE_TRAP_STATUS_ACTIVE)
         return false;
 
-    ActivePetBattleTurn const turn = m_activePetBattle.ApplyTrapRound(roundId);
-    if (!turn.Accepted || !turn.HasFinalRound || !turn.Captured)
+    uint32 const trapAbility = GetTrapAbility();
+    bool const captured = roll_chance_f(BattlePetTrapCaptureChance(trapAbility, m_activePetBattle.TrapFailedAttempts));
+
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyTrapRound(roundId, captured);
+    if (!turn.Accepted)
+        return false;
+
+    if (turn.HasRoundResult)
+    {
+        round = Skyfire::BattlePetPackets::BuildRoundResultFromTurn(turn, 0);
+        ApplyActivePetBattleRoundState(round);
+        return true;
+    }
+
+    if (!turn.HasFinalRound || !turn.Captured)
         return false;
 
     uint8 const capturedLevel = BattlePetCapturedLevel(m_activePetBattle.EnemyLevel);
