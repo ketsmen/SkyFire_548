@@ -17,6 +17,7 @@
 #include "Opcodes.h"
 #include "Player.h"
 #include "SpellAuraDefines.h"
+#include "Util.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -65,6 +66,36 @@ namespace
             return 0;
 
         return uint8(std::min<uint32>(100, health * 100 / maxHealth));
+    }
+
+    float BattlePetTrapFailedAttemptBonus(uint32 trapAbility)
+    {
+        switch (trapAbility)
+        {
+            case BATTLE_PET_ABILITY_TRAP:
+                return 20.0f;
+            case BATTLE_PET_ABILITY_STRONG_TRAP:
+                return 25.0f;
+            case BATTLE_PET_ABILITY_PRISTINE_TRAP:
+                return 30.0f;
+            case BATTLE_PET_ABILITY_GM_TRAP:
+                return 100.0f;
+            default:
+                return 0.0f;
+        }
+    }
+
+    float BattlePetTrapCaptureChance(uint32 trapAbility, uint8 failedAttempts)
+    {
+        if (trapAbility == BATTLE_PET_ABILITY_GM_TRAP)
+            return 100.0f;
+
+        float chance = 45.0f;
+        float const bonus = BattlePetTrapFailedAttemptBonus(trapAbility);
+        for (uint8 i = 0; i < failedAttempts; ++i)
+            chance += (100.0f - chance) * bonus / 100.0f;
+
+        return std::min<float>(99.0f, chance);
     }
 }
 
@@ -512,7 +543,11 @@ void BattlePetMgr::SetLoadoutFlag(uint8 flag)
 
 uint32 BattlePetMgr::GetTrapAbility() const
 {
-    return BattlePetTrapAbilityForLoadoutFlags(m_loadoutFlags);
+    uint32 const trapAbility = BattlePetTrapAbilityForLoadoutFlags(m_loadoutFlags);
+    if (trapAbility == BATTLE_PET_ABILITY_GM_TRAP && (!m_owner || !m_owner->IsGameMaster()))
+        return BATTLE_PET_ABILITY_TRAP;
+
+    return trapAbility;
 }
 
 bool BattlePetMgr::ApplyAchievementLoadoutReward(uint32 achievementId)
@@ -776,10 +811,12 @@ bool BattlePetMgr::ApplyEnemyBattlePetDamage(uint32 damage, uint32 abilityEffect
 }
 
 bool BattlePetMgr::ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uint32 abilityEffectId,
+    uint8 abilitySlot, uint32 abilityId, uint16 abilityCooldown,
     Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
 {
-    ActivePetBattleTurn const turn = m_activePetBattle.ApplyAbilityRound(roundId, damage);
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyAbilityRound(roundId, damage,
+        abilitySlot, abilityId, abilityCooldown);
     if (!turn.Accepted || !turn.HasRoundResult)
         return false;
 
@@ -797,19 +834,22 @@ bool BattlePetMgr::ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uin
 
 bool BattlePetMgr::ApplyBattlePetAbilityExchangeInput(uint32 roundId,
     uint32 allyDamage, uint32 allyAbilityEffectId,
+    uint8 allyAbilitySlot, uint32 allyAbilityId, uint16 allyAbilityCooldown,
     uint32 enemyDamage, uint32 enemyAbilityEffectId,
     Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
 {
     ActivePetBattleTurn allyTurn;
     ActivePetBattleTurn enemyTurn;
-    if (!m_activePetBattle.ApplyAbilityExchange(roundId, allyDamage, enemyDamage, allyTurn, enemyTurn))
+    if (!m_activePetBattle.ApplyAbilityExchange(roundId, allyDamage, enemyDamage,
+        allyAbilitySlot, allyAbilityId, allyAbilityCooldown, allyTurn, enemyTurn))
         return false;
 
     if (!allyTurn.Accepted || !allyTurn.HasRoundResult)
         return false;
 
     round.RoundID = roundId;
+    Skyfire::BattlePetPackets::AppendRoundCooldowns(round, allyTurn);
     round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
         allyTurn.CasterPet, allyTurn.TargetPet, int32(allyTurn.RemainingHealth), allyAbilityEffectId, 1));
 
@@ -856,7 +896,9 @@ bool BattlePetMgr::ApplyBattlePetForfeitInput(uint32 roundId,
     return BuildActivePetBattleFinalRound(turn.Abandoned, finalRound);
 }
 
-bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
+bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEffectId,
+    uint32 enemyDamage, uint32 enemyAbilityEffectId,
+    Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound)
 {
     if (!m_activePetBattle.CanAcceptInput(roundId))
@@ -865,19 +907,53 @@ bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
     if (GetActivePetBattleTrapStatus() != PET_BATTLE_TRAP_STATUS_ACTIVE)
         return false;
 
-    ActivePetBattleTurn const turn = m_activePetBattle.ApplyTrapRound(roundId);
-    if (!turn.Accepted || !turn.HasFinalRound || !turn.Captured)
+    uint32 const trapAbility = GetTrapAbility();
+    bool const captured = roll_chance_f(BattlePetTrapCaptureChance(trapAbility, m_activePetBattle.TrapFailedAttempts));
+
+    ActivePetBattleTurn trapTurn;
+    ActivePetBattleTurn enemyTurn;
+    if (!m_activePetBattle.ApplyTrapRoundWithEnemyResponse(roundId, captured, enemyDamage, trapTurn, enemyTurn))
         return false;
 
-    uint8 const capturedLevel = BattlePetCapturedLevel(m_activePetBattle.EnemyLevel);
-    BattlePet* capturedPet = Create(m_activePetBattle.EnemySpecies,
-        capturedLevel, m_activePetBattle.EnemyQuality, m_activePetBattle.EnemyBreed);
-    if (!capturedPet)
+    round.RoundID = trapTurn.RoundID;
+    Skyfire::BattlePetPackets::AppendRoundCooldowns(round, trapTurn);
+    round.Effects.push_back(Skyfire::BattlePetPackets::BuildCatchEffect(m_activePetBattle.AllyFrontPet,
+        m_activePetBattle.EnemyFrontPet, trapAbilityEffectId, trapTurn.Captured, 1));
+    if (trapTurn.Captured)
+        Skyfire::BattlePetPackets::MarkRoundResultAsCatchOrKill(round);
+    else if (enemyTurn.Accepted && enemyTurn.HasRoundResult)
+    {
+        round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
+            enemyTurn.CasterPet, enemyTurn.TargetPet, int32(enemyTurn.RemainingHealth), enemyAbilityEffectId, 2));
+
+        if (enemyTurn.TargetDied)
+            round.DeadPets.push_back(enemyTurn.TargetPet);
+
+        if (enemyTurn.RequiresFrontPet)
+            round.InputFlags[0] = Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
+    }
+
+    ApplyActivePetBattleRoundState(round);
+
+    if (!trapTurn.Captured && !enemyTurn.HasFinalRound)
+        return true;
+
+    if (!trapTurn.HasFinalRound && !enemyTurn.HasFinalRound)
         return false;
 
-    UpdateCapturedBattlePetAchievements(*capturedPet);
+    if (trapTurn.Captured)
+    {
+        uint8 const capturedLevel = BattlePetCapturedLevel(m_activePetBattle.EnemyLevel);
+        BattlePet* capturedPet = Create(m_activePetBattle.EnemySpecies,
+            capturedLevel, m_activePetBattle.EnemyQuality, m_activePetBattle.EnemyBreed);
+        if (!capturedPet)
+            return false;
+
+        UpdateCapturedBattlePetAchievements(*capturedPet);
+    }
+
     PersistActivePetBattleHealth();
-    return BuildActivePetBattleFinalRound(false, finalRound, turn.Captured);
+    return BuildActivePetBattleFinalRound(false, finalRound, trapTurn.Captured);
 }
 
 void BattlePetMgr::ApplyActivePetBattleRoundState(

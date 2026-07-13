@@ -25,7 +25,10 @@ namespace Skyfire::BattlePetPackets
         uint8 constexpr PetBattleEffectTargetNpcEmote = 6;
         uint8 constexpr PetBattleEffectTargetAura = 7;
         uint8 constexpr PetBattleEffectActivePet = 4;
+        uint8 constexpr PetBattleEffectCatch = 5;
+        uint16 constexpr PetBattleEffectFlagMiss = 0x0002;
         uint8 constexpr PetBattleRoundResultNormal = 2;
+        uint8 constexpr PetBattleRoundResultCatchOrKill = 3;
 
         void WriteRoundEffectBits(WorldPacket& data, BattlePetRoundEffect const& effect)
         {
@@ -307,6 +310,27 @@ namespace Skyfire::BattlePetPackets
         return effect;
     }
 
+    BattlePetRoundEffect BuildCatchEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
+        bool captured, uint16 turnInstanceId)
+    {
+        BattlePetRoundEffectTarget target;
+        target.PetX = targetPet;
+        target.Type = PetBattleEffectTargetStatChange;
+        target.HasStatus = true;
+        target.Status = captured ? 1 : 0;
+
+        BattlePetRoundEffect effect;
+        effect.CasterPBOID = casterPet;
+        effect.PetBattleEffectType = PetBattleEffectCatch;
+        effect.Flags = captured ? PetBattleEffectFlagMiss : 0;
+        effect.TurnInstanceID = turnInstanceId;
+        effect.StackDepth = 1;
+        effect.AbilityEffectID = abilityEffectId;
+        effect.Targets.push_back(target);
+
+        return effect;
+    }
+
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied)
     {
@@ -328,12 +352,15 @@ namespace Skyfire::BattlePetPackets
         if (!turn.Accepted || !turn.HasRoundResult)
             return round;
 
+        AppendRoundCooldowns(round, turn);
+
         switch (turn.EffectKind)
         {
             case ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE:
             {
                 BattlePetRoundResult damageRound = BuildDamageRoundResult(turn.RoundID, turn.CasterPet, turn.TargetPet,
                     int32(turn.RemainingHealth), abilityEffectId, turn.TargetDied);
+                damageRound.Cooldowns = round.Cooldowns;
                 if (turn.RequiresFrontPet)
                     damageRound.InputFlags[0] = BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
 
@@ -347,6 +374,26 @@ namespace Skyfire::BattlePetPackets
         }
 
         return round;
+    }
+
+    void AppendRoundCooldowns(BattlePetRoundResult& round, ActivePetBattleTurn const& turn)
+    {
+        for (ActivePetBattleCooldown const& source : turn.Cooldowns)
+        {
+            BattlePetRoundCooldown cooldown;
+            cooldown.AbilityID = source.AbilityID;
+            cooldown.Cooldown = source.Cooldown;
+            cooldown.Lockdown = source.Lockdown;
+            cooldown.AbilitySlot = source.AbilitySlot;
+            cooldown.PetPBOID = source.PetPBOID;
+            cooldown.HasPetPBOID = true;
+            round.Cooldowns.push_back(cooldown);
+        }
+    }
+
+    void MarkRoundResultAsCatchOrKill(BattlePetRoundResult& round)
+    {
+        round.NextPetBattleState = PetBattleRoundResultCatchOrKill;
     }
 
     BattlePetFinalRound BuildFinalRoundState(bool allyWon, bool abandoned,
@@ -666,9 +713,24 @@ namespace Skyfire::BattlePetPackets
 
         data.WriteBit(!round.NextPetBattleState);
         data.WriteBits(round.DeadPets.size(), 3);
-        data.WriteBits(0, 20);                    // cooldown count
+        data.WriteBits(round.Cooldowns.size(), 20);
+
+        for (BattlePetRoundCooldown const& cooldown : round.Cooldowns)
+            data.WriteBit(!cooldown.HasPetPBOID);
 
         data.FlushBits();
+
+        for (BattlePetRoundCooldown const& cooldown : round.Cooldowns)
+        {
+            data << uint16(cooldown.Cooldown);
+            data << uint16(cooldown.Lockdown);
+            data << uint32(cooldown.AbilityID);
+            data << uint8(cooldown.AbilitySlot);
+
+            if (cooldown.HasPetPBOID)
+                data << uint8(cooldown.PetPBOID);
+        }
+
         for (BattlePetRoundEffect const& effect : round.Effects)
             WriteRoundEffectBytes(data, effect);
 

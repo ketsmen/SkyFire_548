@@ -9,6 +9,8 @@
 #include "BattlePet.h"
 #include "Common.h"
 
+#include <vector>
+
 enum PetBattleWinner
 {
     PET_BATTLE_WINNER_NONE = 0,
@@ -35,6 +37,16 @@ enum ActivePetBattleTurnEffect
     ACTIVE_PET_BATTLE_TURN_EFFECT_SWAP = 2
 };
 
+struct ActivePetBattleCooldown
+{
+    uint8 PetPBOID = 0;
+    uint8 AbilitySlot = 0;
+    uint32 AbilityID = 0;
+    uint16 Cooldown = 0;
+    uint16 Lockdown = 0;
+    bool OnCooldown = false;
+};
+
 struct ActivePetBattleTurn
 {
     bool Accepted = false;
@@ -50,6 +62,7 @@ struct ActivePetBattleTurn
     uint8 Winner = PET_BATTLE_WINNER_NONE;
     uint32 RoundID = 0;
     uint32 RemainingHealth = 0;
+    std::vector<ActivePetBattleCooldown> Cooldowns;
 };
 
 struct ActivePetBattlePetState
@@ -160,11 +173,20 @@ struct ActivePetBattle
 
     ActivePetBattleTurn ApplyAbilityRound(uint32 roundId, uint32 damage)
     {
+        return ApplyAbilityRound(roundId, damage, BATTLE_PET_ABILITY_SLOT_INVALID, 0, 0);
+    }
+
+    ActivePetBattleTurn ApplyAbilityRound(uint32 roundId, uint32 damage, uint8 abilitySlot,
+        uint32 abilityId, uint16 abilityCooldown)
+    {
         ActivePetBattleTurn turn = CreateTurn(roundId);
         if (!CanAcceptRound(roundId))
             return turn;
 
         if (WaitingForAllyFrontPet)
+            return turn;
+
+        if (IsValidAbilitySlot(abilitySlot) && IsAllyAbilityOnCooldown(AllyFrontPet, abilitySlot))
             return turn;
 
         turn.Accepted = true;
@@ -177,7 +199,8 @@ struct ActivePetBattle
         turn.HasFinalRound = IsFinished();
         turn.Winner = Winner;
 
-        AdvanceRound();
+        StartAllyAbilityCooldown(AllyFrontPet, abilitySlot, abilityId, abilityCooldown);
+        FinishAcceptedRound(turn);
         return turn;
     }
 
@@ -201,11 +224,19 @@ struct ActivePetBattle
         turn.HasFinalRound = IsFinished();
         turn.Winner = Winner;
 
-        AdvanceRound();
+        FinishAcceptedRound(turn);
         return turn;
     }
 
     bool ApplyAbilityExchange(uint32 roundId, uint32 allyDamage, uint32 enemyDamage,
+        ActivePetBattleTurn& allyTurn, ActivePetBattleTurn& enemyTurn)
+    {
+        return ApplyAbilityExchange(roundId, allyDamage, enemyDamage, BATTLE_PET_ABILITY_SLOT_INVALID,
+            0, 0, allyTurn, enemyTurn);
+    }
+
+    bool ApplyAbilityExchange(uint32 roundId, uint32 allyDamage, uint32 enemyDamage,
+        uint8 allyAbilitySlot, uint32 allyAbilityId, uint16 allyAbilityCooldown,
         ActivePetBattleTurn& allyTurn, ActivePetBattleTurn& enemyTurn)
     {
         allyTurn = CreateTurn(roundId);
@@ -215,6 +246,9 @@ struct ActivePetBattle
             return false;
 
         if (WaitingForAllyFrontPet)
+            return false;
+
+        if (IsValidAbilitySlot(allyAbilitySlot) && IsAllyAbilityOnCooldown(AllyFrontPet, allyAbilitySlot))
             return false;
 
         allyTurn.Accepted = true;
@@ -241,7 +275,8 @@ struct ActivePetBattle
             enemyTurn.Winner = Winner;
         }
 
-        AdvanceRound();
+        StartAllyAbilityCooldown(AllyFrontPet, allyAbilitySlot, allyAbilityId, allyAbilityCooldown);
+        FinishAcceptedRound(allyTurn);
         return true;
     }
 
@@ -261,8 +296,9 @@ struct ActivePetBattle
         turn.TargetPet = newFrontPet;
 
         AllyFrontPet = newFrontPet;
+        WaitingForAllyFrontPet = false;
         SyncActiveAllyPet();
-        AdvanceRound();
+        FinishAcceptedRound(turn);
         return turn;
     }
 
@@ -281,7 +317,7 @@ struct ActivePetBattle
         return turn;
     }
 
-    ActivePetBattleTurn ApplyTrapRound(uint32 roundId)
+    ActivePetBattleTurn ApplyTrapRound(uint32 roundId, bool captured)
     {
         ActivePetBattleTurn turn = CreateTurn(roundId);
         if (!CanAcceptRound(roundId))
@@ -293,14 +329,71 @@ struct ActivePetBattle
         if (!CanTrap())
             return turn;
 
-        Finish(PET_BATTLE_WINNER_ALLY);
-        Captured = true;
-
         turn.Accepted = true;
-        turn.HasFinalRound = true;
-        turn.Captured = true;
-        turn.Winner = Winner;
+        turn.Captured = captured;
+
+        if (captured)
+        {
+            Finish(PET_BATTLE_WINNER_ALLY);
+            Captured = true;
+
+            turn.HasFinalRound = true;
+            turn.Winner = Winner;
+        }
+        else
+        {
+            ++TrapFailedAttempts;
+            turn.HasRoundResult = true;
+            FinishAcceptedRound(turn);
+        }
+
         return turn;
+    }
+
+    bool ApplyTrapRoundWithEnemyResponse(uint32 roundId, bool captured, uint32 enemyDamage,
+        ActivePetBattleTurn& trapTurn, ActivePetBattleTurn& enemyTurn)
+    {
+        trapTurn = CreateTurn(roundId);
+        enemyTurn = CreateTurn(roundId);
+
+        if (!CanAcceptRound(roundId))
+            return false;
+
+        if (WaitingForAllyFrontPet)
+            return false;
+
+        if (!CanTrap())
+            return false;
+
+        trapTurn.Accepted = true;
+        trapTurn.Captured = captured;
+
+        if (captured)
+        {
+            Finish(PET_BATTLE_WINNER_ALLY);
+            Captured = true;
+
+            trapTurn.HasFinalRound = true;
+            trapTurn.Winner = Winner;
+            return true;
+        }
+
+        ++TrapFailedAttempts;
+        trapTurn.HasRoundResult = true;
+
+        enemyTurn.Accepted = true;
+        enemyTurn.HasRoundResult = true;
+        enemyTurn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+        enemyTurn.CasterPet = EnemyFrontPet;
+        enemyTurn.TargetPet = AllyFrontPet;
+        enemyTurn.RemainingHealth = ApplyAllyDamage(enemyDamage);
+        enemyTurn.TargetDied = enemyTurn.RemainingHealth == 0;
+        enemyTurn.RequiresFrontPet = enemyTurn.TargetDied && WaitingForAllyFrontPet;
+        enemyTurn.HasFinalRound = IsFinished();
+        enemyTurn.Winner = Winner;
+
+        FinishAcceptedRound(trapTurn);
+        return true;
     }
 
     uint8 GetTrapStatus(bool canStoreBattlePet = true, bool enemyTameable = true) const
@@ -377,6 +470,14 @@ struct ActivePetBattle
         return false;
     }
 
+    uint16 GetAllyAbilityCooldown(uint8 petIndex, uint8 abilitySlot) const
+    {
+        if (!IsValidAllyPetIndex(petIndex) || !IsValidAbilitySlot(abilitySlot))
+            return 0;
+
+        return AllyCooldowns[petIndex][abilitySlot].Cooldown;
+    }
+
     uint64 EnemyGUID = 0;
     uint64 AllyPetID = 0;
     uint64 EnemyPetID = 0;
@@ -398,10 +499,13 @@ struct ActivePetBattle
     uint8 Winner = PET_BATTLE_WINNER_NONE;
     uint8 AllyFrontPet = 0;
     uint8 EnemyFrontPet = 3;
+    uint8 TrapFailedAttempts = 0;
     bool WaitingForAllyFrontPet = false;
     ActivePetBattlePetState AllyTeam[BATTLE_PET_MAX_ACTIVE_TEAM_PETS];
 
 private:
+    ActivePetBattleCooldown AllyCooldowns[BATTLE_PET_MAX_ACTIVE_TEAM_PETS][BATTLE_PET_ABILITY_SLOT_COUNT];
+
     bool CanAcceptRound(uint32 roundId) const
     {
         return IsActive() && !Finished && roundId == RoundID;
@@ -425,12 +529,85 @@ private:
         if (!EnemyMaxHealth)
             return false;
 
-        return uint64(EnemyHealth) * 100 <= uint64(EnemyMaxHealth) * 20;
+        return uint64(EnemyHealth) * 100 <= uint64(EnemyMaxHealth) * 35;
     }
 
     static bool IsValidAllyPetIndex(uint8 petIndex)
     {
         return petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS;
+    }
+
+    static bool IsValidAbilitySlot(uint8 abilitySlot)
+    {
+        return abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT;
+    }
+
+    bool IsAllyAbilityOnCooldown(uint8 petIndex, uint8 abilitySlot) const
+    {
+        return GetAllyAbilityCooldown(petIndex, abilitySlot) != 0;
+    }
+
+    void StartAllyAbilityCooldown(uint8 petIndex, uint8 abilitySlot, uint32 abilityId, uint16 cooldown)
+    {
+        if (!IsValidAllyPetIndex(petIndex) || !IsValidAbilitySlot(abilitySlot) || !abilityId || !cooldown)
+            return;
+
+        ActivePetBattleCooldown& cooldownState = AllyCooldowns[petIndex][abilitySlot];
+        cooldownState.PetPBOID = petIndex;
+        cooldownState.AbilitySlot = abilitySlot;
+        cooldownState.AbilityID = abilityId;
+        cooldownState.Cooldown = cooldown;
+        cooldownState.Lockdown = 0;
+        cooldownState.OnCooldown = true;
+    }
+
+    void SnapshotAllyCooldowns(std::vector<ActivePetBattleCooldown>& cooldowns) const
+    {
+        for (uint8 petIndex = 0; petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++petIndex)
+        {
+            for (uint8 abilitySlot = 0; abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT; ++abilitySlot)
+            {
+                ActivePetBattleCooldown const& cooldownState = AllyCooldowns[petIndex][abilitySlot];
+                if (cooldownState.OnCooldown)
+                    cooldowns.push_back(cooldownState);
+            }
+        }
+    }
+
+    void ClearExpiredAllyCooldowns()
+    {
+        for (uint8 petIndex = 0; petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++petIndex)
+        {
+            for (uint8 abilitySlot = 0; abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT; ++abilitySlot)
+            {
+                ActivePetBattleCooldown& cooldownState = AllyCooldowns[petIndex][abilitySlot];
+                if (cooldownState.OnCooldown && !cooldownState.Cooldown)
+                    cooldownState = ActivePetBattleCooldown();
+            }
+        }
+    }
+
+    void DecrementAllyCooldowns()
+    {
+        for (uint8 petIndex = 0; petIndex < BATTLE_PET_MAX_ACTIVE_TEAM_PETS; ++petIndex)
+        {
+            for (uint8 abilitySlot = 0; abilitySlot < BATTLE_PET_ABILITY_SLOT_COUNT; ++abilitySlot)
+            {
+                ActivePetBattleCooldown& cooldownState = AllyCooldowns[petIndex][abilitySlot];
+                if (!cooldownState.Cooldown)
+                    continue;
+
+                --cooldownState.Cooldown;
+            }
+        }
+    }
+
+    void FinishAcceptedRound(ActivePetBattleTurn& turn)
+    {
+        SnapshotAllyCooldowns(turn.Cooldowns);
+        ClearExpiredAllyCooldowns();
+        DecrementAllyCooldowns();
+        AdvanceRound();
     }
 
     bool HasAliveAllyPetOtherThan(uint8 petIndex) const

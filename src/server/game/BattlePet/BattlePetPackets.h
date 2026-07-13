@@ -130,6 +130,16 @@ namespace Skyfire::BattlePetPackets
         std::vector<BattlePetRoundEffectTarget> Targets;
     };
 
+    struct BattlePetRoundCooldown
+    {
+        uint32 AbilityID = 0;
+        uint16 Cooldown = 0;
+        uint16 Lockdown = 0;
+        uint8 AbilitySlot = 0;
+        uint8 PetPBOID = 0;
+        bool HasPetPBOID = true;
+    };
+
     struct BattlePetRoundResult
     {
         uint32 RoundID = 0;
@@ -138,12 +148,16 @@ namespace Skyfire::BattlePetPackets
         uint8 TrapStatus[2] = { 2, 2 };
         std::vector<BattlePetRoundEffect> Effects;
         std::vector<uint8> DeadPets;
+        std::vector<BattlePetRoundCooldown> Cooldowns;
     };
 
     enum BattlePetRoundInputFlag
     {
         BATTLE_PET_ROUND_INPUT_FLAG_NONE = 0,
-        BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET = 4
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_ABILITY_1 = 0x01,
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_ABILITY_2 = 0x02,
+        BATTLE_PET_ROUND_INPUT_FLAG_LOCK_PET_SWAP = 0x04,
+        BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET = 0x08
     };
 
     struct BattlePetFinalRoundPet
@@ -178,9 +192,13 @@ namespace Skyfire::BattlePetPackets
     BattlePetRoundEffect BuildPetSwapEffect(uint8 casterPet, uint8 targetPet);
     BattlePetRoundEffect BuildDamageEffect(uint8 casterPet, uint8 targetPet, int32 remainingHealth,
         uint32 abilityEffectId, uint16 turnInstanceId = 1);
+    BattlePetRoundEffect BuildCatchEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
+        bool captured, uint16 turnInstanceId = 1);
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied);
     BattlePetRoundResult BuildRoundResultFromTurn(ActivePetBattleTurn const& turn, uint32 abilityEffectId);
+    void AppendRoundCooldowns(BattlePetRoundResult& round, ActivePetBattleTurn const& turn);
+    void MarkRoundResultAsCatchOrKill(BattlePetRoundResult& round);
     BattlePetFinalRound BuildFinalRoundState(bool allyWon, bool abandoned,
         std::vector<BattlePetFinalRoundPet> const& pets);
     BattlePetFinalRound BuildFinalRoundState(bool allyWon, bool abandoned,

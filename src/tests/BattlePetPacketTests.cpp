@@ -1334,6 +1334,60 @@ namespace
         return passed;
     }
 
+    bool TestPetBattleRoundResultPacketWritesCooldowns()
+    {
+        bool passed = true;
+
+        Skyfire::BattlePetPackets::BattlePetRoundResult round;
+        round.RoundID = 8;
+
+        Skyfire::BattlePetPackets::BattlePetRoundCooldown cooldown;
+        cooldown.AbilityID = 1234;
+        cooldown.AbilitySlot = 1;
+        cooldown.PetPBOID = 0;
+        cooldown.Cooldown = 3;
+        cooldown.Lockdown = 0;
+        round.Cooldowns.push_back(cooldown);
+
+        WorldPacket packet = Skyfire::BattlePetPackets::BuildRoundResultPacket(round);
+
+        packet.rpos(0);
+        passed &= Expect(packet.ReadBits(22) == 0,
+            "Pet battle round result cooldown packet should still write an empty effect list");
+        packet.ReadBit(); // has next battle state
+        passed &= Expect(packet.ReadBits(3) == 0,
+            "Pet battle round result cooldown packet should write no dead pets");
+        passed &= Expect(packet.ReadBits(20) == 1,
+            "Pet battle round result packet should write cooldown count");
+        passed &= Expect(packet.ReadBit() == false,
+            "Pet battle round result cooldown should include the source pet index");
+
+        uint16 cooldownTurns = 0;
+        uint16 lockdownTurns = 1;
+        uint32 abilityId = 0;
+        uint8 abilitySlot = 0;
+        uint8 petPboid = 0;
+
+        packet >> cooldownTurns;
+        packet >> lockdownTurns;
+        packet >> abilityId;
+        packet >> abilitySlot;
+        packet >> petPboid;
+
+        passed &= Expect(cooldownTurns == 3,
+            "Pet battle round result cooldown should write remaining cooldown turns");
+        passed &= Expect(lockdownTurns == 0,
+            "Pet battle round result cooldown should write lockdown turns");
+        passed &= Expect(abilityId == 1234,
+            "Pet battle round result cooldown should write ability id");
+        passed &= Expect(abilitySlot == 1,
+            "Pet battle round result cooldown should write ability slot");
+        passed &= Expect(petPboid == 0,
+            "Pet battle round result cooldown should write source pet index");
+
+        return passed;
+    }
+
     bool TestPetBattleRoundResultPacketWritesDamageEffect()
     {
         bool passed = true;
@@ -1774,6 +1828,31 @@ namespace
         return passed;
     }
 
+    bool TestActivePetBattleDeadPetReplacementClearsWait()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 620);
+        battle.SetAllyPet(1, 0x201, 600, 540);
+
+        ActivePetBattleTurn deathTurn = battle.ApplyEnemyAbilityRound(0, 500);
+        ActivePetBattleTurn swapTurn = battle.ApplySwapRound(1, 1);
+
+        passed &= Expect(deathTurn.Accepted && deathTurn.RequiresFrontPet,
+            "Enemy ability turn should request replacement after defeating the active ally pet");
+        passed &= Expect(swapTurn.Accepted && swapTurn.HasRoundResult,
+            "Dead-pet replacement swap should accept the next round input");
+        passed &= Expect(!battle.WaitingForAllyFrontPet,
+            "Dead-pet replacement swap should clear the replacement wait");
+        passed &= Expect(battle.AllyFrontPet == 1 && battle.AllyPetID == 0x201 && battle.AllyHealth == 540,
+            "Dead-pet replacement swap should activate the selected live pet");
+        passed &= Expect(battle.RoundID == 2,
+            "Dead-pet replacement swap should advance the round after selection");
+
+        return passed;
+    }
+
     bool TestActivePetBattleFindsAllyPetHealthByPetId()
     {
         bool passed = true;
@@ -1841,6 +1920,49 @@ namespace
             "Active pet battle ability turn should report defeated target health");
         passed &= Expect(battle.IsFinished() && battle.Winner == PET_BATTLE_WINNER_ALLY,
             "Active pet battle ability turn should finish the battle for the ally team");
+
+        return passed;
+    }
+
+    bool TestActivePetBattleAbilityCooldownBlocksOnlyUntilExpired()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 1400, 1200);
+
+        ActivePetBattleTurn first = battle.ApplyAbilityRound(0, 50, 1, 1234, 3);
+        passed &= Expect(first.Accepted,
+            "Active pet battle should accept an ability before its cooldown starts");
+        passed &= Expect(first.Cooldowns.size() == 1 && first.Cooldowns[0].Cooldown == 3,
+            "Active pet battle should report the full ability cooldown in the completed round");
+        passed &= Expect(battle.GetAllyAbilityCooldown(0, 1) == 2,
+            "Active pet battle should decrement the used ability cooldown after the round");
+
+        Skyfire::BattlePetPackets::BattlePetRoundResult firstRound =
+            Skyfire::BattlePetPackets::BuildRoundResultFromTurn(first, 77);
+        passed &= Expect(firstRound.Cooldowns.size() == 1 && firstRound.Cooldowns[0].AbilityID == 1234,
+            "Active pet battle damage round should preserve the ability cooldown from the completed turn");
+
+        ActivePetBattleTurn blocked = battle.ApplyAbilityRound(1, 50, 1, 1234, 3);
+        passed &= Expect(!blocked.Accepted,
+            "Active pet battle should reject an ability while its slot is cooling down");
+
+        ActivePetBattleTurn second = battle.ApplyAbilityRound(1, 50, 2, 5678, 0);
+        passed &= Expect(second.Accepted && battle.GetAllyAbilityCooldown(0, 1) == 1,
+            "Active pet battle should continue decrementing cooldowns after other accepted actions");
+
+        ActivePetBattleTurn third = battle.ApplyAbilityRound(2, 50, 2, 5678, 0);
+        passed &= Expect(third.Accepted && battle.GetAllyAbilityCooldown(0, 1) == 0,
+            "Active pet battle should expire cooldowns after enough accepted rounds");
+
+        ActivePetBattleTurn clear = battle.ApplyAbilityRound(3, 50, 2, 5678, 0);
+        passed &= Expect(clear.Accepted && clear.Cooldowns.size() == 1 && clear.Cooldowns[0].Cooldown == 0,
+            "Active pet battle should report an expired cooldown once so the client can clear it");
+
+        ActivePetBattleTurn reused = battle.ApplyAbilityRound(4, 50, 1, 1234, 3);
+        passed &= Expect(reused.Accepted,
+            "Active pet battle should accept the ability again after cooldown expiration");
 
         return passed;
     }
@@ -1977,6 +2099,8 @@ namespace
             "Resolved ally death round helper should mark the defeated ally pet");
         passed &= Expect(round.InputFlags[0] == Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET,
             "Resolved ally death round helper should request ally front pet selection");
+        passed &= Expect(round.InputFlags[0] == 0x08,
+            "Resolved ally death round helper should use the client select-new-pet input flag");
         passed &= Expect(round.InputFlags[1] == Skyfire::BattlePetPackets::BATTLE_PET_ROUND_INPUT_FLAG_NONE,
             "Resolved ally death round helper should leave enemy input flags clear");
 
@@ -2111,7 +2235,7 @@ namespace
         ActivePetBattle battle;
         battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
 
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
 
         passed &= Expect(turn.Accepted,
             "Active pet battle trap should accept current round input");
@@ -2139,7 +2263,7 @@ namespace
         passed &= Expect(battle.GetTrapStatus() == PET_BATTLE_TRAP_STATUS_HEALTH_TOO_HIGH,
             "Active pet battle trap status should reject enemies above capture health");
 
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
 
         passed &= Expect(!turn.Accepted,
             "Active pet battle trap should reject high-health enemies");
@@ -2171,11 +2295,66 @@ namespace
             "Active pet battle trap status should reject when an active pet is dead");
 
         battle.AllyHealth = 450;
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
         passed &= Expect(turn.Accepted,
             "Active pet battle trap should accept once capture rules pass");
         passed &= Expect(battle.GetTrapStatus() == PET_BATTLE_TRAP_STATUS_ALREADY_TRAPPED,
             "Active pet battle trap status should reject a second trap attempt");
+
+        return passed;
+    }
+
+    bool TestActivePetBattleFailedTrapAllowsEnemyCounterattack()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
+
+        ActivePetBattleTurn trapTurn;
+        ActivePetBattleTurn enemyTurn;
+        bool accepted = battle.ApplyTrapRoundWithEnemyResponse(0, false, 90, trapTurn, enemyTurn);
+
+        passed &= Expect(accepted && trapTurn.Accepted && trapTurn.HasRoundResult,
+            "Failed trap should accept current round and produce a round result");
+        passed &= Expect(!trapTurn.Captured && !trapTurn.HasFinalRound,
+            "Failed trap should not capture or finish the battle");
+        passed &= Expect(enemyTurn.Accepted && enemyTurn.HasRoundResult,
+            "Failed trap should allow the enemy pet to counterattack in the same round");
+        passed &= Expect(enemyTurn.EffectKind == ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE,
+            "Failed trap counterattack should report a damage effect");
+        passed &= Expect(enemyTurn.CasterPet == 3 && enemyTurn.TargetPet == 0,
+            "Failed trap counterattack should use enemy and ally front pet indexes");
+        passed &= Expect(enemyTurn.RemainingHealth == 360 && battle.AllyHealth == 360,
+            "Failed trap counterattack should damage the active ally pet");
+        passed &= Expect(battle.TrapFailedAttempts == 1,
+            "Failed trap should increment failed capture attempts");
+        passed &= Expect(battle.RoundID == 1,
+            "Failed trap counterattack should advance the round once");
+
+        return passed;
+    }
+
+    bool TestActivePetBattleFailedTrapCounterattackCanForceReplacement()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
+        battle.SetAllyPet(1, 0x201, 600, 540);
+
+        ActivePetBattleTurn trapTurn;
+        ActivePetBattleTurn enemyTurn;
+        bool accepted = battle.ApplyTrapRoundWithEnemyResponse(0, false, 500, trapTurn, enemyTurn);
+
+        passed &= Expect(accepted && trapTurn.Accepted,
+            "Failed trap should accept even when the enemy counterattack defeats the active ally pet");
+        passed &= Expect(enemyTurn.Accepted && enemyTurn.TargetDied && enemyTurn.RequiresFrontPet,
+            "Failed trap counterattack should request a replacement when backup pets remain");
+        passed &= Expect(!battle.IsFinished() && battle.WaitingForAllyFrontPet,
+            "Failed trap counterattack should keep the battle active while waiting for a replacement pet");
+        passed &= Expect(battle.RoundID == 1,
+            "Failed trap replacement request should advance to the replacement input round");
 
         return passed;
     }
@@ -2221,6 +2400,7 @@ int main()
     passed &= TestPetBattleRequestUpdateReadsGuidAndCancelled();
     passed &= TestPetBattleFinishedPacketIsEmpty();
     passed &= TestPetBattleRoundResultPacketWritesEmptyRound();
+    passed &= TestPetBattleRoundResultPacketWritesCooldowns();
     passed &= TestPetBattleRoundResultPacketWritesDamageEffect();
     passed &= TestPetBattleDamageRoundHelperMarksDeadTarget();
     passed &= TestPetBattleSwapEffectHelperSelectsNewFrontPet();
@@ -2235,9 +2415,11 @@ int main()
     passed &= TestActivePetBattleAllyDeathRequiresReplacementWhenBackupAlive();
     passed &= TestActivePetBattleAllyDeathFinishesWhenNoBackupAlive();
     passed &= TestActivePetBattleEnemyAbilityTurnRequiresReplacement();
+    passed &= TestActivePetBattleDeadPetReplacementClearsWait();
     passed &= TestActivePetBattleFindsAllyPetHealthByPetId();
     passed &= TestActivePetBattleAdvanceRoundStopsAfterFinished();
     passed &= TestActivePetBattleAbilityTurnBuildsRoundAndFinalState();
+    passed &= TestActivePetBattleAbilityCooldownBlocksOnlyUntilExpired();
     passed &= TestActivePetBattleRejectsStaleRoundInput();
     passed &= TestActivePetBattleSwapTurnSelectsNewFrontPet();
     passed &= TestActivePetBattleForfeitFinishesForEnemy();
@@ -2249,6 +2431,8 @@ int main()
     passed &= TestActivePetBattleTrapFinishesAndMarksCapture();
     passed &= TestActivePetBattleTrapRejectsHighHealthEnemy();
     passed &= TestActivePetBattleTrapStatusHandlesCaptureFailures();
+    passed &= TestActivePetBattleFailedTrapAllowsEnemyCounterattack();
+    passed &= TestActivePetBattleFailedTrapCounterattackCanForceReplacement();
     std::cout << (passed ? "Battle pet packet tests passed" : "Battle pet packet tests failed") << std::endl;
     return passed ? 0 : 1;
 }

@@ -183,17 +183,22 @@ public:
     bool ApplyEnemyBattlePetDamage(uint32 damage, uint32 abilityEffectId,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round);
     bool ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uint32 abilityEffectId,
+        uint8 abilitySlot, uint32 abilityId, uint16 abilityCooldown,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round,
         Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound = NULL);
     bool ApplyBattlePetAbilityExchangeInput(uint32 roundId,
         uint32 allyDamage, uint32 allyAbilityEffectId,
+        uint8 allyAbilitySlot, uint32 allyAbilityId, uint16 allyAbilityCooldown,
         uint32 enemyDamage, uint32 enemyAbilityEffectId,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round,
         Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound = NULL);
     bool ApplyBattlePetSwapInput(uint32 roundId, uint8 newFrontPet,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round);
     bool ApplyBattlePetForfeitInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
-    bool ApplyBattlePetTrapInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
+    bool ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEffectId,
+        uint32 enemyDamage, uint32 enemyAbilityEffectId,
+        Skyfire::BattlePetPackets::BattlePetRoundResult& round,
+        Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
     void FinishActivePetBattle(uint8 winner);
     bool BuildActivePetBattleFinalRound(bool abandoned, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound,
         bool captured = false);
