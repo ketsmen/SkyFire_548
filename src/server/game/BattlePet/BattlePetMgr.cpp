@@ -736,10 +736,42 @@ void BattlePetMgr::ApplyActivePetBattlePlayerState(float faceX, float faceY)
 void BattlePetMgr::ClearActivePetBattle()
 {
     PersistActivePetBattleHealth();
+    DespawnResolvedWildPetBattleWorldObject();
     ClearActivePetBattleWorldObjectState();
     m_activePetBattle = ActivePetBattle();
     m_petBattlePvpQueued = false;
     ClearActivePetBattlePlayerState();
+}
+
+void BattlePetMgr::DespawnResolvedWildPetBattleWorldObject()
+{
+    if (!m_owner || !m_owner->IsInWorld() || !m_activePetBattle.IsActive()
+        || !m_activePetBattle.IsFinished() || m_activePetBattle.IsPvP())
+        return;
+
+    if (!m_activePetBattle.Captured && m_activePetBattle.Winner != PET_BATTLE_WINNER_ALLY)
+        return;
+
+    uint64 const worldObjectGuid = m_activePetBattle.EnemyGUID;
+    if (Creature* creature = ObjectAccessor::GetCreature(*m_owner, worldObjectGuid))
+    {
+        if (creature->ToTempSummon())
+            creature->DespawnOrUnsummon();
+        else
+        {
+            if (creature->IsAlive())
+                creature->setDeathState(DeathState::JUST_DIED);
+
+            creature->RemoveCorpse();
+            creature->SaveRespawnTime();
+        }
+
+        if (m_activePetBattleWorldObjectGuid == worldObjectGuid)
+        {
+            m_activePetBattleWorldObjectGuid = 0;
+            m_activePetBattleWorldObjectHidden = false;
+        }
+    }
 }
 
 void BattlePetMgr::ClearActivePetBattleWorldObjectState()

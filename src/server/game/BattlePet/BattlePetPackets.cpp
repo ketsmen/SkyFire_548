@@ -331,15 +331,21 @@ namespace Skyfire::BattlePetPackets
         return effect;
     }
 
+    void AppendDamageRoundEffect(BattlePetRoundResult& round, uint8 casterPet, uint8 targetPet,
+        int32 remainingHealth, uint32 abilityEffectId, bool targetDied)
+    {
+        round.Effects.push_back(BuildDamageEffect(casterPet, targetPet, remainingHealth, abilityEffectId));
+
+        if (targetDied)
+            round.DeadPets.push_back(targetPet);
+    }
+
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied)
     {
         BattlePetRoundResult round;
         round.RoundID = roundId;
-        round.Effects.push_back(BuildDamageEffect(casterPet, targetPet, remainingHealth, abilityEffectId));
-
-        if (targetDied)
-            round.DeadPets.push_back(targetPet);
+        AppendDamageRoundEffect(round, casterPet, targetPet, remainingHealth, abilityEffectId, targetDied);
 
         return round;
     }
@@ -357,15 +363,12 @@ namespace Skyfire::BattlePetPackets
         switch (turn.EffectKind)
         {
             case ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE:
-            {
-                BattlePetRoundResult damageRound = BuildDamageRoundResult(turn.RoundID, turn.CasterPet, turn.TargetPet,
-                    int32(turn.RemainingHealth), abilityEffectId, turn.TargetDied);
-                damageRound.Cooldowns = round.Cooldowns;
-                if (turn.RequiresFrontPet)
-                    damageRound.InputFlags[0] = BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
+                AppendDamageRoundEffect(round, turn.CasterPet, turn.TargetPet, int32(turn.RemainingHealth),
+                    abilityEffectId, turn.TargetDied);
 
-                return damageRound;
-            }
+                if (turn.RequiresFrontPet)
+                    round.InputFlags[0] = BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
+                break;
             case ACTIVE_PET_BATTLE_TURN_EFFECT_SWAP:
                 round.Effects.push_back(BuildPetSwapEffect(turn.CasterPet, turn.TargetPet));
                 break;
