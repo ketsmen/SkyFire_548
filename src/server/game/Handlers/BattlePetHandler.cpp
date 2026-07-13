@@ -1609,11 +1609,22 @@ void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
             break;
         }
         case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_TRAP:
+        {
+            ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+            uint32 const enemyAbilityId = BattlePetGetSpeciesAbility(
+                activeBattle.EnemySpecies, 0, 0, activeBattle.EnemyLevel);
+            BattlePet const* enemyBattlePet = GetPvpOpponentActiveBattlePet(*player, activeBattle);
+            uint32 const enemyDamage = enemyBattlePet
+                ? BattlePetInputDamageForAbility(enemyAbilityId, enemyBattlePet)
+                : BattlePetInputDamageForEnemyAbility(enemyAbilityId, activeBattle);
+
             handled = battlePetMgr->ApplyBattlePetTrapInput(battlePetMgr->GetActivePetBattle().RoundID,
-                BattlePetInputEffectForAbility(battlePetMgr->GetTrapAbility()), round, finalRound);
+                BattlePetInputEffectForAbility(battlePetMgr->GetTrapAbility()), enemyDamage,
+                BattlePetInputEffectForAbility(enemyAbilityId), round, finalRound);
             sendRound = handled;
             sendFinal = handled && !finalRound.Pets.empty();
             break;
+        }
         default:
             return;
     }

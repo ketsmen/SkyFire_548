@@ -315,6 +315,52 @@ struct ActivePetBattle
         return turn;
     }
 
+    bool ApplyTrapRoundWithEnemyResponse(uint32 roundId, bool captured, uint32 enemyDamage,
+        ActivePetBattleTurn& trapTurn, ActivePetBattleTurn& enemyTurn)
+    {
+        trapTurn = CreateTurn(roundId);
+        enemyTurn = CreateTurn(roundId);
+
+        if (!CanAcceptRound(roundId))
+            return false;
+
+        if (WaitingForAllyFrontPet)
+            return false;
+
+        if (!CanTrap())
+            return false;
+
+        trapTurn.Accepted = true;
+        trapTurn.Captured = captured;
+
+        if (captured)
+        {
+            Finish(PET_BATTLE_WINNER_ALLY);
+            Captured = true;
+
+            trapTurn.HasFinalRound = true;
+            trapTurn.Winner = Winner;
+            return true;
+        }
+
+        ++TrapFailedAttempts;
+        trapTurn.HasRoundResult = true;
+
+        enemyTurn.Accepted = true;
+        enemyTurn.HasRoundResult = true;
+        enemyTurn.EffectKind = ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE;
+        enemyTurn.CasterPet = EnemyFrontPet;
+        enemyTurn.TargetPet = AllyFrontPet;
+        enemyTurn.RemainingHealth = ApplyAllyDamage(enemyDamage);
+        enemyTurn.TargetDied = enemyTurn.RemainingHealth == 0;
+        enemyTurn.RequiresFrontPet = enemyTurn.TargetDied && WaitingForAllyFrontPet;
+        enemyTurn.HasFinalRound = IsFinished();
+        enemyTurn.Winner = Winner;
+
+        AdvanceRound();
+        return true;
+    }
+
     uint8 GetTrapStatus(bool canStoreBattlePet = true, bool enemyTameable = true) const
     {
         if (!IsActive() || !enemyTameable)

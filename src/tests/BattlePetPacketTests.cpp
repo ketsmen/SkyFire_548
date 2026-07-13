@@ -2138,7 +2138,7 @@ namespace
         ActivePetBattle battle;
         battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
 
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
 
         passed &= Expect(turn.Accepted,
             "Active pet battle trap should accept current round input");
@@ -2166,7 +2166,7 @@ namespace
         passed &= Expect(battle.GetTrapStatus() == PET_BATTLE_TRAP_STATUS_HEALTH_TOO_HIGH,
             "Active pet battle trap status should reject enemies above capture health");
 
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
 
         passed &= Expect(!turn.Accepted,
             "Active pet battle trap should reject high-health enemies");
@@ -2198,11 +2198,66 @@ namespace
             "Active pet battle trap status should reject when an active pet is dead");
 
         battle.AllyHealth = 450;
-        ActivePetBattleTurn turn = battle.ApplyTrapRound(0);
+        ActivePetBattleTurn turn = battle.ApplyTrapRound(0, true);
         passed &= Expect(turn.Accepted,
             "Active pet battle trap should accept once capture rules pass");
         passed &= Expect(battle.GetTrapStatus() == PET_BATTLE_TRAP_STATUS_ALREADY_TRAPPED,
             "Active pet battle trap status should reject a second trap attempt");
+
+        return passed;
+    }
+
+    bool TestActivePetBattleFailedTrapAllowsEnemyCounterattack()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
+
+        ActivePetBattleTurn trapTurn;
+        ActivePetBattleTurn enemyTurn;
+        bool accepted = battle.ApplyTrapRoundWithEnemyResponse(0, false, 90, trapTurn, enemyTurn);
+
+        passed &= Expect(accepted && trapTurn.Accepted && trapTurn.HasRoundResult,
+            "Failed trap should accept current round and produce a round result");
+        passed &= Expect(!trapTurn.Captured && !trapTurn.HasFinalRound,
+            "Failed trap should not capture or finish the battle");
+        passed &= Expect(enemyTurn.Accepted && enemyTurn.HasRoundResult,
+            "Failed trap should allow the enemy pet to counterattack in the same round");
+        passed &= Expect(enemyTurn.EffectKind == ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE,
+            "Failed trap counterattack should report a damage effect");
+        passed &= Expect(enemyTurn.CasterPet == 3 && enemyTurn.TargetPet == 0,
+            "Failed trap counterattack should use enemy and ally front pet indexes");
+        passed &= Expect(enemyTurn.RemainingHealth == 360 && battle.AllyHealth == 360,
+            "Failed trap counterattack should damage the active ally pet");
+        passed &= Expect(battle.TrapFailedAttempts == 1,
+            "Failed trap should increment failed capture attempts");
+        passed &= Expect(battle.RoundID == 1,
+            "Failed trap counterattack should advance the round once");
+
+        return passed;
+    }
+
+    bool TestActivePetBattleFailedTrapCounterattackCanForceReplacement()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 140, 42, 6, ITEM_QUALITY_NORMAL);
+        battle.SetAllyPet(1, 0x201, 600, 540);
+
+        ActivePetBattleTurn trapTurn;
+        ActivePetBattleTurn enemyTurn;
+        bool accepted = battle.ApplyTrapRoundWithEnemyResponse(0, false, 500, trapTurn, enemyTurn);
+
+        passed &= Expect(accepted && trapTurn.Accepted,
+            "Failed trap should accept even when the enemy counterattack defeats the active ally pet");
+        passed &= Expect(enemyTurn.Accepted && enemyTurn.TargetDied && enemyTurn.RequiresFrontPet,
+            "Failed trap counterattack should request a replacement when backup pets remain");
+        passed &= Expect(!battle.IsFinished() && battle.WaitingForAllyFrontPet,
+            "Failed trap counterattack should keep the battle active while waiting for a replacement pet");
+        passed &= Expect(battle.RoundID == 1,
+            "Failed trap replacement request should advance to the replacement input round");
 
         return passed;
     }
@@ -2277,6 +2332,8 @@ int main()
     passed &= TestActivePetBattleTrapFinishesAndMarksCapture();
     passed &= TestActivePetBattleTrapRejectsHighHealthEnemy();
     passed &= TestActivePetBattleTrapStatusHandlesCaptureFailures();
+    passed &= TestActivePetBattleFailedTrapAllowsEnemyCounterattack();
+    passed &= TestActivePetBattleFailedTrapCounterattackCanForceReplacement();
     std::cout << (passed ? "Battle pet packet tests passed" : "Battle pet packet tests failed") << std::endl;
     return passed ? 0 : 1;
 }

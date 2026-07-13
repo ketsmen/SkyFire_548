@@ -194,6 +194,7 @@ public:
         Skyfire::BattlePetPackets::BattlePetRoundResult& round);
     bool ApplyBattlePetForfeitInput(uint32 roundId, Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
     bool ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEffectId,
+        uint32 enemyDamage, uint32 enemyAbilityEffectId,
         Skyfire::BattlePetPackets::BattlePetRoundResult& round,
         Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound);
     void FinishActivePetBattle(uint8 winner);
