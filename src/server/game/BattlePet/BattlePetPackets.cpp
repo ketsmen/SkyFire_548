@@ -25,7 +25,10 @@ namespace Skyfire::BattlePetPackets
         uint8 constexpr PetBattleEffectTargetNpcEmote = 6;
         uint8 constexpr PetBattleEffectTargetAura = 7;
         uint8 constexpr PetBattleEffectActivePet = 4;
+        uint8 constexpr PetBattleEffectCatch = 5;
+        uint16 constexpr PetBattleEffectFlagMiss = 0x0002;
         uint8 constexpr PetBattleRoundResultNormal = 2;
+        uint8 constexpr PetBattleRoundResultCatchOrKill = 3;
 
         void WriteRoundEffectBits(WorldPacket& data, BattlePetRoundEffect const& effect)
         {
@@ -307,6 +310,27 @@ namespace Skyfire::BattlePetPackets
         return effect;
     }
 
+    BattlePetRoundEffect BuildCatchEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
+        bool captured, uint16 turnInstanceId)
+    {
+        BattlePetRoundEffectTarget target;
+        target.PetX = targetPet;
+        target.Type = PetBattleEffectTargetStatChange;
+        target.HasStatus = true;
+        target.Status = captured ? 1 : 0;
+
+        BattlePetRoundEffect effect;
+        effect.CasterPBOID = casterPet;
+        effect.PetBattleEffectType = PetBattleEffectCatch;
+        effect.Flags = captured ? PetBattleEffectFlagMiss : 0;
+        effect.TurnInstanceID = turnInstanceId;
+        effect.StackDepth = 1;
+        effect.AbilityEffectID = abilityEffectId;
+        effect.Targets.push_back(target);
+
+        return effect;
+    }
+
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied)
     {
@@ -347,6 +371,11 @@ namespace Skyfire::BattlePetPackets
         }
 
         return round;
+    }
+
+    void MarkRoundResultAsCatchOrKill(BattlePetRoundResult& round)
+    {
+        round.NextPetBattleState = PetBattleRoundResultCatchOrKill;
     }
 
     BattlePetFinalRound BuildFinalRoundState(bool allyWon, bool abandoned,

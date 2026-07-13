@@ -543,7 +543,11 @@ void BattlePetMgr::SetLoadoutFlag(uint8 flag)
 
 uint32 BattlePetMgr::GetTrapAbility() const
 {
-    return BattlePetTrapAbilityForLoadoutFlags(m_loadoutFlags);
+    uint32 const trapAbility = BattlePetTrapAbilityForLoadoutFlags(m_loadoutFlags);
+    if (trapAbility == BATTLE_PET_ABILITY_GM_TRAP && (!m_owner || !m_owner->IsGameMaster()))
+        return BATTLE_PET_ABILITY_TRAP;
+
+    return trapAbility;
 }
 
 bool BattlePetMgr::ApplyAchievementLoadoutReward(uint32 achievementId)
@@ -887,7 +891,7 @@ bool BattlePetMgr::ApplyBattlePetForfeitInput(uint32 roundId,
     return BuildActivePetBattleFinalRound(turn.Abandoned, finalRound);
 }
 
-bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
+bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEffectId,
     Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound& finalRound)
 {
@@ -904,12 +908,16 @@ bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId,
     if (!turn.Accepted)
         return false;
 
-    if (turn.HasRoundResult)
-    {
-        round = Skyfire::BattlePetPackets::BuildRoundResultFromTurn(turn, 0);
-        ApplyActivePetBattleRoundState(round);
+    round.RoundID = turn.RoundID;
+    round.Effects.push_back(Skyfire::BattlePetPackets::BuildCatchEffect(m_activePetBattle.AllyFrontPet,
+        m_activePetBattle.EnemyFrontPet, trapAbilityEffectId, turn.Captured));
+    if (turn.Captured)
+        Skyfire::BattlePetPackets::MarkRoundResultAsCatchOrKill(round);
+
+    ApplyActivePetBattleRoundState(round);
+
+    if (!turn.Captured)
         return true;
-    }
 
     if (!turn.HasFinalRound || !turn.Captured)
         return false;

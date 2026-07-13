@@ -1610,8 +1610,8 @@ void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
         }
         case Skyfire::BattlePetPackets::BATTLE_PET_INPUT_ACTION_TRAP:
             handled = battlePetMgr->ApplyBattlePetTrapInput(battlePetMgr->GetActivePetBattle().RoundID,
-                round, finalRound);
-            sendRound = handled && finalRound.Pets.empty();
+                BattlePetInputEffectForAbility(battlePetMgr->GetTrapAbility()), round, finalRound);
+            sendRound = handled;
             sendFinal = handled && !finalRound.Pets.empty();
             break;
         default:
