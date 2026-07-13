@@ -352,12 +352,15 @@ namespace Skyfire::BattlePetPackets
         if (!turn.Accepted || !turn.HasRoundResult)
             return round;
 
+        AppendRoundCooldowns(round, turn);
+
         switch (turn.EffectKind)
         {
             case ACTIVE_PET_BATTLE_TURN_EFFECT_DAMAGE:
             {
                 BattlePetRoundResult damageRound = BuildDamageRoundResult(turn.RoundID, turn.CasterPet, turn.TargetPet,
                     int32(turn.RemainingHealth), abilityEffectId, turn.TargetDied);
+                damageRound.Cooldowns = round.Cooldowns;
                 if (turn.RequiresFrontPet)
                     damageRound.InputFlags[0] = BATTLE_PET_ROUND_INPUT_FLAG_SELECT_NEW_FRONT_PET;
 
@@ -371,6 +374,21 @@ namespace Skyfire::BattlePetPackets
         }
 
         return round;
+    }
+
+    void AppendRoundCooldowns(BattlePetRoundResult& round, ActivePetBattleTurn const& turn)
+    {
+        for (ActivePetBattleCooldown const& source : turn.Cooldowns)
+        {
+            BattlePetRoundCooldown cooldown;
+            cooldown.AbilityID = source.AbilityID;
+            cooldown.Cooldown = source.Cooldown;
+            cooldown.Lockdown = source.Lockdown;
+            cooldown.AbilitySlot = source.AbilitySlot;
+            cooldown.PetPBOID = source.PetPBOID;
+            cooldown.HasPetPBOID = true;
+            round.Cooldowns.push_back(cooldown);
+        }
     }
 
     void MarkRoundResultAsCatchOrKill(BattlePetRoundResult& round)
@@ -695,9 +713,24 @@ namespace Skyfire::BattlePetPackets
 
         data.WriteBit(!round.NextPetBattleState);
         data.WriteBits(round.DeadPets.size(), 3);
-        data.WriteBits(0, 20);                    // cooldown count
+        data.WriteBits(round.Cooldowns.size(), 20);
+
+        for (BattlePetRoundCooldown const& cooldown : round.Cooldowns)
+            data.WriteBit(!cooldown.HasPetPBOID);
 
         data.FlushBits();
+
+        for (BattlePetRoundCooldown const& cooldown : round.Cooldowns)
+        {
+            data << uint16(cooldown.Cooldown);
+            data << uint16(cooldown.Lockdown);
+            data << uint32(cooldown.AbilityID);
+            data << uint8(cooldown.AbilitySlot);
+
+            if (cooldown.HasPetPBOID)
+                data << uint8(cooldown.PetPBOID);
+        }
+
         for (BattlePetRoundEffect const& effect : round.Effects)
             WriteRoundEffectBytes(data, effect);
 

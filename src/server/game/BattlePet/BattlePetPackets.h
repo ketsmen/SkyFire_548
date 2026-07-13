@@ -130,6 +130,16 @@ namespace Skyfire::BattlePetPackets
         std::vector<BattlePetRoundEffectTarget> Targets;
     };
 
+    struct BattlePetRoundCooldown
+    {
+        uint32 AbilityID = 0;
+        uint16 Cooldown = 0;
+        uint16 Lockdown = 0;
+        uint8 AbilitySlot = 0;
+        uint8 PetPBOID = 0;
+        bool HasPetPBOID = true;
+    };
+
     struct BattlePetRoundResult
     {
         uint32 RoundID = 0;
@@ -138,6 +148,7 @@ namespace Skyfire::BattlePetPackets
         uint8 TrapStatus[2] = { 2, 2 };
         std::vector<BattlePetRoundEffect> Effects;
         std::vector<uint8> DeadPets;
+        std::vector<BattlePetRoundCooldown> Cooldowns;
     };
 
     enum BattlePetRoundInputFlag
@@ -186,6 +197,7 @@ namespace Skyfire::BattlePetPackets
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied);
     BattlePetRoundResult BuildRoundResultFromTurn(ActivePetBattleTurn const& turn, uint32 abilityEffectId);
+    void AppendRoundCooldowns(BattlePetRoundResult& round, ActivePetBattleTurn const& turn);
     void MarkRoundResultAsCatchOrKill(BattlePetRoundResult& round);
     BattlePetFinalRound BuildFinalRoundState(bool allyWon, bool abandoned,
         std::vector<BattlePetFinalRoundPet> const& pets);

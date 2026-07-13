@@ -1334,6 +1334,60 @@ namespace
         return passed;
     }
 
+    bool TestPetBattleRoundResultPacketWritesCooldowns()
+    {
+        bool passed = true;
+
+        Skyfire::BattlePetPackets::BattlePetRoundResult round;
+        round.RoundID = 8;
+
+        Skyfire::BattlePetPackets::BattlePetRoundCooldown cooldown;
+        cooldown.AbilityID = 1234;
+        cooldown.AbilitySlot = 1;
+        cooldown.PetPBOID = 0;
+        cooldown.Cooldown = 3;
+        cooldown.Lockdown = 0;
+        round.Cooldowns.push_back(cooldown);
+
+        WorldPacket packet = Skyfire::BattlePetPackets::BuildRoundResultPacket(round);
+
+        packet.rpos(0);
+        passed &= Expect(packet.ReadBits(22) == 0,
+            "Pet battle round result cooldown packet should still write an empty effect list");
+        packet.ReadBit(); // has next battle state
+        passed &= Expect(packet.ReadBits(3) == 0,
+            "Pet battle round result cooldown packet should write no dead pets");
+        passed &= Expect(packet.ReadBits(20) == 1,
+            "Pet battle round result packet should write cooldown count");
+        passed &= Expect(packet.ReadBit() == false,
+            "Pet battle round result cooldown should include the source pet index");
+
+        uint16 cooldownTurns = 0;
+        uint16 lockdownTurns = 1;
+        uint32 abilityId = 0;
+        uint8 abilitySlot = 0;
+        uint8 petPboid = 0;
+
+        packet >> cooldownTurns;
+        packet >> lockdownTurns;
+        packet >> abilityId;
+        packet >> abilitySlot;
+        packet >> petPboid;
+
+        passed &= Expect(cooldownTurns == 3,
+            "Pet battle round result cooldown should write remaining cooldown turns");
+        passed &= Expect(lockdownTurns == 0,
+            "Pet battle round result cooldown should write lockdown turns");
+        passed &= Expect(abilityId == 1234,
+            "Pet battle round result cooldown should write ability id");
+        passed &= Expect(abilitySlot == 1,
+            "Pet battle round result cooldown should write ability slot");
+        passed &= Expect(petPboid == 0,
+            "Pet battle round result cooldown should write source pet index");
+
+        return passed;
+    }
+
     bool TestPetBattleRoundResultPacketWritesDamageEffect()
     {
         bool passed = true;
@@ -1870,6 +1924,45 @@ namespace
         return passed;
     }
 
+    bool TestActivePetBattleAbilityCooldownBlocksOnlyUntilExpired()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 1400, 1200);
+
+        ActivePetBattleTurn first = battle.ApplyAbilityRound(0, 50, 1, 1234, 3);
+        passed &= Expect(first.Accepted,
+            "Active pet battle should accept an ability before its cooldown starts");
+        passed &= Expect(first.Cooldowns.size() == 1 && first.Cooldowns[0].Cooldown == 3,
+            "Active pet battle should report the full ability cooldown in the completed round");
+        passed &= Expect(battle.GetAllyAbilityCooldown(0, 1) == 2,
+            "Active pet battle should decrement the used ability cooldown after the round");
+
+        Skyfire::BattlePetPackets::BattlePetRoundResult firstRound =
+            Skyfire::BattlePetPackets::BuildRoundResultFromTurn(first, 77);
+        passed &= Expect(firstRound.Cooldowns.size() == 1 && firstRound.Cooldowns[0].AbilityID == 1234,
+            "Active pet battle damage round should preserve the ability cooldown from the completed turn");
+
+        ActivePetBattleTurn blocked = battle.ApplyAbilityRound(1, 50, 1, 1234, 3);
+        passed &= Expect(!blocked.Accepted,
+            "Active pet battle should reject an ability while its slot is cooling down");
+
+        ActivePetBattleTurn second = battle.ApplyAbilityRound(1, 50, 2, 5678, 0);
+        passed &= Expect(second.Accepted && battle.GetAllyAbilityCooldown(0, 1) == 1,
+            "Active pet battle should continue decrementing cooldowns after other accepted actions");
+
+        ActivePetBattleTurn third = battle.ApplyAbilityRound(2, 50, 2, 5678, 0);
+        passed &= Expect(third.Accepted && battle.GetAllyAbilityCooldown(0, 1) == 0,
+            "Active pet battle should expire cooldowns after enough accepted rounds");
+
+        ActivePetBattleTurn reused = battle.ApplyAbilityRound(3, 50, 1, 1234, 3);
+        passed &= Expect(reused.Accepted,
+            "Active pet battle should accept the ability again after cooldown expiration");
+
+        return passed;
+    }
+
     bool TestActivePetBattleRejectsStaleRoundInput()
     {
         bool passed = true;
@@ -2303,6 +2396,7 @@ int main()
     passed &= TestPetBattleRequestUpdateReadsGuidAndCancelled();
     passed &= TestPetBattleFinishedPacketIsEmpty();
     passed &= TestPetBattleRoundResultPacketWritesEmptyRound();
+    passed &= TestPetBattleRoundResultPacketWritesCooldowns();
     passed &= TestPetBattleRoundResultPacketWritesDamageEffect();
     passed &= TestPetBattleDamageRoundHelperMarksDeadTarget();
     passed &= TestPetBattleSwapEffectHelperSelectsNewFrontPet();
@@ -2321,6 +2415,7 @@ int main()
     passed &= TestActivePetBattleFindsAllyPetHealthByPetId();
     passed &= TestActivePetBattleAdvanceRoundStopsAfterFinished();
     passed &= TestActivePetBattleAbilityTurnBuildsRoundAndFinalState();
+    passed &= TestActivePetBattleAbilityCooldownBlocksOnlyUntilExpired();
     passed &= TestActivePetBattleRejectsStaleRoundInput();
     passed &= TestActivePetBattleSwapTurnSelectsNewFrontPet();
     passed &= TestActivePetBattleForfeitFinishesForEnemy();

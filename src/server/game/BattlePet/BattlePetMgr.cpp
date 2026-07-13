@@ -811,10 +811,12 @@ bool BattlePetMgr::ApplyEnemyBattlePetDamage(uint32 damage, uint32 abilityEffect
 }
 
 bool BattlePetMgr::ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uint32 abilityEffectId,
+    uint8 abilitySlot, uint32 abilityId, uint16 abilityCooldown,
     Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
 {
-    ActivePetBattleTurn const turn = m_activePetBattle.ApplyAbilityRound(roundId, damage);
+    ActivePetBattleTurn const turn = m_activePetBattle.ApplyAbilityRound(roundId, damage,
+        abilitySlot, abilityId, abilityCooldown);
     if (!turn.Accepted || !turn.HasRoundResult)
         return false;
 
@@ -832,19 +834,22 @@ bool BattlePetMgr::ApplyBattlePetAbilityInput(uint32 roundId, uint32 damage, uin
 
 bool BattlePetMgr::ApplyBattlePetAbilityExchangeInput(uint32 roundId,
     uint32 allyDamage, uint32 allyAbilityEffectId,
+    uint8 allyAbilitySlot, uint32 allyAbilityId, uint16 allyAbilityCooldown,
     uint32 enemyDamage, uint32 enemyAbilityEffectId,
     Skyfire::BattlePetPackets::BattlePetRoundResult& round,
     Skyfire::BattlePetPackets::BattlePetFinalRound* finalRound)
 {
     ActivePetBattleTurn allyTurn;
     ActivePetBattleTurn enemyTurn;
-    if (!m_activePetBattle.ApplyAbilityExchange(roundId, allyDamage, enemyDamage, allyTurn, enemyTurn))
+    if (!m_activePetBattle.ApplyAbilityExchange(roundId, allyDamage, enemyDamage,
+        allyAbilitySlot, allyAbilityId, allyAbilityCooldown, allyTurn, enemyTurn))
         return false;
 
     if (!allyTurn.Accepted || !allyTurn.HasRoundResult)
         return false;
 
     round.RoundID = roundId;
+    Skyfire::BattlePetPackets::AppendRoundCooldowns(round, allyTurn);
     round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
         allyTurn.CasterPet, allyTurn.TargetPet, int32(allyTurn.RemainingHealth), allyAbilityEffectId, 1));
 
@@ -911,6 +916,7 @@ bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEff
         return false;
 
     round.RoundID = trapTurn.RoundID;
+    Skyfire::BattlePetPackets::AppendRoundCooldowns(round, trapTurn);
     round.Effects.push_back(Skyfire::BattlePetPackets::BuildCatchEffect(m_activePetBattle.AllyFrontPet,
         m_activePetBattle.EnemyFrontPet, trapAbilityEffectId, trapTurn.Captured, 1));
     if (trapTurn.Captured)

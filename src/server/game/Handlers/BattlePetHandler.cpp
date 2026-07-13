@@ -218,6 +218,27 @@ namespace
         return GetActiveBattlePet(*opponentBattlePetMgr);
     }
 
+    uint8 BattlePetActiveAbilitySlot(BattlePet const* battlePet, uint32 abilityId)
+    {
+        if (!battlePet || !abilityId)
+            return BATTLE_PET_ABILITY_SLOT_INVALID;
+
+        for (uint8 slot = 0; slot < BATTLE_PET_ABILITY_SLOT_COUNT; ++slot)
+            if (BattlePetGetSpeciesAbility(battlePet->GetSpecies(), slot, battlePet->GetFlags(), battlePet->GetLevel()) == abilityId)
+                return slot;
+
+        return BATTLE_PET_ABILITY_SLOT_INVALID;
+    }
+
+    uint16 BattlePetAbilityCooldown(uint32 abilityId)
+    {
+        BattlePetAbilityEntry const* abilityEntry = sBattlePetAbilityStore.LookupEntry(abilityId);
+        if (!abilityEntry)
+            return 0;
+
+        return uint16(abilityEntry->Cooldown);
+    }
+
     uint32 BattlePetInputEffectForAbility(uint32 abilityId)
     {
         std::pair<BattlePetAbilityTurnByAbilityStore::const_iterator, BattlePetAbilityTurnByAbilityStore::const_iterator> turnRange =
@@ -1577,6 +1598,9 @@ void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
             uint32 const enemyDamage = enemyBattlePet
                 ? BattlePetInputDamageForAbility(enemyAbilityId, enemyBattlePet)
                 : BattlePetInputDamageForEnemyAbility(enemyAbilityId, activeBattle);
+            uint8 const allyAbilitySlot = BattlePetActiveAbilitySlot(allyBattlePet, command.AbilityID);
+            if (allyAbilitySlot == BATTLE_PET_ABILITY_SLOT_INVALID)
+                return;
 
             if (activeBattle.IsPvP())
                 pvpFinalOpponentGuid = activeBattle.EnemyGUID;
@@ -1584,6 +1608,7 @@ void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
             handled = battlePetMgr->ApplyBattlePetAbilityExchangeInput(roundId,
                 BattlePetInputDamageForAbility(command.AbilityID, allyBattlePet),
                 BattlePetInputEffectForAbility(command.AbilityID),
+                allyAbilitySlot, command.AbilityID, BattlePetAbilityCooldown(command.AbilityID),
                 enemyDamage,
                 BattlePetInputEffectForAbility(enemyAbilityId), round, &finalRound);
             sendRound = handled;
