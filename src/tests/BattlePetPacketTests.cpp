@@ -1774,6 +1774,31 @@ namespace
         return passed;
     }
 
+    bool TestActivePetBattleDeadPetReplacementClearsWait()
+    {
+        bool passed = true;
+
+        ActivePetBattle battle;
+        battle.StartWild(0x100, 0x200, 500, 450, 0x300, 700, 620);
+        battle.SetAllyPet(1, 0x201, 600, 540);
+
+        ActivePetBattleTurn deathTurn = battle.ApplyEnemyAbilityRound(0, 500);
+        ActivePetBattleTurn swapTurn = battle.ApplySwapRound(1, 1);
+
+        passed &= Expect(deathTurn.Accepted && deathTurn.RequiresFrontPet,
+            "Enemy ability turn should request replacement after defeating the active ally pet");
+        passed &= Expect(swapTurn.Accepted && swapTurn.HasRoundResult,
+            "Dead-pet replacement swap should accept the next round input");
+        passed &= Expect(!battle.WaitingForAllyFrontPet,
+            "Dead-pet replacement swap should clear the replacement wait");
+        passed &= Expect(battle.AllyFrontPet == 1 && battle.AllyPetID == 0x201 && battle.AllyHealth == 540,
+            "Dead-pet replacement swap should activate the selected live pet");
+        passed &= Expect(battle.RoundID == 2,
+            "Dead-pet replacement swap should advance the round after selection");
+
+        return passed;
+    }
+
     bool TestActivePetBattleFindsAllyPetHealthByPetId()
     {
         bool passed = true;
@@ -2235,6 +2260,7 @@ int main()
     passed &= TestActivePetBattleAllyDeathRequiresReplacementWhenBackupAlive();
     passed &= TestActivePetBattleAllyDeathFinishesWhenNoBackupAlive();
     passed &= TestActivePetBattleEnemyAbilityTurnRequiresReplacement();
+    passed &= TestActivePetBattleDeadPetReplacementClearsWait();
     passed &= TestActivePetBattleFindsAllyPetHealthByPetId();
     passed &= TestActivePetBattleAdvanceRoundStopsAfterFinished();
     passed &= TestActivePetBattleAbilityTurnBuildsRoundAndFinalState();

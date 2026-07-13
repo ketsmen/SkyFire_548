@@ -1651,12 +1651,23 @@ void WorldSession::HandleBattlePetInputFirstPet(WorldPacket& recvData)
     if (!battlePetMgr->HasActivePetBattle())
         return;
 
+    ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+    if (activeBattle.WaitingForAllyFrontPet)
+    {
+        Skyfire::BattlePetPackets::BattlePetRoundResult round;
+        if (!battlePetMgr->ApplyBattlePetSwapInput(activeBattle.RoundID, selection.PetID, round))
+            return;
+
+        SendBattlePetRoundResult(*player, round);
+        return;
+    }
+
     if (!battlePetMgr->SelectActivePetBattleFrontPet(selection.PetID))
         return;
 
-    ActivePetBattle const& activeBattle = battlePetMgr->GetActivePetBattle();
+    ActivePetBattle const& selectedBattle = battlePetMgr->GetActivePetBattle();
     WorldPacket firstRound = Skyfire::BattlePetPackets::BuildFirstRoundPacket(
-        activeBattle.RoundID, activeBattle.AllyFrontPet, activeBattle.EnemyFrontPet,
+        selectedBattle.RoundID, selectedBattle.AllyFrontPet, selectedBattle.EnemyFrontPet,
         battlePetMgr->GetActivePetBattleTrapStatus(), PET_BATTLE_TRAP_STATUS_UNAVAILABLE);
     player->SendDirectMessage(&firstRound);
 }

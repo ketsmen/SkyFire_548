@@ -261,6 +261,7 @@ struct ActivePetBattle
         turn.TargetPet = newFrontPet;
 
         AllyFrontPet = newFrontPet;
+        WaitingForAllyFrontPet = false;
         SyncActiveAllyPet();
         AdvanceRound();
         return turn;
