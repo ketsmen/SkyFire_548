@@ -186,20 +186,24 @@ namespace
         return damageEffect ? damageEffect->PropertyValues[0] : 0;
     }
 
+    uint32 BattlePetScalePointsFromStats(uint32 points, uint16 power, uint8 level)
+    {
+        if (!points)
+            return 0;
+
+        uint32 const safeLevel = std::max<uint32>(level, 1);
+        uint32 const safePower = std::max<uint32>(power, safeLevel * 8);
+        uint32 const powerBonusPct = (safePower * 5) / 100;
+        uint32 const scaledPoints = points + ((points * powerBonusPct) / 100);
+        return std::max<uint32>(1, scaledPoints);
+    }
+
     uint32 BattlePetDamageFromStats(uint32 abilityId, uint16 power, uint8 level)
     {
         if (!abilityId)
             return 0;
 
-        uint32 const safeLevel = std::max<uint32>(level, 1);
-        uint32 const safePower = std::max<uint32>(power, safeLevel * 8);
-        uint32 const abilityPoints = BattlePetAbilityBasePoints(abilityId);
-        if (!abilityPoints)
-            return 0;
-
-        uint32 const powerBonusPct = (safePower * 5) / 100;
-        uint32 const scaledDamage = abilityPoints + ((abilityPoints * powerBonusPct) / 100);
-        return std::max<uint32>(1, scaledDamage);
+        return BattlePetScalePointsFromStats(BattlePetAbilityBasePoints(abilityId), power, level);
     }
 
     uint16 BattlePetPowerFromBattleState(uint16 species, uint8 level, uint8 quality, uint8 breed)
@@ -232,6 +236,62 @@ namespace
         uint16 const power = BattlePetPowerFromBattleState(activeBattle.EnemySpecies,
             activeBattle.EnemyLevel, activeBattle.EnemyQuality, activeBattle.EnemyBreed);
         return BattlePetDamageFromStats(abilityId, power, activeBattle.EnemyLevel);
+    }
+
+    int32 BattlePetAbilityStateValue(uint32 abilityId, uint32 stateId)
+    {
+        for (uint32 i = 0; i < sBattlePetAbilityStateStore.GetNumRows(); ++i)
+        {
+            BattlePetAbilityStateEntry const* stateEntry = sBattlePetAbilityStateStore.LookupEntry(i);
+            if (stateEntry && stateEntry->AbilityId == abilityId && stateEntry->StateId == stateId)
+                return int32(stateEntry->Value);
+        }
+
+        return 0;
+    }
+
+    uint32 BattlePetIncomingDamageReductionFromStats(uint32 abilityId, uint16 power, uint8 level)
+    {
+        BattlePetAbilityEntry const* abilityEntry = sBattlePetAbilityStore.LookupEntry(abilityId);
+        if (!abilityEntry || !abilityEntry->AuraAbilityId)
+            return 0;
+
+        int32 const stateValue = BattlePetAbilityStateValue(
+            abilityEntry->AuraAbilityId, BATTLE_PET_STATE_DAMAGE_TAKEN_FLAT);
+        if (stateValue >= 0)
+            return 0;
+
+        return BattlePetScalePointsFromStats(uint32(std::abs(stateValue)), power, level);
+    }
+
+    uint8 BattlePetIncomingDamageReductionRounds(uint32 abilityId)
+    {
+        BattlePetAbilityEntry const* abilityEntry = sBattlePetAbilityStore.LookupEntry(abilityId);
+        if (!abilityEntry || !abilityEntry->AuraAbilityId)
+            return 0;
+
+        return uint8(std::min<uint32>(abilityEntry->AuraDuration, 255));
+    }
+
+    uint32 BattlePetInputIncomingDamageReductionForAbility(uint32 abilityId, BattlePet const* caster)
+    {
+        if (!abilityId)
+            return 0;
+
+        if (!caster)
+            return BattlePetIncomingDamageReductionFromStats(abilityId, 0, 1);
+
+        return BattlePetIncomingDamageReductionFromStats(abilityId, caster->GetPower(), caster->GetLevel());
+    }
+
+    uint32 BattlePetInputIncomingDamageReductionForEnemyAbility(uint32 abilityId, ActivePetBattle const& activeBattle)
+    {
+        if (!abilityId)
+            return 0;
+
+        uint16 const power = BattlePetPowerFromBattleState(activeBattle.EnemySpecies,
+            activeBattle.EnemyLevel, activeBattle.EnemyQuality, activeBattle.EnemyBreed);
+        return BattlePetIncomingDamageReductionFromStats(abilityId, power, activeBattle.EnemyLevel);
     }
 
     BattlePet const* GetActiveBattlePet(BattlePetMgr const& battlePetMgr)
@@ -1642,7 +1702,14 @@ void WorldSession::HandleBattlePetInput(WorldPacket& recvData)
                 BattlePetInputEffectForAbility(command.AbilityID),
                 allyAbilitySlot, command.AbilityID, BattlePetAbilityCooldown(command.AbilityID),
                 enemyDamage,
-                BattlePetInputEffectForAbility(enemyAbilityId), round, &finalRound);
+                BattlePetInputEffectForAbility(enemyAbilityId),
+                BattlePetInputIncomingDamageReductionForAbility(command.AbilityID, allyBattlePet),
+                BattlePetIncomingDamageReductionRounds(command.AbilityID),
+                enemyBattlePet
+                    ? BattlePetInputIncomingDamageReductionForAbility(enemyAbilityId, enemyBattlePet)
+                    : BattlePetInputIncomingDamageReductionForEnemyAbility(enemyAbilityId, activeBattle),
+                BattlePetIncomingDamageReductionRounds(enemyAbilityId),
+                round, &finalRound);
             sendRound = handled;
             sendFinal = !finalRound.Pets.empty();
             break;
