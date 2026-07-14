@@ -14,15 +14,17 @@
 #include "ObjectMgr.h"
 #include "SharedDefines.h"
 
+#include <cstdlib>
+
 namespace
 {
     uint32 const BattlePetSpawnMgrUpdateInterval = 2 * IN_MILLISECONDS;
 
     int32 BattlePetWildPoolMapForZone(uint32 zoneId)
     {
-        for (uint32 i = 0; i < sAreaTableStore.GetNumRows(); ++i)
+        for (uint32 i = 0; i < sAreaStore.GetNumRows(); ++i)
         {
-            AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(i);
+            AreaTableEntry const* areaEntry = sAreaStore.LookupEntry(i);
             if (areaEntry && areaEntry->m_ID == zoneId)
                 return int32(areaEntry->m_ContinentID);
         }
@@ -38,7 +40,7 @@ namespace
         if (!maxLevel || maxLevel < minLevel)
             maxLevel = minLevel;
 
-        return urand(minLevel, maxLevel);
+        return minLevel + uint8(std::rand() % (maxLevel - minLevel + 1));
     }
 }
 
@@ -331,7 +333,7 @@ void BattlePetWildZonePool::SpawnReplacement(uint64 originalGuid, BattlePetWildP
         return;
     }
 
-    original->ForcedDespawn();
+    original->DespawnOrUnsummon();
     original->SetRespawnTime(MONTH);
     original->RemoveCorpse(false);
 
