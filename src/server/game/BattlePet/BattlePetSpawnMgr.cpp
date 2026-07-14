@@ -42,6 +42,14 @@ namespace
 
         return minLevel + uint8(std::rand() % (maxLevel - minLevel + 1));
     }
+
+    uint32 BattlePetWildPoolZoneForCreature(Creature const* creature)
+    {
+        if (!creature || !creature->GetMap())
+            return 0;
+
+        return creature->GetMap()->GetZoneId(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ());
+    }
 }
 
 BattlePetSpawnMgr* BattlePetSpawnMgr::instance()
@@ -176,7 +184,11 @@ BattlePetWildZonePool* BattlePetSpawnMgr::GetZonePool(Creature const* creature)
     if (mapItr == _mapPools.end())
         return NULL;
 
-    BattlePetZonePoolMap::iterator zoneItr = mapItr->second.find(creature->GetZoneId());
+    uint32 const zoneId = BattlePetWildPoolZoneForCreature(creature);
+    if (!zoneId)
+        return NULL;
+
+    BattlePetZonePoolMap::iterator zoneItr = mapItr->second.find(zoneId);
     if (zoneItr == mapItr->second.end())
         return NULL;
 
@@ -192,7 +204,11 @@ BattlePetWildZonePool const* BattlePetSpawnMgr::GetZonePool(Creature const* crea
     if (mapItr == _mapPools.end())
         return NULL;
 
-    BattlePetZonePoolMap::const_iterator zoneItr = mapItr->second.find(creature->GetZoneId());
+    uint32 const zoneId = BattlePetWildPoolZoneForCreature(creature);
+    if (!zoneId)
+        return NULL;
+
+    BattlePetZonePoolMap::const_iterator zoneItr = mapItr->second.find(zoneId);
     if (zoneItr == mapItr->second.end())
         return NULL;
 
