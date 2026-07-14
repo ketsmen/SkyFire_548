@@ -1879,6 +1879,9 @@ void World::SetInitialWorldSettings()
     SF_LOG_INFO("server.loading", "Loading Battle Pet quality data...");
     sObjectMgr->LoadBattlePetQualityData();
 
+    SF_LOG_INFO("server.loading", "Loading Battle Pet item to species data...");
+    sObjectMgr->LoadBattlePetItemToSpeciesData();
+
     SF_LOG_INFO("server.loading", "Loading Battle Pet wild pools...");
     sBattlePetSpawnMgr->LoadFromDB();
 
