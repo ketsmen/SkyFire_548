@@ -15,6 +15,7 @@
 #include "BattlefieldMgr.h"
 #include "BattlegroundMgr.h"
 #include "BattlePetMgr.h"
+#include "BattlePetSpawnMgr.h"
 #include "BlackMarketMgr.h"
 #include "CalendarMgr.h"
 #include "CellImpl.h"
@@ -1114,6 +1115,13 @@ void World::LoadConfigSettings(bool reload)
         setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_INITIAL_LEVEL, 1);
     }
 
+    setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT, sConfigMgr->GetIntDefault("BattlePet.WildSpawnMinCount", 5));
+    if (getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT) > 255)
+    {
+        SF_LOG_ERROR("server.loading", "BattlePet.WildSpawnMinCount (%i) can't be loaded. Set to 5.", getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT));
+        setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT, 5);
+    }
+
     // blackmarket
     SetBoolConfig(WorldBoolConfigs::CONFIG_BLACK_MARKET_OPEN, sConfigMgr->GetBoolDefault("BlackMarket.Open", false));
     setIntConfig(WorldIntConfigs::CONFIG_BLACK_MARKET_MAX_AUCTIONS, sConfigMgr->GetIntDefault("BlackMarket.MaxAuctions", 12));
@@ -1878,6 +1886,11 @@ void World::SetInitialWorldSettings()
     SF_LOG_INFO("server.loading", "Loading Battle Pet quality data...");
     sObjectMgr->LoadBattlePetQualityData();
 
+    SF_LOG_INFO("server.loading", "Loading Battle Pet item to species data...");
+    sObjectMgr->LoadBattlePetItemToSpeciesData();
+
+    SF_LOG_INFO("server.loading", "Loading Battle Pet wild pools...");
+    sBattlePetSpawnMgr->LoadFromDB();
 
     SF_LOG_INFO("server.loading", "Loading Cinematic path ...");
     sCinematicSequenceMgr->Load();
@@ -2127,6 +2140,8 @@ void World::Update(uint32 diff)
 
     if (m_gameTime > m_NextCurrencyReset)
         ResetCurrencyWeekCap();
+
+    sBattlePetSpawnMgr->Update(diff);
 
     /// <ul><li> Handle auctions when the timer has passed
     if (m_timers[WUPDATE_BLACK_MARKET].Passed())

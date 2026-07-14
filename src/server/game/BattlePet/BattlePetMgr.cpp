@@ -5,6 +5,7 @@
 
 #include "BattlePetMgr.h"
 #include "BattlePetPackets.h"
+#include "BattlePetSpawnMgr.h"
 #include "ByteBuffer.h"
 #include "Common.h"
 #include "Creature.h"
@@ -755,7 +756,15 @@ void BattlePetMgr::DespawnResolvedWildPetBattleWorldObject()
     uint64 const worldObjectGuid = m_activePetBattle.EnemyGUID;
     if (Creature* creature = ObjectAccessor::GetCreature(*m_owner, worldObjectGuid))
     {
-        if (creature->ToTempSummon())
+        if (sBattlePetSpawnMgr->ResolveWildBattle(creature))
+        {
+            if (m_activePetBattleWorldObjectGuid == worldObjectGuid)
+            {
+                m_activePetBattleWorldObjectGuid = 0;
+                m_activePetBattleWorldObjectHidden = false;
+            }
+        }
+        else if (creature->ToTempSummon())
             creature->DespawnOrUnsummon();
         else
         {
