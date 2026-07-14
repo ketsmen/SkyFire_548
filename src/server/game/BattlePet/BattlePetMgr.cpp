@@ -882,12 +882,12 @@ bool BattlePetMgr::ApplyBattlePetAbilityExchangeInput(uint32 roundId,
 
     round.RoundID = roundId;
     Skyfire::BattlePetPackets::AppendRoundCooldowns(round, allyTurn);
-    round.Effects.push_back(Skyfire::BattlePetPackets::BuildAbilityEffect(
+    round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
         allyTurn.CasterPet, allyTurn.TargetPet, int32(allyTurn.RemainingHealth), allyAbilityEffectId, 1));
 
     if (enemyTurn.Accepted && enemyTurn.HasRoundResult)
     {
-        round.Effects.push_back(Skyfire::BattlePetPackets::BuildAbilityEffect(
+        round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
             enemyTurn.CasterPet, enemyTurn.TargetPet, int32(enemyTurn.RemainingHealth), enemyAbilityEffectId, 2));
 
         if (enemyTurn.RequiresFrontPet)
@@ -955,7 +955,7 @@ bool BattlePetMgr::ApplyBattlePetTrapInput(uint32 roundId, uint32 trapAbilityEff
         Skyfire::BattlePetPackets::MarkRoundResultAsCatchOrKill(round);
     else if (enemyTurn.Accepted && enemyTurn.HasRoundResult)
     {
-        round.Effects.push_back(Skyfire::BattlePetPackets::BuildAbilityEffect(
+        round.Effects.push_back(Skyfire::BattlePetPackets::BuildDamageEffect(
             enemyTurn.CasterPet, enemyTurn.TargetPet, int32(enemyTurn.RemainingHealth), enemyAbilityEffectId, 2));
 
         if (enemyTurn.TargetDied)

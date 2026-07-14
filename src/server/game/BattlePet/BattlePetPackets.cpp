@@ -29,7 +29,6 @@ namespace Skyfire::BattlePetPackets
         uint16 constexpr PetBattleEffectFlagMiss = 0x0002;
         uint8 constexpr PetBattleRoundResultNormal = 2;
         uint8 constexpr PetBattleRoundResultCatchOrKill = 3;
-        uint32 constexpr BattlePetEffectPositiveAura = 26;
 
         void WriteRoundEffectBits(WorldPacket& data, BattlePetRoundEffect const& effect)
         {
@@ -292,12 +291,6 @@ namespace Skyfire::BattlePetPackets
         return effect;
     }
 
-    bool AbilityEffectIsAura(uint32 abilityEffectId)
-    {
-        BattlePetAbilityEffectEntry const* abilityEffect = sBattlePetAbilityEffectStore.LookupEntry(abilityEffectId);
-        return abilityEffect && abilityEffect->PropertiesId == BattlePetEffectPositiveAura;
-    }
-
     BattlePetRoundEffect BuildDamageEffect(uint8 casterPet, uint8 targetPet, int32 remainingHealth,
         uint32 abilityEffectId, uint16 turnInstanceId)
     {
@@ -315,32 +308,6 @@ namespace Skyfire::BattlePetPackets
         effect.Targets.push_back(target);
 
         return effect;
-    }
-
-    BattlePetRoundEffect BuildAuraEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
-        uint16 turnInstanceId)
-    {
-        BattlePetRoundEffectTarget target;
-        target.PetX = targetPet;
-        target.Type = PetBattleEffectTargetAura;
-
-        BattlePetRoundEffect effect;
-        effect.CasterPBOID = casterPet;
-        effect.TurnInstanceID = turnInstanceId;
-        effect.StackDepth = 1;
-        effect.AbilityEffectID = abilityEffectId;
-        effect.Targets.push_back(target);
-
-        return effect;
-    }
-
-    BattlePetRoundEffect BuildAbilityEffect(uint8 casterPet, uint8 targetPet, int32 remainingHealth,
-        uint32 abilityEffectId, uint16 turnInstanceId)
-    {
-        if (AbilityEffectIsAura(abilityEffectId))
-            return BuildAuraEffect(casterPet, targetPet, abilityEffectId, turnInstanceId);
-
-        return BuildDamageEffect(casterPet, targetPet, remainingHealth, abilityEffectId, turnInstanceId);
     }
 
     BattlePetRoundEffect BuildCatchEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
@@ -367,7 +334,7 @@ namespace Skyfire::BattlePetPackets
     void AppendDamageRoundEffect(BattlePetRoundResult& round, uint8 casterPet, uint8 targetPet,
         int32 remainingHealth, uint32 abilityEffectId, bool targetDied)
     {
-        round.Effects.push_back(BuildAbilityEffect(casterPet, targetPet, remainingHealth, abilityEffectId));
+        round.Effects.push_back(BuildDamageEffect(casterPet, targetPet, remainingHealth, abilityEffectId));
 
         if (targetDied)
             round.DeadPets.push_back(targetPet);

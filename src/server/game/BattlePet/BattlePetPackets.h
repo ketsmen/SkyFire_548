@@ -192,8 +192,6 @@ namespace Skyfire::BattlePetPackets
     BattlePetRoundEffect BuildPetSwapEffect(uint8 casterPet, uint8 targetPet);
     BattlePetRoundEffect BuildDamageEffect(uint8 casterPet, uint8 targetPet, int32 remainingHealth,
         uint32 abilityEffectId, uint16 turnInstanceId = 1);
-    BattlePetRoundEffect BuildAbilityEffect(uint8 casterPet, uint8 targetPet, int32 remainingHealth,
-        uint32 abilityEffectId, uint16 turnInstanceId = 1);
     BattlePetRoundEffect BuildCatchEffect(uint8 casterPet, uint8 targetPet, uint32 abilityEffectId,
         bool captured, uint16 turnInstanceId = 1);
     BattlePetRoundResult BuildDamageRoundResult(uint32 roundId, uint8 casterPet, uint8 targetPet,
