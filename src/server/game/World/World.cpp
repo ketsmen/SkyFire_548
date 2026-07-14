@@ -759,7 +759,7 @@ void World::LoadConfigSettings(bool reload)
         setIntConfig(WorldIntConfigs::CONFIG_MAX_PLAYER_LEVEL, MAX_LEVEL);
     }
 
-    setIntConfig(WorldIntConfigs::CONFIG_MIN_DUALSPEC_LEVEL, sConfigMgr->GetIntDefault("MinDualSpecLevel", 40));
+    setIntConfig(WorldIntConfigs::CONFIG_MIN_DUALSPEC_LEVEL, sConfigMgr->GetIntDefault("MinDualSpecLevel", 30));
 
     setIntConfig(WorldIntConfigs::CONFIG_START_PLAYER_LEVEL, sConfigMgr->GetIntDefault("StartPlayerLevel", 1));
     if (getIntConfig(WorldIntConfigs::CONFIG_START_PLAYER_LEVEL) < 1)
