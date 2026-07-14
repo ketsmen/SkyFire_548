@@ -13,6 +13,7 @@
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "SharedDefines.h"
+#include "World.h"
 
 #include <cstdlib>
 
@@ -41,6 +42,18 @@ namespace
             maxLevel = minLevel;
 
         return minLevel + uint8(std::rand() % (maxLevel - minLevel + 1));
+    }
+
+    uint8 BattlePetWildPoolMaxCount(uint8 databaseMax)
+    {
+        if (!databaseMax)
+            return 0;
+
+        uint32 const configuredMin = sWorld->getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT);
+        if (!configuredMin || databaseMax >= configuredMin)
+            return databaseMax;
+
+        return uint8(configuredMin > 255 ? 255 : configuredMin);
     }
 
     uint32 BattlePetWildPoolZoneForCreature(Creature const* creature)
@@ -112,7 +125,7 @@ void BattlePetSpawnMgr::LoadFromDB()
         BattlePetWildPoolTemplate spawnTemplate;
         spawnTemplate.Species = species;
         spawnTemplate.Entry = entry;
-        spawnTemplate.Max = max;
+        spawnTemplate.Max = BattlePetWildPoolMaxCount(max);
         spawnTemplate.MinLevel = minLevel ? minLevel : 1;
         spawnTemplate.MaxLevel = maxLevel >= spawnTemplate.MinLevel ? maxLevel : spawnTemplate.MinLevel;
 

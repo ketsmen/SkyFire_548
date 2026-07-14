@@ -1115,6 +1115,13 @@ void World::LoadConfigSettings(bool reload)
         setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_INITIAL_LEVEL, 1);
     }
 
+    setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT, sConfigMgr->GetIntDefault("BattlePet.WildSpawnMinCount", 5));
+    if (getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT) > 255)
+    {
+        SF_LOG_ERROR("server.loading", "BattlePet.WildSpawnMinCount (%i) can't be loaded. Set to 5.", getIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT));
+        setIntConfig(WorldIntConfigs::CONFIG_BATTLE_PET_WILD_SPAWN_MIN_COUNT, 5);
+    }
+
     // blackmarket
     SetBoolConfig(WorldBoolConfigs::CONFIG_BLACK_MARKET_OPEN, sConfigMgr->GetBoolDefault("BlackMarket.Open", false));
     setIntConfig(WorldIntConfigs::CONFIG_BLACK_MARKET_MAX_AUCTIONS, sConfigMgr->GetIntDefault("BlackMarket.MaxAuctions", 12));
