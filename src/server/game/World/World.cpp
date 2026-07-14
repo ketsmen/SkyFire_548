@@ -15,6 +15,7 @@
 #include "BattlefieldMgr.h"
 #include "BattlegroundMgr.h"
 #include "BattlePetMgr.h"
+#include "BattlePetSpawnMgr.h"
 #include "BlackMarketMgr.h"
 #include "CalendarMgr.h"
 #include "CellImpl.h"
@@ -1878,6 +1879,8 @@ void World::SetInitialWorldSettings()
     SF_LOG_INFO("server.loading", "Loading Battle Pet quality data...");
     sObjectMgr->LoadBattlePetQualityData();
 
+    SF_LOG_INFO("server.loading", "Loading Battle Pet wild pools...");
+    sBattlePetSpawnMgr->LoadFromDB();
 
     SF_LOG_INFO("server.loading", "Loading Cinematic path ...");
     sCinematicSequenceMgr->Load();
@@ -2127,6 +2130,8 @@ void World::Update(uint32 diff)
 
     if (m_gameTime > m_NextCurrencyReset)
         ResetCurrencyWeekCap();
+
+    sBattlePetSpawnMgr->Update(diff);
 
     /// <ul><li> Handle auctions when the timer has passed
     if (m_timers[WUPDATE_BLACK_MARKET].Passed())
